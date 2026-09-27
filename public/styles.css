@@ -7,7 +7,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
+  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.2.0.16") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -16,7 +16,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
+  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.2.0.16") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -25,7 +25,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.2.0.16") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -34,7 +34,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.2.0.16") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -8954,7 +8954,7 @@ details.sync-tool-details[open] > summary {
   align-items: center;
   gap: var(--space-2);
   padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
@@ -21185,6 +21185,7 @@ html.light-mode button.shared-media-card-rating--action {
 
 .personal-media-list-row .shared-media-card--personal .shared-media-card-actions {
   display: grid;
+  width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
   margin-top: auto;
@@ -21196,6 +21197,54 @@ html.light-mode button.shared-media-card-rating--action {
   width: 100%;
   padding: 0.3rem 0.55rem;
   font-size: 0.72rem;
+}
+
+/* One segmented "< Move >" pill, centred at the bottom of the card. */
+.page-shell .personal-media-list-row .shared-media-card--personal .shared-media-card-actions .playlist-move-control {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: stretch;
+  justify-self: center;
+  overflow: hidden;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text, #fff) 5%, transparent);
+  white-space: nowrap;
+}
+
+.page-shell .personal-media-list-row .shared-media-card--personal .shared-media-card-actions .playlist-move-control .playlist-move {
+  width: auto;
+  min-width: 2rem;
+  min-height: 1.75rem;
+  padding: 0 0.55rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.page-shell .personal-media-list-row .shared-media-card--personal .shared-media-card-actions .playlist-move-control .playlist-move:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent, var(--yellow)) 18%, transparent);
+  color: var(--accent, var(--yellow));
+}
+
+.page-shell .personal-media-list-row .shared-media-card--personal .shared-media-card-actions .playlist-move-control .playlist-move:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.playlist-move-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-inline: 1px solid var(--line-strong, var(--line));
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .personal-media-list-heading {
@@ -21223,12 +21272,998 @@ html.light-mode button.shared-media-card-rating--action {
   white-space: nowrap;
 }
 
-.personal-media-list-heading .personal-media-delete-list {
+/* Playlists: the Options menu (Info, Refresh now, Edit, Stop updating, Delete). */
+.playlist-options {
+  position: relative;
   flex: 0 0 auto;
+}
+
+.playlist-options > summary {
+  display: inline-flex;
+  align-items: center;
   min-height: 1.8rem;
-  margin-left: auto;
   padding: 0.28rem 0.55rem;
+  cursor: pointer;
   font-size: 0.7rem;
+  list-style: none;
+}
+
+.playlist-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.playlist-options-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  display: grid;
+  min-width: 10rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.playlist-options-item {
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.playlist-options-item:hover,
+.playlist-options-item:focus-visible {
+  background: var(--surface-hover);
+}
+
+.playlist-options-item:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.playlist-options-item--danger {
+  color: var(--red, #e5484d);
+}
+
+/* The rule in full, in the Info pop-up. */
+.playlist-rule-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.45rem 1rem;
+  margin: 0 0 var(--space-3, 0.75rem);
+  font-size: 0.85rem;
+}
+
+.playlist-rule-info dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.playlist-rule-info dd {
+  margin: 0;
+  color: var(--text);
+}
+
+/* Left of the title while the rule is checked. */
+.personal-media-list-heading .playlist-refresh-indicator {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: remote-search-spin 0.8s linear infinite;
+}
+
+.personal-media-list-heading .playlist-refresh-indicator[hidden] {
+  display: none;
+}
+
+/* Playlists: app badges, reorder, missing notes, held changes, Recently deleted. */
+.playlist-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.playlist-provider-icons {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.playlist-provider-icon {
+  position: relative;
+}
+
+.playlist-provider-icon--pending img {
+  opacity: 0.45;
+}
+
+.playlist-provider-icon:is(.playlist-provider-icon--error, .playlist-provider-icon--missing)::after {
+  content: "";
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.15rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 1px solid var(--panel);
+  border-radius: 50%;
+  background: var(--yellow);
+}
+
+.playlist-provider-icon--error::after {
+  background: var(--red);
+}
+
+.personal-media-list-heading .playlist-provider-only {
+  font-weight: 600;
+}
+
+.playlist-item-missing {
+  margin: 0;
+  color: var(--yellow);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Posters-only view hides the card body, so the missing note moves onto the
+   poster's top-left corner (the top right holds the menu and stack count). */
+.playlist-missing-badge {
+  display: none;
+  position: absolute;
+  left: 0.35rem;
+  top: 0.35rem;
+  z-index: 2;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: #111;
+  font-size: 0.68rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.page-card-mode-compact .shared-media-card:not(.page-card-open) .playlist-missing-badge {
+  display: inline-block;
+}
+
+/* Episode stacks (plan/archive/custom-playlist-sync/plan.md decision 26): only in
+   Posters only. There a collapsed stack's episodes are hidden behind the stack
+   poster; elsewhere the stack is hidden and every episode shows. */
+[data-view-panel="personal-media"]:not(.page-card-mode-compact) [data-playlist-stack],
+.page-card-mode-compact [data-playlist-stack-member][data-stack-collapsed="1"] {
+  display: none !important;
+}
+
+[data-playlist-stack] {
+  position: relative;
+}
+
+[data-playlist-stack] .poster-overflow-btn {
+  display: none;
+}
+
+[data-playlist-stack] .shared-media-card-poster-wrap {
+  /* Two card edges peeking out to the right, inside the rail gap, so the
+     scrolling rail cannot clip them. */
+  box-shadow: 3px 0 0 -1px var(--panel, #222), 4px 0 0 0 color-mix(in srgb, var(--text, #fff) 45%, transparent),
+    7px 0 0 -1px var(--panel, #222), 8px 0 0 0 color-mix(in srgb, var(--text, #fff) 25%, transparent);
+}
+
+[data-playlist-stack][data-stack-expanded="1"] .shared-media-card-poster-wrap {
+  outline: 2px solid var(--accent, var(--yellow));
+  outline-offset: -2px;
+}
+
+.playlist-stack-count {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+[data-playlist-drag-key] {
+  cursor: grab;
+}
+
+[data-playlist-stack] {
+  cursor: pointer;
+}
+
+/* While dragged, the card's slot in the rail is an empty insert outline; the
+   browser's drag image is the picked-up card (playlists.js). */
+[data-playlist-drag-key].is-dragging {
+  border-color: transparent;
+  outline: 2px dashed var(--accent, var(--yellow));
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent, var(--yellow)) 8%, transparent);
+  box-shadow: none;
+  cursor: grabbing;
+}
+
+[data-playlist-drag-key].is-dragging > * {
+  visibility: hidden;
+}
+
+.playlist-held-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--yellow);
+  border-radius: 0.6rem;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.playlist-unidentified-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.playlist-held-change > span {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.playlist-held-actions,
+.playlist-deleted-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.playlist-held-actions button,
+.playlist-deleted-actions button {
+  min-height: 1.8rem;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.72rem;
+}
+
+.personal-media-dialog:has(.playlist-recently-deleted) {
+  width: min(100%, 50rem);
+  max-height: 85vh;
+}
+
+.playlist-recently-deleted-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin: 0 0 0.8rem;
+}
+
+.playlist-recently-deleted-head button {
+  flex: none;
+}
+
+.playlist-recently-deleted-copy {
+  flex: 1 1 18rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.playlist-recently-deleted .playlist-deleted-row {
+  padding: 0.7rem 0.9rem;
+}
+
+.playlist-recently-deleted .playlist-deleted-copy b {
+  font-size: 0.95rem;
+}
+
+.playlist-recently-deleted .playlist-deleted-copy span {
+  font-size: 0.8rem;
+}
+
+.playlist-recently-deleted .playlist-deleted-actions button,
+.playlist-recently-deleted-head button {
+  min-height: 2rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.playlist-deleted-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playlist-deleted-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+}
+
+.playlist-deleted-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.playlist-deleted-copy span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.playlist-provider-picker {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.playlist-provider-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.playlist-provider-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.playlist-provider-choice img {
+  width: 1rem;
+  height: 1rem;
+}
+
+.playlist-provider-choice.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.playlist-provider-choice small {
+  color: var(--muted);
+}
+
+.playlist-availability-notice,
+.playlist-deselect-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.personal-media-list-heading .playlist-kind-label {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.playlist-kind-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.playlist-kind-picker .playlist-availability-notice {
+  flex-basis: 100%;
+}
+
+.playlist-kind-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.playlist-kind-choice:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.playlist-kind-choice:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Automatic playlists (playlist-rules.js): the rule editor and the panel. */
+.playlist-rule-editor {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.playlist-rule-genres-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.playlist-rule-genres-head .field {
+  width: auto;
+}
+
+.playlist-rule-genre-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* Genre chips look like the dialog's choice cards: only the tick is accented. */
+.playlist-rule-genre {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.playlist-rule-genre input {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.playlist-rule-genre:hover {
+  border-color: var(--line-strong);
+}
+
+.playlist-rule-genre:has(input:checked) {
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+}
+
+.playlist-rule-genre:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Create / edit playlist dialog: steps down the side (like Setup's steps). */
+.personal-media-dialog:has(.playlist-wizard) {
+  width: min(100%, 72rem);
+  max-height: 92vh;
+}
+
+/* Larger text than the compact Settings defaults. */
+.personal-media-dialog:has(.playlist-wizard) .personal-media-dialog-head h2 {
+  font-size: 1.2rem;
+}
+
+.playlist-wizard .playlist-wizard-tab,
+.playlist-wizard .personal-media-dialog-actions > button {
+  font-size: 0.9rem;
+}
+
+.playlist-wizard .playlist-wizard-tab {
+  min-height: 2.6rem;
+}
+
+.playlist-wizard .field-label,
+.playlist-wizard legend {
+  font-size: 0.9rem;
+}
+
+.playlist-wizard .field {
+  min-height: 2.6rem;
+  font-size: 0.95rem;
+}
+
+.playlist-wizard .settings-choice-option {
+  min-height: 5rem;
+  padding: var(--space-3);
+}
+
+.playlist-wizard .settings-choice-option-title {
+  font-size: 0.98rem;
+}
+
+.playlist-wizard .settings-choice-option-description,
+.playlist-wizard .personal-media-dialog-copy,
+.playlist-wizard .playlist-rule-genre {
+  font-size: 0.88rem;
+}
+
+.personal-media-create-form.playlist-wizard {
+  grid-template-columns: 15rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5, 1.5rem);
+}
+
+.playlist-wizard-steps {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--line);
+}
+
+.playlist-wizard-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Quieter than the Settings defaults: the accent marks only the step number
+   and the chosen radio, not whole tabs and cards. */
+.playlist-wizard .playlist-wizard-tab.active {
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.playlist-wizard .playlist-wizard-tab.active .playlist-wizard-number {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--panel);
+}
+
+.playlist-wizard .settings-choice-option:has(input:checked) {
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+  box-shadow: none;
+}
+
+.playlist-wizard .settings-choice-option:hover {
+  border-color: var(--line-strong);
+}
+
+/* A neutral focus for the name box instead of the thick orange ring. */
+.playlist-wizard .field:focus,
+.playlist-wizard .field:focus-visible,
+html.light-mode .playlist-wizard .field:focus {
+  border-color: color-mix(in srgb, var(--text) 45%, var(--line));
+  box-shadow: none;
+  outline: none;
+}
+
+html.light-mode .personal-media-dialog-head .icon-button {
+  border-color: var(--line);
+  background: #ffffff;
+  color: var(--text);
+}
+
+html.light-mode .personal-media-dialog-head .icon-button:hover {
+  background: var(--panel-2);
+}
+
+.playlist-wizard-tab[hidden],
+.playlist-wizard-panel[hidden],
+.personal-media-dialog-actions > [hidden] {
+  display: none;
+}
+
+.playlist-wizard-number {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.playlist-wizard-main {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 30rem;
+  align-content: start;
+}
+
+.playlist-wizard-panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.playlist-wizard-panel h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.playlist-wizard-fieldset {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.playlist-wizard-kinds {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.playlist-wizard .personal-media-dialog-actions {
+  margin-top: auto;
+}
+
+.playlist-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.playlist-rule-years {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.playlist-rule-editor.hidden,
+.playlist-rule-years.hidden {
+  display: none;
+}
+
+.playlist-rule-error {
+  margin: 0;
+}
+
+.playlist-rule-label {
+  flex: 0 0 auto;
+  cursor: help;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* A confirmed held check, waiting for the next check (decision 64). */
+.playlist-rule-confirmed {
+  flex: 0 0 auto;
+  cursor: help;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.playlist-rule-status {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.playlist-rule-error {
+  color: var(--red, #e5484d);
+  font-size: 0.78rem;
+}
+
+.playlist-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* The "Remove items once watched" switch: words on the left, box on the right.
+   The generic .settings-modal-field rules force a column with !important. */
+.settings-modal-field.playlist-remove-watched {
+  flex-direction: row !important;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.playlist-remove-watched .settings-modal-field-label {
+  flex: 1 1 auto;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.25rem !important;
+  min-width: 0;
+}
+
+.playlist-remove-watched .settings-modal-field-title {
+  flex: 0 1 auto;
+}
+
+.playlist-remove-watched .settings-field-help {
+  text-align: left !important;
+  margin-left: 0 !important;
+}
+
+.playlist-remove-watched .settings-modal-field-control {
+  width: auto !important;
+  flex: 0 0 auto;
+  align-self: center !important;
+}
+
+@media (max-width: 760px) {
+  .playlist-rule-grid,
+  .playlist-wizard-kinds,
+  .playlist-wizard .settings-choice-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The steps become a scrolling row above the step. */
+  .personal-media-create-form.playlist-wizard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playlist-wizard-steps {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    padding: 0 0 var(--space-2);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .playlist-wizard-tab {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .playlist-wizard-main {
+    min-height: 0;
+  }
+}
+
+/* Episode picker: the season list scrolls so the actions stay in view. */
+.playlist-episode-seasons {
+  display: grid;
+  gap: 0.4rem;
+  max-height: min(52vh, 26rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.playlist-episode-season {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.playlist-episode-season summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.playlist-episode-season summary span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.playlist-episode-season-toggle {
+  margin: 0 0.65rem 0.4rem;
+}
+
+.playlist-episode-list {
+  display: grid;
+  margin: 0;
+  padding: 0 0.35rem 0.4rem;
+  list-style: none;
+}
+
+.playlist-episode-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.3rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.84rem;
+}
+
+.playlist-episode-choice:hover {
+  background: var(--panel-2);
+}
+
+.playlist-episode-choice.is-held {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.playlist-episode-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-episode-choice small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .playlist-episode-seasons {
+    max-height: 50vh;
+  }
+
+  .playlist-episode-name {
+    white-space: normal;
+  }
+}
+
+/* "Import from apps" dialog (playlist-import.js). */
+.playlist-import-apps {
+  display: grid;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.playlist-import-app h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+}
+
+.playlist-import-app h3 img {
+  width: 1rem;
+  height: 1rem;
+}
+
+.playlist-import-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playlist-import-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.playlist-import-pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.playlist-import-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-import-pick small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.playlist-import-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.playlist-import-note.is-error {
+  color: var(--danger);
+}
+
+.playlist-import-options {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 1.5rem;
+}
+
+.playlist-import-options[hidden] {
+  display: none;
+}
+
+.playlist-import-mode {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0.82rem;
+}
+
+.playlist-import-mode label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.playlist-import-targets {
+  display: grid;
+  gap: 0.3rem;
+}
+
+@media (max-width: 760px) {
+  .playlist-import-apps {
+    max-height: 55vh;
+  }
+
+  .playlist-import-pick {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .playlist-import-pick small {
+    grid-column: 2;
+  }
+
+  .playlist-import-title {
+    white-space: normal;
+  }
+
+  .playlist-import-options {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-shell[data-active-view="playlists"] .personal-media-list-heading {
+    flex-wrap: wrap;
+  }
 }
 
 .personal-media-rating-section {
@@ -21368,25 +22403,25 @@ html.light-mode button.shared-media-card-rating--action {
 }
 
 @media (min-width: 761px) {
-  .page-shell[data-active-view="custom-lists"] {
+  .page-shell[data-active-view="playlists"] {
     overflow-y: hidden;
   }
 
-  .page-shell[data-active-view="custom-lists"] .app-shell {
+  .page-shell[data-active-view="playlists"] .app-shell {
     height: 100%;
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--space-2);
   }
 
-  .page-shell[data-active-view="custom-lists"] #personal-media-view {
+  .page-shell[data-active-view="playlists"] #personal-media-view {
     height: 100%;
     min-height: 0;
     overflow: hidden;
     padding-top: 0;
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-shell {
+  .page-shell[data-active-view="playlists"] .personal-media-shell {
     display: flex;
     height: 100%;
     min-height: 0;
@@ -21394,7 +22429,7 @@ html.light-mode button.shared-media-card-rating--action {
     overflow: hidden;
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-panel {
+  .page-shell[data-active-view="playlists"] .personal-media-panel {
     display: flex;
     flex: 1 1 0;
     min-height: 0;
@@ -21404,17 +22439,17 @@ html.light-mode button.shared-media-card-rating--action {
     scrollbar-gutter: stable;
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-viewport {
+  .page-shell[data-active-view="playlists"] .personal-media-list-viewport {
     flex: 0 0 100%;
     min-height: 0;
     grid-template-rows: repeat(4, minmax(0, 1fr));
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-overflow {
+  .page-shell[data-active-view="playlists"] .personal-media-list-overflow {
     flex: 0 0 auto;
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-section {
+  .page-shell[data-active-view="playlists"] .personal-media-list-section {
     display: flex;
     min-height: 0;
     min-width: 0;
@@ -21422,12 +22457,12 @@ html.light-mode button.shared-media-card-rating--action {
     gap: var(--space-1);
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row {
+  .page-shell[data-active-view="playlists"] .personal-media-list-row {
     flex: 1 1 0;
     min-height: 0;
   }
 
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-overflow .personal-media-list-row {
+  .page-shell[data-active-view="playlists"] .personal-media-list-overflow .personal-media-list-row {
     flex: 0 0 14rem;
     min-height: 14rem;
   }
@@ -24532,7 +25567,7 @@ html.light-mode .settings-modal-help {
 }
 
 .settings-modal-help .settings-help-body {
-  font-size: 0.82rem;
+  font-size: 0.92rem;
   color: var(--soft);
   line-height: 1.55;
 }
@@ -24566,6 +25601,11 @@ html.light-mode .settings-help-body code {
 
 .settings-help-steps {
   padding-left: 1.2rem;
+}
+
+.settings-help-body a {
+  color: var(--blue);
+  text-decoration: underline;
 }
 
 @media (max-width: 980px) {
@@ -24763,7 +25803,7 @@ html.light-mode .settings-help-body code {
 .unknown-show-evidence {
   margin: 0.9rem 0 0;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 0.75rem;
   background: color-mix(in srgb, var(--surface) 82%, var(--accent) 18%);
 }
@@ -27577,7 +28617,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 /* The same full-card/poster control is available on library and media pages.
    Compact mode only changes card presentation; each page's current view and
    filters stay selected. */
-.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card {
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card:not(.page-card-open) {
   flex-direction: column;
   flex-basis: 10rem;
   width: 10rem;
@@ -27585,14 +28625,14 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   gap: 0;
 }
 
-.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card .shared-media-card-poster-wrap {
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card:not(.page-card-open) .shared-media-card-poster-wrap {
   flex-basis: auto;
   width: 100%;
   aspect-ratio: 2 / 3;
   border-radius: 0;
 }
 
-.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card .shared-media-card-body {
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card:not(.page-card-open) .shared-media-card-body {
   display: none;
 }
 
@@ -27601,13 +28641,13 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   justify-content: space-between;
 }
 
-.page-card-mode-compact .explorer-overview-card {
+.page-card-mode-compact .explorer-overview-card:not(.page-card-open) {
   display: block;
   width: 100%;
   aspect-ratio: 2 / 3;
 }
 
-.page-card-mode-compact .explorer-overview-card > :is(.overview-thumb-poster, .overview-show-poster-btn) {
+.page-card-mode-compact .explorer-overview-card:not(.page-card-open) > :is(.overview-thumb-poster, .overview-show-poster-btn) {
   display: block;
   width: 100%;
   height: 100%;
@@ -27615,7 +28655,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   object-fit: cover;
 }
 
-.page-card-mode-compact .explorer-overview-card > .overview-card-meta {
+.page-card-mode-compact .explorer-overview-card:not(.page-card-open) > .overview-card-meta {
   display: none;
 }
 
@@ -27631,7 +28671,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   display: none;
 }
 
-.page-card-mode-compact .explorer-list-card {
+.page-card-mode-compact .explorer-list-card:not(.page-card-open) {
   display: block;
   padding: 0;
   overflow: hidden;
@@ -27640,11 +28680,11 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   aspect-ratio: 2 / 3;
 }
 
-.page-card-mode-compact .explorer-list-card > :not(.list-thumb-poster) {
+.page-card-mode-compact .explorer-list-card:not(.page-card-open) > :not(.list-thumb-poster) {
   display: none;
 }
 
-.page-card-mode-compact .explorer-list-card > .list-thumb-poster {
+.page-card-mode-compact .explorer-list-card:not(.page-card-open) > .list-thumb-poster {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -27652,7 +28692,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   border-radius: 0;
 }
 
-.page-card-mode-compact .history-list .history-page-card {
+.page-card-mode-compact .history-list .history-page-card:not(.page-card-open) {
   aspect-ratio: 2 / 3;
   min-width: 0;
 }
@@ -27667,19 +28707,19 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   justify-content: space-between;
 }
 
-.page-card-mode-compact .history-list .history-page-card > .history-card-details {
+.page-card-mode-compact .history-list .history-page-card:not(.page-card-open) > .history-card-details {
   display: none;
 }
 
-.page-card-mode-compact .history-list .history-page-card > .history-card-poster-wrapper {
+.page-card-mode-compact .history-list .history-page-card:not(.page-card-open) > .history-card-poster-wrapper {
   flex: 0 0 100%;
   width: 100%;
 }
 
-.page-card-mode-compact .history-grid-view .history-grid-copy,
+.page-card-mode-compact .history-grid-view .history-grid-card:not(.page-card-open) .history-grid-copy,
 .page-card-mode-compact .history-list .history-list-header,
 .page-card-mode-compact .history-table-view .history-list-header,
-.page-card-mode-compact .history-table-view .history-list-row > :not(.history-list-poster) {
+.page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) > :not(.history-list-poster) {
   display: none;
 }
 
@@ -27691,7 +28731,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   justify-content: space-between;
 }
 
-.page-card-mode-compact .history-list-row {
+.page-card-mode-compact .history-list-row:not(.page-card-open) {
   display: block;
   padding: 0;
   overflow: hidden;
@@ -27700,7 +28740,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   aspect-ratio: 2 / 3;
 }
 
-.page-card-mode-compact .history-list-row > .history-list-poster {
+.page-card-mode-compact .history-list-row:not(.page-card-open) > .history-list-poster {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -27734,7 +28774,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   .page-shell[data-active-view="discover"],
   .page-shell[data-active-view="watchlist"],
   .page-shell[data-active-view="ratings"],
-  .page-shell[data-active-view="custom-lists"],
+  .page-shell[data-active-view="playlists"],
   .page-shell[data-active-view="history"] {
     --mobile-dashboard-card-width: clamp(128px, 40vw, 176px);
   }
@@ -27742,7 +28782,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   .page-shell[data-active-view="discover"] .discover-feed-row,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row,
   .page-shell[data-active-view="history"] .history-list {
     display: flex;
     flex-wrap: nowrap;
@@ -27758,7 +28798,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal,
   .page-shell[data-active-view="history"] .history-list .history-page-card {
@@ -27774,7 +28814,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
      mobile. The information/action area remains inside the tile instead of
      being pushed off the right edge of a desktop-style horizontal card. */
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal {
     display: flex;
@@ -27786,7 +28826,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-poster-wrap,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster-wrap,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster-wrap,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster-wrap,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster-wrap {
     box-sizing: border-box;
@@ -27800,14 +28840,14 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-poster,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster {
     border-radius: var(--poster-radius) var(--poster-radius) 0 0;
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-body,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-body,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-body,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-body,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-body {
     box-sizing: border-box;
@@ -27820,7 +28860,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-actions,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions {
     width: 100%;
@@ -27831,7 +28871,7 @@ html:not([data-style="modern"]) .dashboard-run-peek,
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-actions button,
-  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions button,
+  .page-shell[data-active-view="playlists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions button,
   .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions button,
   .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions button {
     min-width: 0;
@@ -30303,11 +31343,11 @@ body #statsTopbarControls .stats-filter-field .field {
 
 /* Compact mode also wins over the mobile rail's stacked-card defaults. */
 @media (max-width: 760px) {
-  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .shared-media-card-body,
-  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
-  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
-  .page-shell[data-active-view="custom-lists"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
-  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-card-details {
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .shared-media-card:not(.page-card-open) .shared-media-card-body,
+  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card:not(.page-card-open) .shared-media-card-body,
+  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card:not(.page-card-open) .shared-media-card-body,
+  .page-shell[data-active-view="playlists"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card:not(.page-card-open) .shared-media-card-body,
+  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-page-card:not(.page-card-open) .history-card-details {
     display: none !important;
   }
 
@@ -30318,7 +31358,7 @@ body #statsTopbarControls .stats-filter-field .field {
 
 /* Compact page mode is a poster gallery. These rules follow the page-specific
    rail sizing so Discover and Personal Media cannot retain their 385px cards. */
-.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover {
+.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open) {
   box-sizing: border-box;
   width: 10rem;
   min-width: 10rem;
@@ -30332,13 +31372,7 @@ body #statsTopbarControls .stats-filter-field .field {
   padding: 0;
 }
 
-.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  overflow: visible;
-}
-
-.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover .shared-media-card-poster-wrap {
+.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover:not(.page-card-open) .shared-media-card-poster-wrap {
   box-sizing: border-box;
   width: 100%;
   height: auto;
@@ -30348,8 +31382,8 @@ body #statsTopbarControls .stats-filter-field .field {
   border-radius: var(--poster-radius) var(--poster-radius) 0 0;
 }
 
-.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover .shared-media-card-body,
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card--personal .shared-media-card-body {
+.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover:not(.page-card-open) .shared-media-card-body,
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card--personal:not(.page-card-open) .shared-media-card-body {
   display: none !important;
 }
 
@@ -30359,13 +31393,7 @@ body #statsTopbarControls .stats-filter-field .field {
   gap: var(--space-3);
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  overflow: visible;
-}
-
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal:not(.page-card-open) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -30375,7 +31403,7 @@ body #statsTopbarControls .stats-filter-field .field {
   padding: 0;
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid .shared-media-card-poster-wrap {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid .shared-media-card:not(.page-card-open) .shared-media-card-poster-wrap {
   box-sizing: border-box;
   width: 100%;
   height: auto;
@@ -30383,7 +31411,7 @@ body #statsTopbarControls .stats-filter-field .field {
   aspect-ratio: 2 / 3;
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) {
   box-sizing: border-box;
   width: 10rem;
   min-width: 10rem;
@@ -30395,7 +31423,7 @@ body #statsTopbarControls .stats-filter-field .field {
   padding: 0;
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row .shared-media-card-poster-wrap {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row .shared-media-card:not(.page-card-open) .shared-media-card-poster-wrap {
   box-sizing: border-box;
   width: 100%;
   height: auto;
@@ -30411,11 +31439,11 @@ body #statsTopbarControls .stats-filter-field .field {
   justify-content: space-between;
 }
 
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid .movie-card-body {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > :not(.page-card-open) .movie-card-body {
   display: none !important;
 }
 
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card:not(.page-card-open) {
   box-sizing: border-box;
   width: 100%;
   height: auto;
@@ -30433,7 +31461,7 @@ body #statsTopbarControls .stats-filter-field .field {
   overflow: visible;
 }
 
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card > .history-card-poster-wrapper {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card:not(.page-card-open) > .history-card-poster-wrapper {
   box-sizing: border-box;
   width: 100%;
   height: auto;
@@ -30444,18 +31472,18 @@ body #statsTopbarControls .stats-filter-field .field {
   border-radius: var(--poster-radius) var(--poster-radius) 0 0;
 }
 
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card .history-page-poster {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card:not(.page-card-open) .history-page-poster {
   width: 100%;
   height: 100%;
   aspect-ratio: 2 / 3;
 }
 
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card > .history-card-details {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card:not(.page-card-open) > .history-card-details {
   display: none !important;
 }
 
-.page-shell [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card,
-.page-shell [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row {
+.page-shell [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card:not(.page-card-open),
+.page-shell [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) {
   border: 0 !important;
   box-shadow: none !important;
 }
@@ -30479,8 +31507,8 @@ body #statsTopbarControls .stats-filter-field .field {
     overflow: visible;
   }
 
-  .page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover,
-  .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+  .page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open),
+  .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) {
     width: 10rem;
     min-width: 0;
     max-width: 10rem;
@@ -30492,17 +31520,17 @@ body #statsTopbarControls .stats-filter-field .field {
     justify-content: space-between;
   }
 
-  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover,
-  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal,
-  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal,
-  .page-shell[data-active-view="custom-lists"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open),
+  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal:not(.page-card-open),
+  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal:not(.page-card-open),
+  .page-shell[data-active-view="playlists"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) {
     width: 10rem;
     min-width: 10rem;
     max-width: 10rem;
     flex: 0 0 10rem;
   }
 
-  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list > .history-page-card {
+  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list > .history-page-card:not(.page-card-open) {
     width: 100%;
     flex: initial;
   }
@@ -30521,7 +31549,7 @@ body #statsTopbarControls .stats-filter-field .field {
   align-items: stretch;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > :is(.movie-card, .folder-card) {
+.page-shell [data-view-panel="explorer"] #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > :is(.movie-card, .folder-card):is(:not(.page-card-mode-compact *), .page-card-open) {
   box-sizing: border-box;
   display: flex;
   min-width: 0;
@@ -30537,13 +31565,13 @@ body #statsTopbarControls .stats-filter-field .field {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > .explorer-history-card {
+.page-shell [data-view-panel="explorer"] #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open) {
   position: relative;
   isolation: isolate;
   text-decoration: none;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card > .history-card-poster-wrapper {
+.page-shell [data-view-panel="explorer"] #explorerPanel .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open) > .history-card-poster-wrapper {
   box-sizing: border-box;
   width: auto;
   height: 100%;
@@ -30556,7 +31584,7 @@ body #statsTopbarControls .stats-filter-field .field {
   box-shadow: none;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card .history-page-poster {
+.page-shell [data-view-panel="explorer"] #explorerPanel .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open) .history-page-poster {
   display: block;
   width: 100%;
   height: 100%;
@@ -30566,19 +31594,19 @@ body #statsTopbarControls .stats-filter-field .field {
   box-shadow: none;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card > .history-card-details {
+.page-shell [data-view-panel="explorer"] #explorerPanel .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open) > .history-card-details {
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   padding: 0.65rem;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card .history-card-title {
+.page-shell [data-view-panel="explorer"] #explorerPanel .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open) .history-card-title {
   font-size: 1rem;
   font-weight: 850;
 }
 
-.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card:hover .history-card-poster-wrapper {
+.page-shell [data-view-panel="explorer"] #explorerPanel .explorer-history-card:is(:not(.page-card-mode-compact *), .page-card-open):hover .history-card-poster-wrapper {
   transform: none;
 }
 
@@ -30601,51 +31629,74 @@ body #statsTopbarControls .stats-filter-field .field {
     align-items: stretch;
   }
 
-  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card {
+  .page-shell [data-view-panel="history"] .history-list > .history-page-card:is(:not(.page-card-mode-compact *), .page-card-open) {
     box-sizing: border-box;
     min-width: 0;
     height: 15rem;
   }
 
-  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card > .history-card-poster-wrapper {
+  .page-shell [data-view-panel="history"] .history-list > .history-page-card:is(:not(.page-card-mode-compact *), .page-card-open) > .history-card-poster-wrapper {
     width: auto;
     height: 100%;
     flex: 0 0 auto;
     aspect-ratio: 2 / 3;
   }
 
-  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card > .history-card-details {
+  .page-shell [data-view-panel="history"] .history-list > .history-page-card:is(:not(.page-card-mode-compact *), .page-card-open) > .history-card-details {
     min-height: 0;
     padding: 0.65rem;
   }
 
-  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card .history-card-title {
+  .page-shell [data-view-panel="history"] .history-list > .history-page-card:is(:not(.page-card-mode-compact *), .page-card-open) .history-card-title {
     font-size: 1rem;
   }
 }
 
 /* Poster mode uses the poster dimensions of each page's full-card layout.
-   Discover and Custom Lists have slightly shorter rail cards than the fixed
+   Discover and Playlists have slightly shorter rail cards than the fixed
    10rem gallery cards used by the other page groups. */
-.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover {
+.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open) {
   width: 10.041rem;
   min-width: 10.041rem;
   max-width: 10.041rem;
   flex-basis: 10.041rem;
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) {
   width: 9.707rem;
   min-width: 9.707rem;
   max-width: 9.707rem;
   flex-basis: 9.707rem;
 }
 
+/* Desktop Discover and Playlists give each rail a fixed slice of the screen, so
+   in poster mode the poster takes the rail's height and its width follows at
+   2:3. A fixed width overflowed the slice and cropped the poster, worst when
+   the rail's scrollbar showed. */
+@media (min-width: 761px) {
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open),
+  .page-shell[data-active-view="playlists"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    flex: 0 0 auto;
+    height: 100%;
+  }
+
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover:not(.page-card-open) .shared-media-card-poster-wrap,
+  .page-shell[data-active-view="playlists"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal:not(.page-card-open) .shared-media-card-poster-wrap {
+    width: auto;
+    height: 100%;
+    max-height: none;
+    aspect-ratio: 2 / 3;
+  }
+}
+
 .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(10.125rem, 100%), min(10.125rem, 100%)));
 }
 
-.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal {
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal:not(.page-card-open) {
   max-width: 10.125rem;
 }
 
@@ -30655,8 +31706,8 @@ body #statsTopbarControls .stats-filter-field .field {
   grid-template-columns: repeat(auto-fill, minmax(min(var(--history-poster-width, 86px), 100%), min(var(--history-poster-width, 86px), 100%)));
 }
 
-.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card,
-.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row {
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card:not(.page-card-open),
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) {
   width: 100%;
   aspect-ratio: 2 / 3;
 }
@@ -30667,7 +31718,7 @@ body #statsTopbarControls .stats-filter-field .field {
 
 /* Poster mode hides the details, so the card's own rounded corners must clip
    the poster (Modern squares the poster itself for the full-card layout). */
-.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card {
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card:not(.page-card-open) {
   overflow: hidden;
 }
 
@@ -30708,13 +31759,13 @@ body #statsTopbarControls .stats-filter-field .field {
 /* Discover's full cards take the Movies and TV card size and type: 15rem
    tall, a flush full-height 2:3 poster and a 1rem heavy title. */
 @media (min-width: 761px) {
-  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .discover-feed-row > .shared-media-card--discover {
+  .page-shell [data-view-panel="discover"] .discover-feed-row > .shared-media-card--discover:is(:not(.page-card-mode-compact *), .page-card-open) {
     box-sizing: border-box;
     height: 15rem;
     min-height: 15rem;
   }
 
-  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-poster-wrap {
+  .page-shell [data-view-panel="discover"] .shared-media-card--discover:is(:not(.page-card-mode-compact *), .page-card-open) .shared-media-card-poster-wrap {
     width: auto;
     height: 100%;
     max-height: none;
@@ -30722,13 +31773,178 @@ body #statsTopbarControls .stats-filter-field .field {
     aspect-ratio: 2 / 3;
   }
 
-  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-body {
+  .page-shell [data-view-panel="discover"] .shared-media-card--discover:is(:not(.page-card-mode-compact *), .page-card-open) .shared-media-card-body {
     min-width: 0;
     padding: 0.65rem;
   }
 
-  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-title {
+  .page-shell [data-view-panel="discover"] .shared-media-card--discover:is(:not(.page-card-mode-compact *), .page-card-open) .shared-media-card-title {
     font-size: 1rem;
     font-weight: 850;
   }
+}
+
+/* Posters only: a clicked poster opens in place (modules/page-card-open.js).
+   The poster-mode rules above skip .page-card-open, so the open item takes
+   its full-card look. In a grid it takes three poster slots, a list or table
+   row the full width, and on phones (or where fewer than three posters fit,
+   .page-card-open-full) every opened card the full width.
+   History's grid tiles keep their slot and show their caption. Discover and
+   Playlists rails just let the card take its full-card width. */
+.page-card-mode-compact :is(.personal-media-card-grid, .history-list, .movie-grid:not(.explorer-list-view)) > .page-card-open {
+  grid-column: span 3;
+}
+
+.page-card-mode-compact :is(.explorer-list-view > .page-card-open, .history-table-view .history-list-row.page-card-open, .page-card-open-full) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .page-card-mode-compact :is(.personal-media-card-grid, .history-list, .movie-grid:not(.explorer-list-view)) > .page-card-open {
+    grid-column: 1 / -1;
+  }
+
+  /* Playlists on phones: an opened poster opens across the rail, poster on
+     the left and details beside it, instead of the narrow poster-first stack. */
+  .page-shell[data-active-view="playlists"] .page-card-mode-compact .personal-media-list-row > .shared-media-card--personal.page-card-open {
+    flex-direction: row;
+    width: min(92vw, 24rem);
+    flex: 0 0 min(92vw, 24rem);
+  }
+
+  /* The poster keeps the folded poster's size (9.707rem wide at 2:3). */
+  .page-shell[data-active-view="playlists"] .page-card-mode-compact .personal-media-list-row > .shared-media-card--personal.page-card-open .shared-media-card-poster-wrap {
+    width: 9.707rem;
+    height: auto;
+    flex: 0 0 9.707rem;
+    align-self: flex-start;
+    aspect-ratio: 2 / 3;
+    border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+  }
+
+  .page-shell[data-active-view="playlists"] .page-card-mode-compact .personal-media-list-row > .shared-media-card--personal.page-card-open .shared-media-card-poster {
+    border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+  }
+
+  .page-shell[data-active-view="playlists"] .page-card-mode-compact .personal-media-list-row > .shared-media-card--personal.page-card-open .shared-media-card-body {
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* History, Posters only: each folded poster carries its episode name, watched
+   date and app along its bottom edge (modules/history-poster-overlay.js), over
+   a blurred dark tint that reads on light, dark and busy posters in either
+   theme. Full cards and an opened poster keep their own details, so the
+   overlay shows only on folded posters. The cards view's poster wrapper sizes
+   every span and img inside it as the poster, hence the badge resets. */
+.history-poster-overlay {
+  display: none;
+}
+
+.page-card-mode-compact .history-grid-view .history-grid-card:not(.page-card-open) .history-poster-overlay,
+.page-card-mode-compact .history-list .history-page-card:not(.page-card-open) .history-poster-overlay,
+.page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) > .history-poster-overlay,
+.page-card-mode-compact .personal-media-list-row > .shared-media-card:not(.page-card-open) .playlist-poster-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  padding: 0.95rem 0.5rem 0.45rem;
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: left;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(to top, rgba(8, 10, 14, 0.78), rgba(8, 10, 14, 0.5) 75%, rgba(8, 10, 14, 0.2));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 0.8rem), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - 0.8rem), transparent);
+  transition: transform 140ms ease;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .page-card-mode-compact .history-grid-view .history-grid-card:not(.page-card-open) .history-poster-overlay,
+  .page-card-mode-compact .history-list .history-page-card:not(.page-card-open) .history-poster-overlay,
+  .page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) > .history-poster-overlay,
+  .page-card-mode-compact .personal-media-list-row > .shared-media-card:not(.page-card-open) .playlist-poster-overlay {
+    background: linear-gradient(to top, rgba(8, 10, 14, 0.9), rgba(8, 10, 14, 0.72) 75%, rgba(8, 10, 14, 0.35));
+  }
+}
+
+/* The grid poster has its own 1px border and lifts on hover. */
+.page-card-mode-compact .history-grid-view .history-grid-card:not(.page-card-open) .history-poster-overlay {
+  inset: auto 1px 1px;
+  border-radius: 0 0 calc(var(--poster-radius) - 1px) calc(var(--poster-radius) - 1px);
+}
+
+.page-card-mode-compact .history-grid-view .history-grid-card:not(.page-card-open):hover .history-poster-overlay {
+  transform: translateY(-2px);
+}
+
+.page-card-mode-compact .history-table-view .history-list-row:not(.page-card-open) {
+  position: relative;
+}
+
+.history-poster-overlay .history-poster-overlay-episode {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.history-poster-overlay .history-poster-overlay-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.35rem;
+  min-width: 0;
+  font-size: 0.66rem;
+}
+
+.history-poster-overlay .history-poster-overlay-date {
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.history-poster-overlay .source-badge {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  height: auto;
+  gap: 0.2rem;
+  padding: 0.1rem 0.35rem 0.1rem 0.28rem;
+  font-size: 0.62rem;
+  text-shadow: none;
+}
+
+.history-poster-overlay .source-badge > span:not(.source-badge-icon-set) {
+  display: inline;
+  width: auto;
+  height: auto;
+}
+
+.history-poster-overlay .source-badge-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.history-poster-overlay .source-badge-icon-set {
+  display: inline-flex;
+  width: 1.2rem;
+  height: 0.64rem;
+}
+
+.history-poster-overlay .source-badge-icon-set .source-badge-icon {
+  width: 100%;
+  height: 100%;
 }

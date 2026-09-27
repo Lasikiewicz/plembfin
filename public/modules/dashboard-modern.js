@@ -1,10 +1,11 @@
-import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.2.2.0.15";
-import { state } from "./state.js?v=1.2.2.0.15";
-import { tmdbImage } from "./images.js?v=1.2.2.0.15";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.2.2.0.15";
-import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.2.2.0.15";
+import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.2.2.0.16";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { artKey, requestArtKey } from "./card-art.js?v=1.2.2.0.16";
+import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.2.2.0.16";
+// The same folded-poster behaviour on the Library and History pages.
+import "./page-card-open.js?v=1.2.2.0.16";
 
-// Dashboard behaviour added with the Modern theme style (plan/theme-styles.md).
+// Dashboard behaviour added with the Modern theme style (plan/archive/theme-styles/plan.md).
 // Compact rows, collapsed TV runs and the featured Up Next cards apply under
 // both styles; backdrop artwork and run stack peeks are Modern-only.
 
@@ -108,8 +109,8 @@ function syncCompactControls() {
 // Consecutive watches of the same show collapse into one card for the newest
 // episode, drawn as a stack with the older cards peeking out to its right.
 // Clicking it expands the run back into one card per episode, in place.
-// Expansion lasts until the page is reloaded (a compact row folds it back when
-// another card opens). The History page's cards mode uses the same runs
+// One run is open at a time: expanding another folds it back, and so does a
+// compact row when another card opens; otherwise it lasts until a reload. The History page's cards mode uses the same runs
 // (modules/explorer.js).
 
 const expandedRunKeys = new Set();
@@ -147,10 +148,15 @@ export function dashboardTvRowUnits(items = []) {
   });
 }
 
+// Only one run is open at a time: expanding a run folds any other back.
 export function setDashboardRunExpanded(key, expanded) {
   if (!key) return;
-  if (expanded) expandedRunKeys.add(key);
-  else expandedRunKeys.delete(key);
+  if (expanded) {
+    expandedRunKeys.clear();
+    expandedRunKeys.add(key);
+  } else {
+    expandedRunKeys.delete(key);
+  }
   rerenderRuns();
 }
 
@@ -258,26 +264,8 @@ if (hasDocument) {
 }
 
 // --- Backdrop artwork behind the cards -------------------------------------
-// Dashboard cards carry data-art="type|tmdb|tvdb|imdb|title". Under Modern the
-// backdrop for each key is looked up once through the batched TMDB details
-// request and published as a CSS rule in one injected stylesheet, so the
-// cards themselves are never mutated (their reconcile signature is their
-// outerHTML) and a re-rendered card picks its backdrop up immediately.
-
-function artKey(type, { tmdb = "", tvdb = "", imdb = "", title = "" } = {}) {
-  const parts = [tmdb, tvdb, imdb].map((value) => String(value ?? "").trim().replace(/\|/g, ""));
-  const name = String(title ?? "").trim();
-  if (!parts.some(Boolean) && !name) return "";
-  return [type, ...parts, name].join("|");
-}
-
-export function dashboardCardArtAttribute(entry = {}) {
-  const isEpisode = entry.media_type === "episode";
-  const key = isEpisode
-    ? artKey("tv", { tmdb: entry.show_tmdb_id, tvdb: entry.show_tvdb_id, imdb: entry.show_imdb_id, title: entry.show_title || showName(entry.title) })
-    : artKey("movie", { tmdb: entry.tmdb_id, tvdb: entry.tvdb_id, imdb: entry.imdb_id, title: entry.title });
-  return key ? ` data-art="${escapeAttribute(key)}"` : "";
-}
+// Card backdrops are loaded by modules/card-art.js on every page; live
+// session cards get their key here, from the session they show.
 
 function sessionArtKey(session = {}) {
   const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
@@ -287,90 +275,6 @@ function sessionArtKey(session = {}) {
     tvdb: ids.tvdb || session.tvdb_id || session.tvdbId,
     imdb: ids.imdb || session.imdb_id || session.imdbId,
     title: isEpisode ? (session.showTitle || showName(session.title)) : session.title,
-  });
-}
-
-const requestedArt = new Set();
-let artSheet = null;
-
-async function resolveBackdrop(key) {
-  const [type, tmdb, tvdb, imdb, ...title] = key.split("|");
-  try {
-    const details = await fetchTmdbDetails(type, tmdb, title.join("|"), { tvdbId: tvdb, imdbId: imdb }, { light: true });
-    return details?.cached_backdrop_url || tmdbImage(details?.backdrop_path, "w780") || "";
-  } catch {
-    return "";
-  }
-}
-
-function publishArt(key, url) {
-  if (!url || typeof CSS === "undefined") return;
-  if (!artSheet) {
-    artSheet = document.createElement("style");
-    artSheet.id = "modernArtStyles";
-    document.head.append(artSheet);
-  }
-  const safeUrl = url.replace(/["\\\s]/g, (char) => encodeURIComponent(char));
-  const selector = CSS.escape(key);
-  // The page backdrop uses its own property: the cards inside the page would
-  // otherwise inherit it when they have no backdrop of their own.
-  artSheet.append(`[data-art="${selector}"]{--modern-art:url("${safeUrl}");--modern-art-shade:1}\n`
-    + `[data-page-art="${selector}"]{--modern-page-art:url("${safeUrl}")}\n`);
-}
-
-function requestArtKey(key) {
-  if (!key || requestedArt.has(key)) return;
-  requestedArt.add(key);
-  resolveBackdrop(key).then((url) => publishArt(key, url));
-}
-
-let dashboardCardArtObserver = null;
-export function observeDashboardCardArtwork(root) {
-  if (!root || !isModernStyle()) {
-    dashboardCardArtObserver?.disconnect();
-    return;
-  }
-  const cards = root.querySelectorAll("[data-art]");
-  if (!("IntersectionObserver" in window)) {
-    cards.forEach((card) => requestArtKey(card.getAttribute("data-art")));
-    return;
-  }
-  dashboardCardArtObserver ||= new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      dashboardCardArtObserver.unobserve(entry.target);
-      requestArtKey(entry.target.getAttribute("data-art"));
-    }
-  }, { rootMargin: "200px" });
-  for (const card of cards) {
-    if (!requestedArt.has(card.getAttribute("data-art"))) dashboardCardArtObserver.observe(card);
-  }
-}
-
-let explorerCardArtRoot = null;
-let explorerCardArtObserver = null;
-export function observeExplorerCardArtwork(root) {
-  explorerCardArtRoot = root || null;
-  explorerCardArtObserver?.disconnect();
-  if (!root || !isModernStyle()) return;
-  const cards = root.querySelectorAll(".explorer-history-card[data-art]");
-  if (!("IntersectionObserver" in window)) {
-    cards.forEach((card) => requestArtKey(card.getAttribute("data-art")));
-    return;
-  }
-  explorerCardArtObserver ||= new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      explorerCardArtObserver.unobserve(entry.target);
-      requestArtKey(entry.target.getAttribute("data-art"));
-    }
-  }, { rootMargin: "300px" });
-  cards.forEach((card) => explorerCardArtObserver.observe(card));
-}
-
-if (typeof document !== "undefined") {
-  document.addEventListener(THEME_STYLE_EVENT, () => {
-    if (isModernStyle() && explorerCardArtRoot?.isConnected) observeExplorerCardArtwork(explorerCardArtRoot);
   });
 }
 
@@ -472,7 +376,6 @@ function syncModernDashboard() {
     tagLiveCards();
   }
   syncPageArt();
-  observeDashboardCardArtwork(timelineView);
 }
 
 function scheduleModernSync() {

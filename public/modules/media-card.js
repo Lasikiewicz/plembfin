@@ -8,8 +8,11 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=1.2.2.0.15";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.2.2.0.15";
+} from "./utils.js?v=1.2.2.0.16";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.2.2.0.16";
+import { cardArtAttribute } from "./card-art.js?v=1.2.2.0.16";
+// With Posters only on, a clicked poster opens its card (Discover, Watchlist, Ratings, Playlists).
+import "./page-card-open.js?v=1.2.2.0.16";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();
@@ -151,17 +154,19 @@ export function renderMediaCard(item = {}, options = {}) {
   const actions = options.actionsHtml || "";
 
   return `
-    <article class="${cardClass}" data-media-card-type="${escapeAttribute(record.media_type)}">
+    <article class="${cardClass}"${unifiedMetadata ? cardArtAttribute(record) : ""} data-media-card-type="${escapeAttribute(record.media_type)}"${options.attributesHtml ? ` ${options.attributesHtml}` : ""}>
       <div class="shared-media-card-poster-wrap">
         <a class="shared-media-card-poster" href="${escapeAttribute(href)}" data-media-card-href="${escapeAttribute(href)}" aria-label="View ${escapeAttribute(record.title)}">
           ${poster}
         </a>
+        ${options.posterBadgeHtml || ""}
         ${menuHtml}
       </div>
       <div class="shared-media-card-body">
         <a class="shared-media-card-title" href="${escapeAttribute(href)}" data-media-card-href="${escapeAttribute(href)}" title="${escapeAttribute(record.title)}">${title}</a>
         ${meta}
         ${unifiedMetadata ? `${description}${typeRatingHtml}${releaseDateHtml}` : `${releaseDateHtml}${status ? statusHtml : ""}${badgesHtml}${description}`}
+        ${options.noteHtml || ""}
         ${actions ? `<div class="shared-media-card-actions">${actions}</div>` : ""}
       </div>
     </article>

@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state, elements } from "./state.js?v=1.2.2.0.15";
-import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.2.2.0.15";
-import { categorizeIssues } from "./sync.js?v=1.2.2.0.15";
-import { openFixMatchDialog } from "./edit-dialogs.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.16";
+import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.2.2.0.16";
+import { categorizeIssues } from "./sync.js?v=1.2.2.0.16";
+import { openFixMatchDialog } from "./edit-dialogs.js?v=1.2.2.0.16";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};
@@ -222,14 +222,14 @@ export async function runSystemIntegrityCheck() {
     results.push({ name: "Scheduled Cron Job", status: "skipped", detail: "Not Configured - No execution logged." });
   }
 
-  let historyToCheck = state.history || [];
-  if (!historyToCheck.length) {
-    try {
-      const response = await fetch("/api/history?limit=5", { headers: authHeaders() });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok && Array.isArray(body.history)) historyToCheck = body.history;
-    } catch (e) { /* ignore */ }
-  }
+  // The dashboard preview in state.history carries no sync record, so the
+  // latest five full rows are always fetched for this check.
+  let historyToCheck = [];
+  try {
+    const response = await fetch("/api/history?limit=5&stats=0", { headers: authHeaders() });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && Array.isArray(body.history)) historyToCheck = body.history;
+  } catch (e) { /* ignore */ }
 
   if (!historyToCheck.length) {
     results.push({ name: "Outbound Playstate Sync", status: "skipped", detail: "Not Configured - No watch history logged to scan." });

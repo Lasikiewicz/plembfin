@@ -16,7 +16,7 @@ import {
   listActiveUpNextProviderItems,
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
-import { createUpNextLibraryEpisodeLookup, createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
+import { createUpNextLibraryEpisodeLookup, createUpNextLibraryLookup, topUpUpNextLibraryLookups } from "./upNextLibraryLookup.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { listManualUpNextShows } from "./upNextManual.js";
 import { isDemoMode } from "./demoMode.js";
@@ -1184,6 +1184,20 @@ async function localNextUpCandidates({
   return results;
 }
 
+// One line per production build, so the diagnostic log shows how many live
+// provider lookups each rebuild paid and whether the lookup caches have
+// filled (docs/dashboard.md, Up Next).
+export function formatUpNextBuildSummary(stats = {}, itemCount = 0, durationMs = 0) {
+  const n = (value) => Number(value) || 0;
+  return `Up Next build: ${itemCount} item${itemCount === 1 ? "" : "s"} in ${(n(durationMs) / 1000).toFixed(1)}s; `
+    + `library lookups ${n(stats.itemLive)} live, ${n(stats.itemCached)} cached, ${n(stats.itemOverBudget)} over budget; `
+    + `series inventories ${n(stats.inventoryFetched)} fetched, ${n(stats.inventoryCached)} cached.`;
+}
+
+function logUpNextBuildSummary(stats, itemCount, durationMs) {
+  console.log(formatUpNextBuildSummary(stats, itemCount, durationMs));
+}
+
 export async function buildUpNextProjection({
   limit = 100,
   now = Date.now(),
@@ -1198,6 +1212,10 @@ export async function buildUpNextProjection({
   resolveProviderItems = null,
   resolveProviderEpisodes = null,
 } = {}) {
+  const buildStartedAt = Date.now();
+  // Only the production path (real library lookups) logs its summary.
+  const lookupStats = mediaConfig && !resolveProviderItems && !resolveProviderEpisodes ? {} : null;
+  const deferredLookups = lookupStats ? [] : null;
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
   const feedKindOf = (item) => item?.feed_kind || item?.feedKind || item?.queue_kind || item?.queueKind || "resume";
   const activeProviderItems = (providerItems || listActiveUpNextProviderItems())
@@ -1376,8 +1394,8 @@ export async function buildUpNextProjection({
       providerCandidates: [...providerResume, ...providerNextUp],
       episodeRows: trackedEpisodeRows,
       today: new Date(now).toISOString().slice(0, 10),
-      resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig) : null),
-      resolveProviderEpisodes: resolveProviderEpisodes || (mediaConfig ? createUpNextLibraryEpisodeLookup(mediaConfig) : null),
+      resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig, { stats: lookupStats, deferred: deferredLookups }) : null),
+      resolveProviderEpisodes: resolveProviderEpisodes || (mediaConfig ? createUpNextLibraryEpisodeLookup(mediaConfig, { stats: lookupStats }) : null),
       manualShowKeys,
       ambiguousTitles,
     });
@@ -1406,8 +1424,13 @@ export async function buildUpNextProjection({
   const sourceStatus = listUpNextProviderFeedStates()
     .filter((feed) => UP_NEXT_PROVIDERS.has(String(feed?.provider || "").toLowerCase()))
     .map(({ cursor: _cursor, ...feed }) => feed);
+  const items = publicUpNextItems(merged.slice(0, safeLimit).map((item) => withUsableArtwork(withLocalShowIdentity(item, showIdentities))));
+  if (lookupStats) logUpNextBuildSummary(lookupStats, items.length, Date.now() - buildStartedAt);
+  // Ask the lookups this build skipped for budget in the background, so the
+  // next rebuild finds them cached (speed finding AK).
+  if (deferredLookups?.length) topUpUpNextLibraryLookups(mediaConfig, deferredLookups);
   return {
-    items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withUsableArtwork(withLocalShowIdentity(item, showIdentities)))),
+    items,
     sourceStatus,
     sourceVersion: getUpNextFeedSourceVersion(),
   };

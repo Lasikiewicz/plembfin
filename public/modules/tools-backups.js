@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state, elements } from "./state.js?v=1.2.2.0.15";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.2.2.0.15";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.2.2.0.15";
-import { applyAppearanceToBody } from "./appearance.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.16";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.2.2.0.16";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.2.2.0.16";
+import { applyAppearanceToBody } from "./appearance.js?v=1.2.2.0.16";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -29,13 +29,10 @@ function authHeaders() {
 }
 
 const BACKUP_BATCH_SIZE = 250;
-const BACKUP_MAX_REQUEST_BYTES = 512 * 1024;
-const BACKUP_FORMAT = "plembfin-backup";
-const BACKUP_VERSION = 1;
 const ENCRYPTED_BACKUP_FORMAT = "plembfin-encrypted-backup";
 const ENCRYPTED_BACKUP_VERSION = 1;
 const BACKUP_KDF_ITERATIONS = 250000;
-const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "manualWatchReviews", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "watchAuditEvents", "trackerItemState", "settings", "runtimeState", "loopKeys", "mediaArtwork", "personalWatchlist", "personalWatchlistMutations", "personalWatchlistProviderItems", "personalWatchlistSyncQueue", "personalWatchlistSyncRuns", "personalWatchlistActivity"];
+const RESTORE_POLL_MS = 1000;
 // ── Backup transfer state ──────────────────────────────────────────────────
 export function setBackupTransferState(label, tone = "muted", log = "", area = "restore") {
   const status = area === "export" ? elements.backupExportStatus : elements.backupRestoreStatus;
@@ -69,19 +66,11 @@ function bytesToBase64(bytes) {
   }
   return btoa(binary);
 }
-function base64ToBytes(value) {
-  const binary = atob(String(value || ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
 function backupPassphrase(area = "restore") {
   const input = area === "export" ? elements.backupExportPassphrase : elements.backupRestorePassphrase;
   return String(input?.value || "").trim();
 }
-async function backupCryptoKey(passphrase, salt) {
+async function backupCryptoKey(passphrase, salt, iterations = BACKUP_KDF_ITERATIONS) {
   const cryptoApi = globalThis.crypto;
   const keyMaterial = await cryptoApi.subtle.importKey(
     "raw",
@@ -91,7 +80,7 @@ async function backupCryptoKey(passphrase, salt) {
     ["deriveKey"],
   );
   return cryptoApi.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: BACKUP_KDF_ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
     keyMaterial,
     { name: "AES-GCM", length: 256 },
     false,
@@ -121,98 +110,6 @@ async function encryptPlembfinBackup(backup, passphrase) {
     },
     payload: bytesToBase64(encrypted),
   };
-}
-async function decryptPlembfinBackup(encryptedBackup, passphrase) {
-  const cryptoApi = globalThis.crypto;
-  if (!cryptoApi?.subtle) throw new Error("This browser does not support encrypted backups.");
-  if (!passphrase) throw new Error("Enter the passphrase used when this Plembfin backup was exported.");
-  const encryption = encryptedBackup?.encryption || {};
-  if (encryptedBackup?.format !== ENCRYPTED_BACKUP_FORMAT || Number(encryptedBackup?.version) !== ENCRYPTED_BACKUP_VERSION) {
-    throw new Error("This is not a supported encrypted Plembfin backup file.");
-  }
-  if (encryption.algorithm !== "AES-256-GCM" || encryption.kdf !== "PBKDF2") {
-    throw new Error("This encrypted backup uses an unsupported encryption method.");
-  }
-  try {
-    const salt = base64ToBytes(encryption.salt);
-    const iv = base64ToBytes(encryption.iv);
-    const payload = base64ToBytes(encryptedBackup.payload);
-    const key = await backupCryptoKey(passphrase, salt);
-    const decrypted = await cryptoApi.subtle.decrypt({ name: "AES-GCM", iv }, key, payload);
-    return JSON.parse(new TextDecoder().decode(decrypted));
-  } catch (error) {
-    throw new Error("Could not decrypt this Plembfin backup. Check the passphrase and file.");
-  }
-}
-function validatePlembfinBackup(value) {
-  if (!value || value.format !== BACKUP_FORMAT || Number(value.version) !== BACKUP_VERSION) {
-    throw new Error("This is not a supported Plembfin backup file.");
-  }
-  if (!value.collections || Array.isArray(value.collections) || typeof value.collections !== "object") {
-    throw new Error("The backup does not contain a collections object.");
-  }
-  const included = BACKUP_COLLECTIONS.filter((name) => Object.hasOwn(value.collections, name));
-  if (!included.length) throw new Error("The backup contains no supported collections.");
-  for (const name of included) {
-    const documents = value.collections[name];
-    if (!Array.isArray(documents)) throw new Error(`${name} is not a valid document array.`);
-    for (const document of documents) {
-      if (!document || typeof document.id !== "string" || !document.id || typeof document.data !== "object" || document.data == null) {
-        throw new Error(`${name} contains an invalid document.`);
-      }
-    }
-  }
-  return { backup: value, included };
-}
-function backupImportPayload(collection, documents, reset, portable = false) {
-  return JSON.stringify({
-    format: BACKUP_FORMAT,
-    version: BACKUP_VERSION,
-    collection,
-    documents,
-    reset,
-    portable,
-  });
-}
-function backupPayloadBytes(collection, documents) {
-  return new TextEncoder().encode(backupImportPayload(collection, documents, false)).byteLength;
-}
-function createBackupImportBatches(collection, documents) {
-  if (!documents.length) return [[]];
-  const batches = [];
-  let current = [];
-  for (const document of documents) {
-    const candidate = [...current, document];
-    if (current.length && (candidate.length > BACKUP_BATCH_SIZE || backupPayloadBytes(collection, candidate) > BACKUP_MAX_REQUEST_BYTES)) {
-      batches.push(current);
-      current = [document];
-    } else {
-      current = candidate;
-    }
-  }
-  if (current.length) batches.push(current);
-  return batches;
-}
-async function sendBackupImportBatch(collection, documents, reset, onImported, portable = false) {
-  const response = await fetch("/api/backup/import", {
-    method: "POST",
-    headers: authHeaders(),
-    body: backupImportPayload(collection, documents, reset, portable),
-  });
-  if (response.status === 413 && documents.length > 1) {
-    const midpoint = Math.ceil(documents.length / 2);
-    await sendBackupImportBatch(collection, documents.slice(0, midpoint), reset, onImported, portable);
-    await sendBackupImportBatch(collection, documents.slice(midpoint), false, onImported, portable);
-    return;
-  }
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 413) {
-      throw new Error(`${collection} contains a single document that exceeds the server request limit.`);
-    }
-    throw new Error(result.error || `${collection} import failed with ${response.status}`);
-  }
-  onImported(documents.length);
 }
 export async function exportPlembfinBackup() {
   const button = elements.backupExportButton;
@@ -260,57 +157,138 @@ export async function exportPlembfinBackup() {
     button.textContent = "Export Plembfin Backup";
   }
 }
-export async function readPlembfinBackup(file) {
-  const parsed = JSON.parse(await file.text());
-  if (parsed?.format === ENCRYPTED_BACKUP_FORMAT) {
-    return { ...validatePlembfinBackup(await decryptPlembfinBackup(parsed, backupPassphrase("restore"))), encrypted: true };
+// ── Full Plembfin restore (runs on the server) ─────────────────────────────
+// The server decrypts, checks and imports the file in small pieces, so a backup
+// of any size restores; this page only uploads the file (when it is not already
+// on the server), starts the restore and shows its progress.
+export function selectPlembfinBackupFile(file) {
+  state.backupImport = file ? { file, uploadId: "" } : null;
+  if (!file) {
+    setBackupTransferState("Idle", "muted", "[idle] Enter a passphrase, then choose an encrypted Plembfin backup.", "restore");
+    return;
   }
-  return { ...validatePlembfinBackup(parsed), encrypted: false };
+  setBackupTransferState("Ready", "ready", `${file.name} (${formatBytes(file.size)})\nThe file is uploaded and checked on the server when you restore it.`, "restore");
 }
-export async function importPlembfinBackup() {
-  if (!state.backupImport) return;
-  const approved = await _openConfirmDialog({
+function confirmPlembfinRestore(label) {
+  return _openConfirmDialog({
     title: "Restore Plembfin backup?",
-    body: "This replaces every collection included in the Plembfin backup. Your local admin username and password stay unchanged. Watch-history restores are safer for ordinary history rollback; use this for a full Plembfin move or rebuild.",
+    body: `This replaces every collection included in ${label} with the backup's contents. Your current data is not backed up first; if you might want it back, make sure a recent backup is listed under Local Plembfin Backups (or use Back Up Now) before you continue. Your local admin username and password stay unchanged. Nothing is changed until the whole file has been checked. Watch-history restores are safer for ordinary history rollback; use this for a full Plembfin move or rebuild.`,
     confirmLabel: "Restore Plembfin Backup",
     danger: true,
   });
-  if (!approved) return;
+}
+// XMLHttpRequest rather than fetch so a large upload can show its progress.
+function uploadPlembfinBackupFile(file) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/plembfin-backups/upload");
+    for (const [name, value] of Object.entries(authHeaders())) {
+      if (name !== "Content-Type") request.setRequestHeader(name, value);
+    }
+    request.setRequestHeader("Content-Type", "application/octet-stream");
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      setBackupTransferState("Uploading", "warning", `Uploading ${file.name}: ${formatBytes(event.loaded)} of ${formatBytes(event.total)}`, "restore");
+    };
+    request.onload = () => {
+      let body = {};
+      try { body = JSON.parse(request.responseText || "{}"); } catch { body = {}; }
+      if (request.status >= 200 && request.status < 300 && body.uploadId) resolve(body.uploadId);
+      else reject(new Error(body.error || `Backup upload failed with ${request.status}`));
+    };
+    request.onerror = () => reject(new Error("Backup upload failed: the connection to the server was lost."));
+    request.send(file);
+  });
+}
+function plembfinRestoreLog(job) {
+  if (job.status === "verifying") {
+    return `Checking ${job.label}: ${formatBytes(job.bytesRead)} of ${formatBytes(job.totalBytes)} read\nNothing is changed until the whole file has been checked.`;
+  }
+  if (job.status === "importing") {
+    const collection = job.collection
+      ? `Importing ${job.collection}: ${formatNumber(job.collectionImported)} of ${formatNumber(job.collectionTotal)} documents\n`
+      : "";
+    return `${collection}Total imported: ${formatNumber(job.imported)} of ${formatNumber(job.totalDocuments)} documents (${formatNumber(job.collectionsDone)} of ${formatNumber(job.collectionsTotal)} collections done)`;
+  }
+  if (job.status === "complete") {
+    return `Restore complete: ${formatNumber(job.imported)} documents across ${formatNumber(job.collectionsTotal)} collections.`;
+  }
+  return `Restore failed: ${job.error || "unknown error"}`;
+}
+async function waitForPlembfinRestore(jobId) {
+  let failures = 0;
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, RESTORE_POLL_MS));
+    let job;
+    try {
+      const response = await fetch("/api/plembfin-backups/restore", { headers: authHeaders() });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Restore status failed with ${response.status}`);
+      job = body.job;
+      failures = 0;
+    } catch (error) {
+      // The server is busy importing; a missed poll is not a failed restore.
+      failures += 1;
+      if (failures >= 30) throw new Error(`Lost track of the restore: ${error.message}`);
+      continue;
+    }
+    if (!job || job.id !== jobId) throw new Error("The restore status was lost. Check the server log.");
+    if (job.status === "verifying" || job.status === "importing") {
+      setBackupTransferState(job.status === "verifying" ? "Checking" : "Importing", "warning", plembfinRestoreLog(job), "restore");
+      continue;
+    }
+    return job;
+  }
+}
+// Starts the server restore of a listed backup ({ filename }) or an upload
+// ({ uploadId }), shows its progress and reloads the page's data when it is done.
+async function runServerPlembfinRestore(target, passphrase) {
+  const response = await fetch("/api/plembfin-backups/restore", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ ...target, passphrase }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.job) throw new Error(body.error || `Restore failed to start with ${response.status}`);
+  setBackupTransferState("Checking", "warning", plembfinRestoreLog(body.job), "restore");
+  const job = await waitForPlembfinRestore(body.job.id);
+  if (job.status !== "complete") throw new Error(job.error || "The restore failed.");
+  _clearDerivedUiCaches();
+  state.configLoaded = false;
+  state.syncJobsLoaded = false;
+  state.syncHistoryLoaded = false;
+  await Promise.all([
+    _loadSavedConfig(),
+    _loadHistory({ force: true }),
+    _loadActiveSessions(),
+    _loadStats({ force: true }),
+  ]);
+  setBackupTransferState("Complete", "ready", plembfinRestoreLog(job), "restore");
+  _setMessage("Plembfin backup restored.", "success");
+  return job;
+}
+export async function importPlembfinBackup() {
+  const selected = state.backupImport;
+  if (!selected?.file) return;
+  const passphrase = backupPassphrase("restore");
+  if (passphrase.length < 12) {
+    _setMessage("Enter a restore passphrase of at least 12 characters.", "warning");
+    return;
+  }
+  if (!(await confirmPlembfinRestore(selected.file.name))) return;
   const button = elements.backupImportButton;
   const input = elements.backupImportFile;
-  const { backup, included } = state.backupImport;
-  const portable = backup.portable === true;
   button.disabled = true;
   input.disabled = true;
   button.textContent = "Restoring...";
-  setBackupTransferState("Restoring", "warning", "Starting Plembfin backup restore...", "restore");
-  let totalDocuments = 0;
   try {
-    for (const collection of included) {
-      const documents = backup.collections[collection];
-      const batches = createBackupImportBatches(collection, documents);
-      let collectionImported = 0;
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-        await sendBackupImportBatch(collection, batches[batchIndex], batchIndex === 0, (count) => {
-          collectionImported += count;
-          totalDocuments += count;
-          setBackupTransferState("Importing", "warning", `Imported ${collection}: ${formatNumber(collectionImported)} of ${formatNumber(documents.length)} documents\nTotal imported: ${formatNumber(totalDocuments)} documents`, "restore");
-        }, portable);
-      }
-    }
-    _clearDerivedUiCaches();
-    state.configLoaded = false;
-    state.syncJobsLoaded = false;
-    state.syncHistoryLoaded = false;
-    await Promise.all([
-      _loadSavedConfig(),
-      _loadHistory({ force: true }),
-      _loadActiveSessions(),
-      _loadStats({ force: true }),
-    ]);
-    setBackupTransferState("Complete", "ready", `Restore complete: ${formatNumber(totalDocuments)} documents across ${formatNumber(included.length)} collections.`, "restore");
-    _setMessage("Plembfin backup restored.", "success");
+    // A failed restore keeps the upload on the server for a day, so a retry
+    // with the right passphrase does not upload the file again.
+    if (!selected.uploadId) selected.uploadId = await uploadPlembfinBackupFile(selected.file);
+    await runServerPlembfinRestore({ uploadId: selected.uploadId }, passphrase);
+    selected.uploadId = "";
   } catch (error) {
+    if (/Upload not found|Backup file not found|Invalid upload id/i.test(error.message)) selected.uploadId = "";
     setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
     _setMessage(error.message, "error");
   } finally {
@@ -535,13 +513,16 @@ const DESTINATION_FORMS = {
     ],
     secrets: [{ key: "secretAccessKey", label: "Application key", placeholder: "Backblaze application key" }],
     helpHtml: `
-      <p class="tool-accordion-desc">Create a private bucket in Backblaze B2, then create an application key restricted to that bucket with read and write access.</p>
+      <p class="tool-accordion-desc">Plembfin needs a private B2 bucket and an application key that can read and write it. No Backblaze account yet? <a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener noreferrer">Sign up for B2 Cloud Storage</a> (the first 10 GB are free).</p>
       <ol class="tool-accordion-desc settings-help-steps">
-        <li>Open <b>Buckets</b> in Backblaze and note the bucket name.</li>
-        <li>Open <b>Application Keys</b>, add a key for that bucket, and copy both the <b>keyID</b> and <b>applicationKey</b>.</li>
-        <li>Copy the bucket region (for example <code>eu-central-003</code>) or its full S3 endpoint.</li>
+        <li>Open <a href="https://secure.backblaze.com/b2_buckets.htm" target="_blank" rel="noopener noreferrer">Buckets</a> and choose <b>Create a Bucket</b>. Keep files <b>Private</b> and enter the name under <b>Bucket name</b>.</li>
+        <li>On the bucket's card, copy the <b>Endpoint</b> (for example <code>s3.eu-central-003.backblazeb2.com</code>) into <b>Region or endpoint</b>. The region alone (<code>eu-central-003</code>) also works.</li>
+        <li>Open <a href="https://secure.backblaze.com/app_keys.htm" target="_blank" rel="noopener noreferrer">Application Keys</a> and choose <b>Add a New Application Key</b>. Allow access to this bucket only, with <b>Read and Write</b> access.</li>
+        <li>Copy the <b>keyID</b> into <b>Key ID</b> and the <b>applicationKey</b> into <b>Application key</b>. Backblaze shows the application key only once.</li>
+        <li>Choose <b>Test</b>, then tick <b>Enable</b> and save.</li>
       </ol>
-      <p class="tool-accordion-desc">The application key is shown by Backblaze only once. Plembfin stores it securely and never sends it back to the browser.</p>
+      <p class="tool-accordion-desc"><b>Tip:</b> B2 keeps old versions of a deleted file by default, so backups removed by retention still use space. In the bucket's <b>Lifecycle Settings</b>, choose <b>Keep only the last version of the file</b>.</p>
+      <p class="tool-accordion-desc">Plembfin stores the application key securely and never sends it back to the browser. More detail: <a href="https://www.backblaze.com/docs/cloud-storage-s3-compatible-api" target="_blank" rel="noopener noreferrer">Backblaze S3-compatible API</a>.</p>
     `,
   },
 };
@@ -979,41 +960,28 @@ export async function restorePlembfinBackupFromServer(filename, passphraseOverri
   if (passphrase.length < 12) {
     throw new Error("Enter a restore passphrase of at least 12 characters.");
   }
-  setBackupTransferState("Downloading", "warning", "Downloading encrypted backup from server...", "restore");
+  if (!(await confirmPlembfinRestore(filename))) return;
   try {
-    const response = await fetch(`/api/plembfin-backups?download=${encodeURIComponent(filename)}`, { headers: authHeaders() });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.error || `Failed to download backup file from server`);
-    }
-    const encryptedBackup = await response.json();
-    setBackupTransferState("Decrypting", "warning", "Decrypting backup file in browser...", "restore");
-    const decrypted = await decryptPlembfinBackup(encryptedBackup, passphrase);
-    state.backupImport = {
-      backup: decrypted,
-      included: BACKUP_COLLECTIONS.filter((name) => Object.hasOwn(decrypted.collections, name)),
-      encrypted: true
-    };
-    await importPlembfinBackup();
+    await runServerPlembfinRestore({ filename }, passphrase);
   } catch (error) {
     setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
     _setMessage(error.message, "error");
   }
 }
 // Pulls an encrypted Plembfin backup mirrored to a remote destination into local
-// storage, then restores it with the existing local-file flow (download, decrypt in
-// the browser with the entered passphrase, import).
+// storage, then restores it on the server like any listed local backup.
 export async function restoreRemotePlembfinBackup(destinationId, filename) {
   const passphrase = elements.backupRestoreRemotePassphrase?.value.trim() || "";
   if (passphrase.length < 12) {
     _setMessage("Enter a restore passphrase of at least 12 characters.", "warning");
     return;
   }
+  if (!(await confirmPlembfinRestore(filename))) return;
   setBackupTransferState("Downloading", "warning", `Downloading ${filename} from remote destination...`, "restore");
   try {
     const { pulled } = await postPlembfinBackupAction({ action: "pull-remote-backup", destinationId, filename });
-    await restorePlembfinBackupFromServer(pulled.name, passphrase);
     await loadPlembfinBackups({ force: true });
+    await runServerPlembfinRestore({ filename: pulled.name }, passphrase);
   } catch (error) {
     setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
     _setMessage(error.message, "error");
@@ -1054,14 +1022,14 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.2.2.0.15");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.2.2.0.16");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     }
   } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
-    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.2.2.0.15");
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.2.2.0.16");
     if (state.activeMovieTmdbId) {
       openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
     } else if (state.activeMovieModalId) {
@@ -1254,7 +1222,7 @@ async function runAuthoritativeRestore(payload) {
 // handleWatchBackups), since the in-memory tail isn't reliable once a job has finished. A poll
 // timed to land exactly as the job finishes therefore sees active:false with no lines at all -
 // including the final "restore complete" confirmation - even though real work happened between
-// the previous poll and this one. Measured directly (plan/speed.md, Test 4): a ~7-minute restore
+// the previous poll and this one. Measured directly (plan/active/speed/step1-phase0-quick-wins.md, Test 4): a ~7-minute restore
 // left 18 lines, including the completion line, unreported by the live poll loop. Once active
 // flips false, re-fetch the same cursor with report=1 so the terminal reads from the persisted
 // report instead of settling for whatever the in-memory tail happened to still hold.

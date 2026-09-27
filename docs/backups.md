@@ -81,7 +81,12 @@ Destination records (`{ id, type, label, settings, secrets }`) live in the setti
 `watchBackupDestinations`. Secret fields (`password`, `secretAccessKey`, `appSecret`,
 `refreshToken`) never reach the browser - every API response redacts them to "is-set"
 flags (`loadBackupDestinationsRedacted`). Backup transfers use a 60-second outbound
-timeout (vs the configurable 10s default).
+timeout (vs the configurable 10s default). S3/Backblaze uploads are streamed from disk
+(`uploadFileWithTimeout` in `server/src/utils/outbound.js`, over `node:http(s)` because
+Node's `fetch` keeps every chunk of a streamed body in memory until the request ends):
+the SigV4 payload hash comes from a separate streaming pass, `Content-Length` is sent
+up front, and the 60 seconds restart with every chunk, so they only catch a stalled
+transfer. The other adapters still read the whole file and are not exposed in the UI.
 
 The settings UI currently exposes Backblaze B2 destinations. Each configured target is
 shown as a status card; the trailing **+** card opens the type picker, and selecting a
@@ -103,7 +108,39 @@ Nightly encrypted snapshots of the entire portable backup document.
   compatibility and can be removed by unchecking the remember option and saving.
 - **Scheduling** - `runScheduledPlembfinBackup()` runs from the same scheduler tick,
   daily at the configured time; retention default 7 (max 365). Config lives in the
-  settings row `plembfinBackups`.
+  settings row `plembfinBackups`. Each attempt is recorded before it starts, so a
+  failed day is retried at most 3 times, at least an hour apart, and an attempt that
+  kills the process is reported on the card after the restart ("stopped before
+  finishing") instead of being retried every tick.
+- **Writing** - the backup is encrypted and base64-encoded in chunks straight to a
+  `.tmp-<pid>` file and renamed when complete, so memory stays small whatever the
+  library size (building it in memory needed about 3 GB for a 490 MB file). The file
+  layout is unchanged. Leftover `.tmp-*` files older than 10 minutes, from a backup
+  that was killed mid-write, are deleted at the start of the next backup.
+- **Restoring** - every restore on the Restore page (a listed local backup, a remote
+  backup pulled to local storage first, or an uploaded file) runs on the server, so a
+  backup of any size restores. An uploaded file is sent to the server as it is (with
+  upload progress) and restored from disk. The page confirms first (the dialog says the
+  current data is not backed up first), starts the restore, then polls the job once a
+  second and shows the check and import progress. The file's recorded iteration count
+  is used, so server-made backups (100k) and browser exports (250k) both restore.
+  Until 27 September 2026 the browser decrypted and parsed the whole file itself, which
+  failed for backups over about 512 MB (V8's string limit). Downloading a backup from the
+  card streams it from disk and works at any size.
+- **Server-side restore** (`plembfinRestore.js`, `server/src/routes/plembfinRestore.js`)
+  - restores a backup of any size from disk. The
+  base64 payload is decoded and decrypted as a stream (the last 16 bytes are the GCM tag)
+  and `backupStreamScanner.js` reads the document one collection document at a time.
+  A first pass decrypts the whole file, checks the tag, the format and every document,
+  and writes nothing; only then does a second pass import through
+  `importCollectionBatch` in batches of 250, with the browser restore's rules (same
+  collections, so credential collections are left out; first batch of each collection
+  resets it; watchlist restore rules; `bumpDataVersion`). A wrong passphrase or damaged
+  file changes nothing. Cron catch-up is paused during the import and resumed after.
+  No automatic backup of the current data is made first (user decision, 27 September
+  2026). Plain portable exports restore the same way. A 648 MB backup restored 400,000
+  rows in 13 s with peak memory about 234 MB. Progress is an in-memory job (restoring
+  `runtimeState` replaces that table).
 - **Remote mirroring** - optional; runs with the daily scheduled backup when remote
   mirroring is enabled, or immediately via the Remote Plembfin Backups card's Back Up
   Now button. Reuses `pushBackupToRemotes` from the watch-history subsystem, so the
@@ -114,6 +151,13 @@ Nightly encrypted snapshots of the entire portable backup document.
   for).
 - **API** - `GET/POST /api/plembfin-backups` (`handlePlembfinBackups`): status, list,
   create, download, delete, restore-from-server, save settings.
+  `POST /api/plembfin-backups/upload` streams a raw backup file to a temporary upload in
+  the backups folder (kept up to a day so a wrong passphrase can be retried; deleted
+  after a successful restore) and returns an `uploadId`. `POST
+  /api/plembfin-backups/restore` with `{filename | uploadId, passphrase}` starts a
+  server-side restore (202, or 409 while one is running); `GET` returns the job status
+  (`verifying` / `importing` / `complete` / `failed`, bytes read, collection, documents
+  imported of total). The passphrase is used only for that restore and never stored.
 
 ## Full export/import (`backup.js`)
 
@@ -257,7 +301,10 @@ and encrypted Plembfin backups - each with an enable toggle in the card head, it
 time/retention (or passphrase) fields, a runtime status readout, and Save/Back Up Now
 actions at the bottom right, plus the Backblaze destination cards and edit dialogs.
 Settings → Backup / restore → Restore renders local/uploaded/remote backup choices and restore status
-(`setBackupTransferState`).
+(`setBackupTransferState`). Full Plembfin restores upload the chosen file
+(`uploadPlembfinBackupFile`, XMLHttpRequest for upload progress) and run through
+`runServerPlembfinRestore`, which starts the server restore and polls its job; the
+browser never decrypts a backup. Encrypted exports are still encrypted in the browser.
 State lives in
 `state.watchBackups`, `state.remoteBackupFiles`, `state.backupImport`,
 `state.activeBackupsTab`.

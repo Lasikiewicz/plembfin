@@ -24,6 +24,7 @@ import { handleManualWatchReview } from "./routes/manualWatchReview.js";
 import { handlePlaystateAliases } from "./routes/playstateAliases.js";
 import { isDemoMode } from "./utils/demoMode.js";
 import { handleTautulli } from "./routes/tautulli.js";
+import { handlePlembfinRestore, handlePlembfinRestoreUpload } from "./routes/plembfinRestore.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -187,6 +188,8 @@ async function dispatch(req, res) {
     if (path === "backup/import") return handleBackupImport(req, res);
     if (path === "watch-backups") return handleWatchBackups(req, res);
     if (path === "plembfin-backups") return handlePlembfinBackups(req, res);
+    if (path === "plembfin-backups/restore") return handlePlembfinRestore(req, res);
+    if (path === "plembfin-backups/upload") return handlePlembfinRestoreUpload(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "manual-watch-review" || path.startsWith("manual-watch-review/")) return handleManualWatchReview(req, res, path);

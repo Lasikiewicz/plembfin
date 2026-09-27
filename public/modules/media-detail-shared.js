@@ -1,17 +1,17 @@
-import { state } from "./state.js?v=1.2.2.0.15";
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.2.2.0.15";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.2.2.0.15";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.2.2.0.15";
-import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.2.2.0.15";
-import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.2.2.0.15";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.2.2.0.16";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.2.2.0.16";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.2.0.16";
+import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.2.2.0.16";
+import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.2.2.0.16";
 
 export { movieById, movieBySlugOrId, nowPlayingHref, hydrateDeferredCastDisclosure };
 
 // Performance milestone: the detail page shows its title, artwork, watch state,
 // and primary actions from real data. Cast, images, trailers, and other
 // enrichment may still be loading. Read by the application-speed benchmark
-// (plan/application-speed-remediation.md, Phase E); it has no runtime effect.
+// (plan/active/application-speed-remediation/step5-phase-e-detail.md, Phase E); it has no runtime effect.
 export function markDetailPrimaryReady(kind) {
   try {
     performance.mark("plembfin:detail-primary-ready", { detail: { kind, path: location.pathname } });
@@ -859,15 +859,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.2.2.0.15" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.2.2.0.16" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.2.2.0.15" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.2.2.0.16" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.2.2.0.15" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.2.2.0.16" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -948,7 +948,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.2.2.0.15", TVDB: "/icons/tvdb.svg?v=1.2.2.0.15", IMDb: "/icons/imdb.svg?v=1.2.2.0.15" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.2.2.0.16", TVDB: "/icons/tvdb.svg?v=1.2.2.0.16", IMDb: "/icons/imdb.svg?v=1.2.2.0.16" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";

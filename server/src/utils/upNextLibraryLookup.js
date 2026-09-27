@@ -18,16 +18,24 @@ import { db } from "../db.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
 // A resolved library item is stable: the same episode keeps its ratingKey/Id
-// until the library is rebuilt. A miss is far more volatile - it is usually an
-// episode that has not been downloaded yet - so it is retried far sooner.
+// until the library is rebuilt. A miss is more volatile - it is usually an
+// episode that has not been downloaded yet - so it is retried sooner. It was 15
+// minutes, but the projection asks about every eligible show (163 on a real
+// library, about 486 keys over three providers) at 32 lookups per build, so
+// misses expired faster than rebuilds could refill them and every rebuild paid
+// 4-5s of provider round trips (speed finding AK). The user chose 2 hours:
+// a newly added next episode can take that long to reach Up Next.
 const RESOLVED_TTL_MS = 6 * 60 * 60 * 1000;
-const MISSING_TTL_MS = 15 * 60 * 1000;
+const MISSING_TTL_MS = 2 * 60 * 60 * 1000;
 // Cap direct episode-item lookups so a cold cache cannot turn a dashboard
 // refresh into a burst of provider searches. Full-series inventory lookups
 // are separately cached and run through the projection's bounded worker pool.
 const MAX_LOOKUPS_PER_BUILD = 32;
 const MAX_CACHE_ENTRIES = 2000;
-const EPISODE_INVENTORY_TTL_MS = 5 * 60 * 1000;
+// Was 5 minutes: 26 inventories on a real library took 13-18s to refetch, so
+// any rebuild after five idle minutes paid it (speed finding AK). The user
+// chose 30 minutes: a new episode of a fully watched show can take that long.
+const EPISODE_INVENTORY_TTL_MS = 30 * 60 * 1000;
 // A failed lookup is not cached (it is not evidence the episode is absent), so
 // without a backoff every projection rebuild during an outage re-ran every
 // lookup against the unreachable server: about 2,800 failed Jellyfin requests,
@@ -262,7 +270,7 @@ export async function resolveUpNextProviderTargets({
   return { provider, resolved, unresolved };
 }
 
-function configuredProvider(config, provider) {
+export function configuredProvider(config, provider) {
   const section = config?.[provider] || {};
   if (section.disabled) return false;
   if (provider === "plex") return Boolean(section.baseUrl && section.token);
@@ -284,7 +292,7 @@ function readCache(key) {
   const entry = lookupCache.get(key);
   if (!entry) return null;
   const ttl = entry.providerItemId ? RESOLVED_TTL_MS : MISSING_TTL_MS;
-  if (Date.now() - entry.at >= ttl) {
+  if (outageNow() - entry.at >= ttl) {
     lookupCache.delete(key);
     return null;
   }
@@ -296,7 +304,7 @@ function writeCache(key, providerItemId) {
     const oldest = lookupCache.keys().next().value;
     if (oldest !== undefined) lookupCache.delete(oldest);
   }
-  lookupCache.set(key, { at: Date.now(), providerItemId });
+  lookupCache.set(key, { at: outageNow(), providerItemId });
 }
 
 function rememberAnswer(key, provider, providerItemId) {
@@ -340,11 +348,11 @@ export function clearUpNextLibraryLookupCache() {
   providerOutages.clear();
 }
 
-function providerEpisodeId(provider, episode = {}) {
+export function providerEpisodeId(provider, episode = {}) {
   return text(provider === "plex" ? (episode.ratingKey || episode.key) : episode.Id || episode.id);
 }
 
-function providerEpisodeCoordinate(provider, episode = {}) {
+export function providerEpisodeCoordinate(provider, episode = {}) {
   const season = Number(provider === "plex" ? episode.parentIndex : episode.ParentIndexNumber);
   const number = Number(provider === "plex" ? episode.index : episode.IndexNumber);
   if (!Number.isInteger(season) || season < 0 || !Number.isInteger(number) || number < 1) return null;
@@ -361,7 +369,7 @@ function providerEpisodeAirDate(provider, episode = {}) {
     : episode.PremiereDate || episode.PremiereDateUtc || episode.premiereDate);
 }
 
-function providerSeriesEpisodes(provider, config, media) {
+export function providerSeriesEpisodes(provider, config, media) {
   if (provider === "plex") return fetchPlexSeriesEpisodes(config.plex, media);
   if (provider === "emby") return fetchEmbySeriesEpisodes(config.emby, media);
   return fetchJellyfinSeriesEpisodes(config.jellyfin, media);
@@ -378,7 +386,10 @@ function providerInventoryKey(provider, config, show = {}) {
 // snapshot so the Up Next projection can discover the first available episode
 // after the user's canonical watched history without turning every dashboard
 // refresh into a full provider scan.
-export function createUpNextLibraryEpisodeLookup(config = {}) {
+//
+// `stats`, when given, counts cache hits and live fetches for the build's
+// summary log line.
+export function createUpNextLibraryEpisodeLookup(config = {}, { stats = null } = {}) {
   const providers = PROVIDERS.filter((provider) => configuredProvider(config, provider));
   if (!providers.length) return null;
 
@@ -396,8 +407,12 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
     const results = await Promise.all(providers.map(async (provider) => {
       const key = providerInventoryKey(provider, config, show);
       const cached = episodeInventoryCache.get(key);
-      if (cached && Date.now() - cached.at < EPISODE_INVENTORY_TTL_MS) return cached.episodes;
+      if (cached && outageNow() - cached.at < EPISODE_INVENTORY_TTL_MS) {
+        if (stats) stats.inventoryCached = (stats.inventoryCached || 0) + 1;
+        return cached.episodes;
+      }
       if (providerInOutage(provider, config)) return [];
+      if (stats) stats.inventoryFetched = (stats.inventoryFetched || 0) + 1;
       try {
         const rawEpisodes = await providerSeriesEpisodes(provider, config, media);
         clearProviderOutage(provider, config);
@@ -430,7 +445,7 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
           const oldest = episodeInventoryCache.keys().next().value;
           if (oldest !== undefined) episodeInventoryCache.delete(oldest);
         }
-        episodeInventoryCache.set(key, { at: Date.now(), episodes });
+        episodeInventoryCache.set(key, { at: outageNow(), episodes });
         return episodes;
       } catch {
         // A failed inventory is not evidence that the show is absent. Do not
@@ -459,7 +474,12 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
 // `unanswered` lists the providers that were not asked (budget, outage) or
 // failed. A missing id from a provider not in that list is a real "not in this
 // library" answer.
-export function createUpNextLibraryLookup(config = {}) {
+//
+// `stats`, when given, counts cache hits, live lookups, and lookups skipped
+// for lack of budget, for the build's summary log line. `deferred`, when given,
+// collects the `{ candidate, provider }` pairs skipped for lack of budget so
+// the caller can hand them to topUpUpNextLibraryLookups.
+export function createUpNextLibraryLookup(config = {}, { stats = null, deferred = null } = {}) {
   const providers = PROVIDERS.filter((provider) => configuredProvider(config, provider));
   if (!providers.length) return null;
   let budget = MAX_LOOKUPS_PER_BUILD;
@@ -476,6 +496,7 @@ export function createUpNextLibraryLookup(config = {}) {
       const key = cacheKey(provider, config, media);
       const cached = readCache(key);
       if (cached) {
+        if (stats) stats.itemCached = (stats.itemCached || 0) + 1;
         if (cached.providerItemId) providerItems[provider] = [cached.providerItemId];
         continue;
       }
@@ -491,10 +512,13 @@ export function createUpNextLibraryLookup(config = {}) {
         continue;
       }
       if (budget <= 0) {
+        if (stats) stats.itemOverBudget = (stats.itemOverBudget || 0) + 1;
+        if (deferred) deferred.push({ candidate, provider });
         unanswered.push(provider);
         continue;
       }
       budget -= 1;
+      if (stats) stats.itemLive = (stats.itemLive || 0) + 1;
       try {
         const { providerItemId } = await resolveUpNextProviderItemId(provider, config[provider], candidate);
         clearProviderOutage(provider, config);
@@ -515,4 +539,55 @@ export function createUpNextLibraryLookup(config = {}) {
     }
     return detailed ? { providerItems, unanswered } : providerItems;
   };
+}
+
+// The per-build budget keeps a dashboard refresh fast, but a real library has
+// about 486 keys and the dashboard rebuilds only a few times an hour, so the
+// cache never filled before the 2-hour miss window expired its oldest answers
+// and every rebuild kept paying 4-5s (speed finding AK, measured on the running
+// server 26 September). The user chose a background top-up: after a build, the
+// lookups it skipped for budget are asked here, one batch of the same size at a
+// time with a pause between batches, so the next rebuild finds them cached.
+// One top-up at a time; a build that arrives while one runs adds nothing,
+// because its skipped lookups are the ones already being asked.
+const TOP_UP_BATCH_PAUSE_MS = 2000;
+let topUpRunning = null;
+
+export function topUpUpNextLibraryLookups(config = {}, deferred = [], {
+  pauseMs = TOP_UP_BATCH_PAUSE_MS,
+  log = (message) => console.log(message),
+} = {}) {
+  if (topUpRunning || !Array.isArray(deferred) || !deferred.length) return topUpRunning;
+  const pending = new Map();
+  for (const entry of deferred) {
+    const media = upNextLookupMedia(entry?.candidate);
+    if (!entry?.provider || !media.type || !media.title) continue;
+    const key = cacheKey(entry.provider, config, media);
+    if (!pending.has(key)) pending.set(key, entry);
+  }
+  if (!pending.size) return null;
+  topUpRunning = (async () => {
+    const startedAt = Date.now();
+    const stats = {};
+    const entries = [...pending.values()];
+    try {
+      for (let start = 0; start < entries.length; start += MAX_LOOKUPS_PER_BUILD) {
+        if (start > 0 && pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+        const lookup = createUpNextLibraryLookup(config, { stats });
+        if (!lookup) break;
+        for (const { candidate, provider } of entries.slice(start, start + MAX_LOOKUPS_PER_BUILD)) {
+          await lookup(candidate, { only: [provider] });
+        }
+      }
+    } catch {
+      // A lookup failure is already recorded as a provider outage; the next
+      // build retries whatever is still uncached.
+    } finally {
+      const n = (value) => Number(value) || 0;
+      log(`Up Next lookup top-up: ${entries.length} skipped lookups in ${((Date.now() - startedAt) / 1000).toFixed(1)}s; `
+        + `${n(stats.itemLive)} live, ${n(stats.itemCached)} already cached.`);
+      topUpRunning = null;
+    }
+  })();
+  return topUpRunning;
 }

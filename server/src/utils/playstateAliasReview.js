@@ -14,7 +14,7 @@ import { getCachedTmdbExternalIdKind } from "./tmdbGateway.js";
 import { getCachedTvdbEpisodeKind } from "./tvdbGateway.js";
 
 // The Maintenance card for episode playstate aliases no proof tier can place
-// (plan/playstate-episode-id-repair.md, "Rows no tier proves"). The scheduled
+// (plan/active/playstate-episode-id-repair/plan.md, "Rows no tier proves"). The scheduled
 // repair never folds these (decision 34); the user decides per show:
 // "Belongs to this show" folds them with the newest state winning, and
 // "Different show" stores their keys so the card and the repair skip them.

@@ -44,18 +44,19 @@ conversation. Keep both small without cutting any verification.
 
 - **One task per session.** When a task is finished, and especially when the user asks "what's
   next", recommend a fresh session instead of carrying the history forward, and give a one-line
-  handoff to paste into it: the plan path plus the current step (for example
-  `Continue plan/unified-up-next-sync.md, manual matrix step 2`).
+  handoff to paste into it: the summary path plus the current step and its step file (for
+  example `Continue plan/custom-playlist-sync.md, step 6 (method in
+  plan/active/custom-playlist-sync/step6-live-verification.md)`).
 - **Checkpoint long runs.** Before starting a multi-phase job ("do it", "start phase N", `/goal`),
-  write the current progress and next step into the owning plan file, then recommend running
-  each phase in a fresh session that starts from that file.
+  write the current progress into the step file's Results and the next step into the summary,
+  then recommend running each phase in a fresh session that starts from the summary.
 - **Context budget.** A local hook (`.claude/hooks/context-budget.mjs`) reports the context size
   past 150k and 250k, at each prompt and once per level mid-task. Past 150k, "what's next" gets the next item plus a handoff line, not the
-  item itself. Past 250k, finish only the current item, write the handoff into the plan, and
+  item itself. Past 250k, finish only the current item, write the handoff into the summary, and
   recommend a fresh session. The audit that prompted this found 91% of input tokens were spent
   above 200k context (`plan/agent-token-efficiency.md`).
 - **Stale sessions.** When a large session resumes after an hour or more away, its cache has
-  expired and the whole context is paid for again; recommend starting fresh from the plan file.
+  expired and the whole context is paid for again; recommend starting fresh from the plan summary.
 
 **Working style:**
 
@@ -78,6 +79,13 @@ conversation. Keep both small without cutting any verification.
     line. Run the part that needs approval as its own call, or find an allowlisted form.
   - Temporarily mutating source to prove a test fails is fine, but do it with Edit and revert
     with Edit.
+- **Ask who checks the app, before starting.** When a task's verification includes looking at
+  the running app, ask the user at the start (before writing code) whether they will do that
+  check or want the agent to, with "you check" as the recommended option. If the user checks,
+  finish the code and the unit tests/build, then give a short checklist (page, style and mode,
+  width, what should appear) and record the check as waiting on the user in the plan step.
+  One answer covers only that task's checks. Agent-run app checks are expensive (one browser
+  check of six pages cost about 108k tokens).
 - **Browser checks: text first, screenshots last.** Prefer `curl` against the API, page text
   (`get_page_text`), the accessibility tree (`read_page`), or a JavaScript probe. Take screenshots
   only when the check is genuinely visual, at reduced scale, and never inside large batches. Use
@@ -85,18 +93,17 @@ conversation. Keep both small without cutting any verification.
   only a pass/fail table with evidence, so screenshots and page dumps never enter the main
   context. Cap `preview_logs` at about 200 lines and use its `search` filter.
 - **Large files: search, never read whole.** A hook denies whole-file `Read` of text files over
-  60 KB (plan `-results`/`-reference` companions, big route modules); Grep, then Read with
+  60 KB (large plan step files, big route modules); Grep, then Read with
   offset/limit. Shell reads (`sed -n`, `cat`, `head`) and inline Python get a warning.
 - **Server restarts are one call:** `npm run server:restart` (stop, start, wait for `/api/ping`,
   one line out). Do not hand-roll stop/start/sleep/probe loops.
 - **Poll sparingly.** Every wake-up re-sends the full context; wait on a notification or a
   single well-timed check rather than repeated short sleeps.
 
-**Plan files stay lean.** Each active plan in `plan/` stays under about 15 KB and holds only
-status, decisions, and next steps. Measurements, test runs, and implementation logs go in
-`plan/<name>-results.md`; bulky design/specification detail goes in `plan/<name>-reference.md`
-(or `plan/archive/` once completed). Open those companions only when the step at hand needs
-them. Record new evidence in the results file, and update the main plan's status line.
+**Plan files stay small.** Every plan, including a one-step plan, uses the layout in
+"Plan layout" below. Open only the file the work at hand needs: the summary to see where things
+stand, `plan.md` for the design, and the one step file being worked on. Record new evidence in
+that step file's Results, and update the summary's "Where we are" and ticks.
 
 ## Branching model: `develop` → `alpha` → `main`
 
@@ -151,34 +158,88 @@ Rules that hold regardless of which skill is running:
 
 ## Documentation and backlog sync
 
-[`plan/todo.md`](plan/todo.md) is the single backlog. Active plans live in `plan/`; completed
-plans move to [`plan/archive/`](plan/archive/) and leave the TODO. There is no root `TODO.md`
-(retired 15 September 2026).
+[`plan/todo.md`](plan/todo.md) is the single backlog: one line per plan, linking its summary,
+never a detailed entry. Completed plans move to [`plan/archive/`](plan/archive/) and leave the
+TODO. There is no root `TODO.md` (retired 15 September 2026).
 
-When implementing or finishing planned work, update its entry in the same change. If
-user-visible behavior changes, also update the relevant `docs/` page and README section. Before
-closing a plan, verify code and docs both describe current behavior.
+- **Links in `todo.md` are written from the project root** (`plan/<name>.md`), because the
+  user opens it in the Claude desktop app, which resolves links from the project root.
+- **"Last worked on" at the top of `todo.md`** lists the last three plans worked on, newest
+  first, each with its current step in a few words and its link. Whenever a plan's summary is
+  updated, move that plan to the top of the list (dropping the fourth), in the same change.
+- **Small work with no plan of its own** (a bug found in passing, a follow-up check) becomes a
+  new step in the loose-ends plan (`plan/loose-ends.md`), not a paragraph in `todo.md`. Work that
+  belongs to an open plan becomes a step in that plan. Anything substantial gets its own plan.
+
+### Plan layout
+
+Each plan `<name>` has these parts (user-agreed 25 September 2026):
+
+- `plan/<name>.md`, the **summary**, written for the user in plain English: Purpose, "Where we
+  are" (3 to 5 lines), Steps (a ticked checklist linking each step file, with unticked
+  sub-boxes for each outstanding check), and "Waiting on you". It is the only place status
+  lives, and it holds no file names or code.
+- `plan/active/<name>/plan.md`, the **design**: scope, decisions (with the user's answers and
+  dates), safety rules, contract, acceptance criteria. No status.
+- `plan/active/<name>/stepN-<topic>.md`, one small file per step: Work, Tests, and Results
+  (dated entries). There are no separate `-results` or `-reference` files; bulky evidence goes
+  in the step it belongs to. Keep each file under about 15 KB; split a step (5a, 5b) rather
+  than grow it.
+- Files a plan creates (check scripts, probes, fixtures, data) live in a subfolder of its
+  folder, for example `plan/active/speed/checks/`, never in the repo root or loose in `plan/`.
+- On completion the folder moves to `plan/archive/<name>/` and the summary moves in as
+  `summary.md` (see [`plan/archive/README.md`](plan/archive/README.md)).
+
+`plan/` is git-ignored, so moving or deleting a plan file cannot be undone from git; keep a copy
+in the session scratchpad before a restructure.
+
+When implementing or finishing planned work, update its step file and summary in the same
+change. If user-visible behavior changes, also update the relevant `docs/` page and README
+section. Before closing a plan, verify code and docs both describe current behavior.
+
+### MANDATORY: what plans contain
+
+- **A plan holds what the user wants, how to implement it, and how to test it**, plus status
+  (summary only), progress notes, and results (step files). Nothing else becomes a work step.
+- **Ask behavior decisions when they come up.** When implementation reaches a product or
+  behavior choice (what the user sees, when something syncs or deletes, thresholds, conflict
+  rules), stop and ask the user then, with the recommended option first, and record the answer
+  in `plan.md` as a decision. Never pick a default, build it, and log it as a "scoping call
+  awaiting review". Pure implementation details (module layout, helper functions) need no
+  question.
+- **"Waiting on you" holds only what blocks the plan now**: a question asked while the plan is
+  running whose answer the next piece of work needs, or an action only the user can take
+  (a sign-in, an account, a manual check) that the current step needs. Questions for a later
+  step are written into that step file's Work ("when this step starts, ask ...") and asked
+  then, never listed in advance. When nothing blocks, it says "Nothing."
+- **No website work in feature plans.** Website captures, recaptures, website doc edits, and
+  website preview checks happen only inside a "Force to main" run (its website update gate).
+  A plan or handoff line that names website work does not authorize it; skip it and remove it
+  from the plan.
 
 ### MANDATORY: keep the TODO current, and never overstate status
 
 **Before ending any turn that changed code, and before starting a new phase of work, update
-[`plan/todo.md`](plan/todo.md) and the owning plan's status line with the real status.** Not
-optional, not waiting to be asked. Work with no plan goes under "Unscheduled backlog"; if it is
-substantial, write the plan.
+[`plan/todo.md`](plan/todo.md) and the owning plan's summary ("Where we are" and the step
+ticks) with the real status.** Not
+optional, not waiting to be asked. Also move the plan to the top of "Last worked on". Work with
+no plan becomes a step in the loose-ends plan; if it is substantial, write its own plan.
 
 - **Distinguish "implemented", "unit-tested", and "verified".** Compiling is not tested; tests
   that stub the network are not verified against the real service. Only make true claims.
-- **A plan is `Completed` only once its own verification section has actually been run.** Until
-  then it is `Implemented and unit-tested; not yet Completed`, with outstanding checks listed
-  individually as unticked boxes.
-- **Archive completed plans immediately**: in the change that closes the TODO item, move the plan
-  into `plan/archive/` and fix relative links crossing the archive boundary. Never archive plans
-  with unverified or deferred checks; incomplete, deferred, blocked, and merely implemented plans
-  stay outside the archive.
-- **List what is NOT verified explicitly, with the failure mode.** "Emby `DatePlayed` unconfirmed
-  - a wrong format degrades silently to watched-dated-today while still reporting success" is
-  useful; "some testing remains" is not.
-- **Record scoping calls made during implementation** that the user has not reviewed.
+- **A step is ticked only once its own tests and checks have actually been run**, and a plan is
+  `Completed` only when every step is ticked. Until then the summary says what is built and
+  tested in plain words, with each outstanding check as its own unticked sub-box under its step.
+- **Archive completed plans immediately**: in the change that closes the TODO item, move
+  `plan/active/<name>/` to `plan/archive/<name>/`, move the summary in as `summary.md`, and fix
+  relative links crossing the archive boundary. Never archive plans with unverified or deferred
+  checks; incomplete, deferred, blocked, and merely implemented plans stay outside the archive.
+- **List what is NOT verified explicitly, with the failure mode**, in the owning step file.
+  "Emby `DatePlayed` unconfirmed - a wrong format degrades silently to watched-dated-today while
+  still reporting success" is useful; "some testing remains" is not. The summary's sub-box says
+  the same in plain words.
+- **Record the user's answers to behavior decisions** in `plan.md` (see "what plans contain");
+  unanswered behavior choices are asked, not recorded as pending reviews.
 - **Never mark a downstream plan unblocked** until the upstream plan reaches `Completed`.
 
 A task is finished when it is verified, not when it is written.

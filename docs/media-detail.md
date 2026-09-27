@@ -239,12 +239,12 @@ of a premature "no episodes" message.
   only knows an episode-level provider id. Episode artwork is still stored separately
   and is not replaced by the show's poster.
 - **Personal lists** - movie and show detail pages keep **Add to watch list** and
-  **Add to custom list** in the control bar. The watch-list action changes to
-  **Remove from watch list** when the title is already saved. The custom-list action
-  changes to **In custom list** when it has memberships, and its chooser marks each
+  **Add to playlist** in the control bar. The watch-list action changes to
+  **Remove from watch list** when the title is already saved. The playlist action
+  changes to **In playlist** when it has memberships, and its chooser marks each
   existing membership as already added. Matching uses the title's provider identity
   (plus show/season/episode coordinates for episodes), so the state agrees with the
-  Watchlist and Custom Lists pages.
+  Watchlist and Playlists pages.
 - **Detail action bar** - the everyday actions stay visible while a permanent
   **Options** section groups **Force Sync**, **Info**, **Edit Images**, **Fix Match**,
   and **Delete**. TV show pages also place **Merge** in Options. The grouped menu is

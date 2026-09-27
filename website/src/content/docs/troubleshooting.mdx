@@ -186,17 +186,18 @@ or watch history has been deleted.
   darkSrc="/assets/app-captures/watchlist-dark.png"
   lightSrc="/assets/app-captures/watchlist-light.png"
   alt="Plembfin Watchlist page showing saved media cards"
-  caption="Watchlist, Ratings, and Custom Lists are separate from watched-state sync."
+  caption="Watchlist, Ratings, and Playlists are separate from watched-state sync."
 />
 
 1. Confirm the app still shows your signed-in account and reopen the relevant **Watchlist**,
-   **Ratings**, or **Custom Lists** page.
+   **Ratings**, or **Playlists** page.
 2. Wait for the card action to finish and check the inline success or error message.
 3. Reload the personal page so it can fetch the current local snapshot again.
-4. For a custom list, check that the intended list is selected and that the title is not
-   already marked **Added**.
+4. For a playlist, check that the title is not already marked **Added** in the chooser. If
+   it is missing from an app's copy, look for a **Missing from** note or a held-change
+   banner; see [How app sync works](/docs/playlists/#how-app-sync-works).
 5. If the action fails for every title, restart the current Plembfin build and inspect
-   [Settings → Logs](/docs/settings/logs/) for the Watchlist, Ratings, or Custom Lists request.
+   [Settings → Logs](/docs/settings/logs/) for the Watchlist, Ratings, or Playlists request.
 
 These actions do not create a watch event. Check **History** and **Sync Activity** only when
 the problem is with watched state rather than a private personal choice.
@@ -268,7 +269,7 @@ The poster menu is available on movie, TV, and supported History cards.
 On a desktop pointer, hover the card to reveal the three-dot button.
 
 Select it and choose **Edit watch date**, **Fix match**, **Rate**, **Add to watch list**,
-**Add to Custom list**, or **Mark unwatched**.
+**Add to playlist**, or **Mark unwatched**.
 
 Use this recovery sequence:
 

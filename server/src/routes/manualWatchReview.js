@@ -524,6 +524,10 @@ export async function handleManualWatchReview(req, res, path) {
       // those records into one row.
       count: countPendingManualWatchReviewItems(pendingReviews),
       reviewCount: pendingReviews.length,
+      // The sidebar summary hides reviews the page has just decided. It needs
+      // the ids to subtract only those the server still reports, otherwise a
+      // decided review cancels out a newly flagged one.
+      ...(summaryOnly ? { ids: pendingReviews.map((review) => String(review.id)) } : {}),
       reviews: summaryOnly ? [] : pendingReviews,
     }, 200, { "Cache-Control": "no-store" });
   }

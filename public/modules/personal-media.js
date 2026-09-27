@@ -1,9 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state, elements } from "./state.js?v=1.2.2.0.15";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.2.0.15";
-import { hydratePosters } from "./images.js?v=1.2.2.0.15";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.2.0.15";
-import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.16";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.2.0.16";
+import { hydratePosters } from "./images.js?v=1.2.2.0.16";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.2.0.16";
+import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.2.0.16";
+import { bindPlaylistDragAndDrop, handlePlaylistClick, initPlaylists, openAddToListDialog, openCreateListDialog, openImportPlaylistsDialog, openShowEpisodePicker, recentlyDeletedButtonHtml, renderPlaylists, watchUncheckedPlaylistRules } from "./playlists.js?v=1.2.2.0.16";
+
+export { openAddToListDialog, openCreateListDialog };
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -397,10 +400,10 @@ function personalCustomListActionState(item) {
   const names = lists.map((list) => list.name).filter(Boolean);
   return {
     active: names.length > 0,
-    label: names.length ? "In custom list" : "Add to custom list",
+    label: names.length ? "In playlist" : "Add to playlist",
     description: names.length
-      ? `In custom list${names.length > 1 ? "s" : ""}: ${names.join(", ")}`
-      : `Add ${item.title} to a custom list`,
+      ? `In playlist${names.length > 1 ? "s" : ""}: ${names.join(", ")}`
+      : `Add ${item.title} to a playlist`,
     mode: names.length ? "manage" : "add",
   };
 }
@@ -445,7 +448,7 @@ export function refreshRenderedPersonalMediaControls() {
 
 // personalRatings/personalWatchlist/personalLists are only ever fetched by
 // loadPersonalMedia(), and until this session-scoped fix that was only called
-// when the Watchlist/Ratings/Custom Lists/Discover route itself was active.
+// when the Watchlist/Ratings/Playlists/Discover route itself was active.
 // A movie/show/episode detail page opened directly - a deep link, a search
 // result, a bookmark, a fresh tab - never triggered it, so the personal
 // rating pill and the watchlist/list buttons silently rendered as "not yet
@@ -520,7 +523,9 @@ async function personalRequest(payload) {
     body: JSON.stringify(payload),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Personal media update failed (${response.status})`);
+  if (!response.ok) {
+    throw Object.assign(new Error(body.error || `Personal media update failed (${response.status})`), { status: response.status, code: body.code || "" });
+  }
   return body;
 }
 
@@ -531,13 +536,14 @@ function personalErrorPresentation() {
   return state.personalMediaError || "Try again later.";
 }
 
-function personalCard(item, { section = "watchlist", rating = null, listId = "" } = {}) {
+function personalCard(item, { section = "watchlist", rating = null, listId = "", removable = true, hideOverview = false, actionsHtml = "", noteHtml = "", posterBadgeHtml = "", attributesHtml = "" } = {}) {
   const normalized = normalizeItem(item);
   const sharedMetadata = personalMetadataItems().find((entry) => (
     String(entry.media_key || mediaKeyForPersonalItem(entry)) === String(normalized.media_key)
       && (entry.overview || entry.release_date)
   )) || {};
-  const overview = normalized.overview || sharedMetadata.overview || "Summary unavailable.";
+  // Playlist cards leave the summary out (the card itself still links to the full page).
+  const overview = hideOverview ? "" : normalized.overview || sharedMetadata.overview || "Summary unavailable.";
   const releaseValue = normalized.release_date || sharedMetadata.release_date || "";
   const episodeMeta = normalized.media_type === "episode"
     ? `${episodeCode(normalized.season, normalized.episode)} · ${normalized.title}`
@@ -550,7 +556,7 @@ function personalCard(item, { section = "watchlist", rating = null, listId = "" 
   const releaseDate = releaseValue ? formatTmdbDate(releaseValue) : "Release date unavailable";
   const ratingLabel = rating ? `★${rating}/10` : "Rate";
   const ratingActionHtml = `<button class="shared-media-card-rating shared-media-card-rating--action" type="button" data-personal-action="rate" data-personal-key="${escapeAttribute(key)}" aria-label="${escapeAttribute(rating ? `Change your rating for ${normalized.title}` : `Rate ${normalized.title}`)}" title="${escapeAttribute(rating ? "Change rating" : "Rate this title")}">${ratingLabel}</button>`;
-  const personalMenuAction = section === "ratings"
+  const personalMenuAction = !removable ? "" : section === "ratings"
     ? "remove-rating"
     : section === "list"
       ? `remove-list:${listId}`
@@ -558,7 +564,7 @@ function personalCard(item, { section = "watchlist", rating = null, listId = "" 
   const personalRemoveLabel = section === "ratings"
     ? "Remove rating"
     : section === "list"
-      ? "Remove from this list"
+      ? "Remove from this playlist"
       : "Remove from watchlist";
   return renderMediaCard({
     ...record,
@@ -574,6 +580,10 @@ function personalCard(item, { section = "watchlist", rating = null, listId = "" 
     ratingActionHtml,
     showSource: false,
     description: overview,
+    actionsHtml,
+    noteHtml,
+    posterBadgeHtml,
+    attributesHtml,
   });
 }
 
@@ -587,42 +597,6 @@ function refreshPersonalMetadata() {
       if (changed || propagatePersonalMetadata(mediaKeyForPersonalItem)) refreshPersonalViews();
     })
     .catch(() => { });
-}
-
-function renderCustomListSection(list, index) {
-  const name = list?.name || "Untitled list";
-  const items = Array.isArray(list?.items) ? list.items : [];
-  const headingId = `personal-list-${index}-title`;
-  return `
-    <section class="personal-media-list-section" aria-labelledby="${headingId}">
-      <div class="personal-media-list-heading">
-        <h2 id="${headingId}">${escapeHtml(name)}</h2>
-        <span>${items.length} item${items.length === 1 ? "" : "s"}</span>
-        <button class="button-danger personal-media-delete-list" type="button" data-personal-delete-list="${escapeAttribute(list.id)}" aria-label="Delete ${escapeAttribute(name)}" title="Delete ${escapeAttribute(name)}">Delete</button>
-      </div>
-      <div class="personal-media-list-row horizontal-scroll-row${items.length ? "" : " is-empty"}" data-personal-list-rail>
-        ${items.length
-          ? items.map((item) => personalCard(item, { section: "list", listId: list.id })).join("")
-          : `<div class="empty-log personal-media-list-empty"><b>No items yet</b><span>Add a movie or TV show from any media card.</span></div>`}
-      </div>
-    </section>
-  `;
-}
-
-function renderCustomListSections(lists, startIndex = 0) {
-  return lists.map((list, index) => renderCustomListSection(list, startIndex + index)).join("");
-}
-
-function renderCustomLists(lists) {
-  if (!lists.length) return emptyPersonalState("No custom lists yet", "Create a list to collect films and shows your way.");
-  const visibleLists = lists.slice(0, 4);
-  const additionalLists = lists.slice(4);
-  return `
-    <div class="personal-media-list-viewport">
-      ${renderCustomListSections(visibleLists)}
-    </div>
-    ${additionalLists.length ? `<div class="personal-media-list-overflow">${renderCustomListSections(additionalLists, 4)}</div>` : ""}
-  `;
 }
 
 function renderPersonalRatingSections(ratings) {
@@ -649,7 +623,7 @@ function renderPersonalRatingSections(ratings) {
 function renderPersonalControls() {
   let compactCards = false;
   try { compactCards = localStorage.getItem("plembfin:card-mode:personal") === "1"; } catch { /* storage unavailable */ }
-  const createListSource = state.personalMediaTab === "lists" ? "custom-lists" : "";
+  const createListSource = state.personalMediaTab === "lists" ? "playlists" : "";
   const syncType = state.personalMediaTab === "ratings"
     ? "ratings"
     : state.personalMediaTab === "watchlist"
@@ -664,10 +638,15 @@ function renderPersonalControls() {
         <span>${syncBusy ? "Syncing…" : "Sync now"}</span>
       </button>`
     : createListSource
-      ? `<button class="action-pill page-action-pill personal-media-create-list-button" type="button" data-personal-create-list="${createListSource}" title="Create a custom list">
+      ? `<button class="action-pill page-action-pill personal-media-create-list-button" type="button" data-personal-create-list="${createListSource}" title="Create a playlist">
           <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1h5v-5A.75.75 0 0 1 8 1.5z"/></svg>
-          <span>New list</span>
-        </button>`
+          <span>New playlist</span>
+        </button>
+        <button class="action-pill page-action-pill personal-media-import-lists-button" type="button" data-personal-import-lists title="Import playlists you made in Plex, Emby, or Jellyfin">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V2.25A.75.75 0 0 1 8 1.5zM2.75 12a.75.75 0 0 1 .75.75v.75h9v-.75a.75.75 0 0 1 1.5 0v1.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1-.75-.75v-1.5a.75.75 0 0 1 .75-.75z"/></svg>
+          <span>Import from apps</span>
+        </button>
+        ${recentlyDeletedButtonHtml()}`
       : "";
   return `
     <div class="page-action-bar personal-media-toolbar-actions">
@@ -750,7 +729,7 @@ export function renderPersonalMedia() {
       ? renderPersonalRatingSections(ratings)
       : emptyPersonalState("No ratings yet", "Use any media card's actions to keep your own score.");
   } else if (tab === "lists") {
-    content = renderCustomLists(Array.isArray(state.personalLists) ? state.personalLists : []);
+    content = renderPlaylists(Array.isArray(state.personalLists) ? state.personalLists : []);
   } else {
     const watchlist = state.personalWatchlist || [];
     content = watchlist.length
@@ -759,6 +738,8 @@ export function renderPersonalMedia() {
   }
   panel.innerHTML = content;
   bindPersonalListWheelBehavior(panel);
+  bindPlaylistDragAndDrop(panel);
+  if (tab === "lists") watchUncheckedPlaylistRules(panel);
   hydratePosters(panel);
 }
 
@@ -818,6 +799,9 @@ export async function loadPersonalMedia({ force = false, maxAgeMs = PERSONAL_MED
       state.personalLists = Array.isArray(body.lists)
         ? body.lists.map((list) => ({ ...list, items: Array.isArray(list.items) ? list.items.map(normalizeItem) : [] }))
         : [];
+      state.personalDeletedLists = Array.isArray(body.deleted_lists) ? body.deleted_lists : [];
+      state.personalListsStamp = typeof body.playlists_stamp === "string" ? body.playlists_stamp : "";
+      state.playlistProviders = Array.isArray(body.playlist_providers) ? body.playlist_providers : [];
       state.personalMediaLoadedAt = Date.now();
       await refreshPersonalViews();
       refreshPersonalMetadata();
@@ -840,6 +824,8 @@ export function resetPersonalMedia() {
   state.personalRatings = [];
   state.personalWatchlist = [];
   state.personalLists = [];
+  state.personalDeletedLists = [];
+  state.playlistProviders = [];
   closePersonalDialog();
   refreshRenderedPersonalMediaControls();
 }
@@ -897,35 +883,26 @@ async function confirmRatingRemoval(item) {
   }));
 }
 
-async function createCustomList(name) {
-  const body = await personalRequest({ action: "list-create", name });
-  if (!body?.list?.id) throw new Error("The server did not return the created list.");
-  await loadPersonalMedia({ force: true });
-  return body.list;
-}
-
 export async function addToCustomList(item, listId, { showMessage = true } = {}) {
   const normalized = normalizeItem(item);
+  // A TV playlist holds separate episodes, so a show opens the episode picker
+  // instead of being added; the picker adds and reports on its own.
+  if (String(normalized.media_type || "").toLowerCase() === "tv") {
+    openShowEpisodePicker(normalized, listId);
+    return { picker: true };
+  }
   await personalRequest({ action: "list-add", list_id: listId, ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
   closePersonalDialog();
   const list = (state.personalLists || []).find((entry) => String(entry.id) === String(listId));
-  if (showMessage) setPersonalMessage(`${normalized.title} added to ${list?.name || "your custom list"}.`, "success");
+  if (showMessage) setPersonalMessage(`${normalized.title} added to ${list?.name || "your playlist"}.`, "success");
 }
 
 export async function removeFromCustomList(item, listId, { showMessage = true } = {}) {
   const normalized = normalizeItem(item);
   await personalRequest({ action: "list-remove", list_id: listId, ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
-  if (showMessage) setPersonalMessage(`${normalized.title} removed from the list.`, "success");
-}
-
-async function deleteCustomList(listId) {
-  const list = (state.personalLists || []).find((entry) => String(entry.id) === String(listId));
-  if (!list || !window.confirm(`Delete the custom list “${list.name}”?`)) return;
-  await personalRequest({ action: "list-delete", list_id: list.id, media_type: "movie", title: "List" });
-  await loadPersonalMedia({ force: true });
-  setPersonalMessage(`${list.name} deleted.`, "success");
+  if (showMessage) setPersonalMessage(`${normalized.title} removed from the playlist.`, "success");
 }
 
 function dialogFrame(title, body) {
@@ -1007,76 +984,6 @@ export function openRatingDialog(item) {
   });
 }
 
-export function openAddToListDialog(item) {
-  const normalized = normalizeItem(item);
-  const lists = state.personalLists || [];
-  const existingListIds = new Set(customListsForPersonalItem(normalized).map((list) => String(list.id)));
-  const body = lists.length
-    ? `<p class="personal-media-dialog-copy">Choose a list for <b>${escapeHtml(normalized.title)}</b>.</p><div class="personal-list-choice-grid">${lists.map((list) => {
-      const alreadyAdded = existingListIds.has(String(list.id));
-      return `<button class="button-ghost${alreadyAdded ? " personal-list-choice--added" : ""}" type="button" ${alreadyAdded ? "disabled" : ""} data-dialog-list-id="${escapeAttribute(list.id)}" aria-label="${escapeAttribute(alreadyAdded ? `${list.name}, already added` : `Add to ${list.name}`)}">${escapeHtml(list.name)}${alreadyAdded ? " · Added" : ""}</button>`;
-    }).join("")}</div><button class="button-ghost" type="button" data-dialog-create-list>Create a new list</button>`
-    : `<p class="personal-media-dialog-copy">Create a list first, then this title will be added to it.</p><button class="button-primary" type="button" data-dialog-create-list>Create a new list</button>`;
-  const overlay = dialogFrame(`Add ${normalized.title} to a list`, body);
-  overlay.addEventListener("click", (event) => {
-    const listButton = event.target.closest("[data-dialog-list-id]");
-    const createButton = event.target.closest("[data-dialog-create-list]");
-    if (listButton) {
-      event.preventDefault();
-      addToCustomList(normalized, listButton.dataset.dialogListId).catch((error) => setPersonalMessage(error.message, "error"));
-    } else if (createButton) {
-      event.preventDefault();
-      openCreateListDialog(normalized);
-    }
-  });
-}
-
-export function openCreateListDialog(afterCreateItem = null) {
-  const overlay = dialogFrame("Create a custom list", `
-    <form class="personal-media-create-form">
-      <label class="field-label" for="personalListName">List name<input id="personalListName" class="field" name="name" maxlength="100" required autocomplete="off" /></label>
-      <p class="personal-media-dialog-error hidden" data-personal-dialog-error role="alert"></p>
-      <div class="personal-media-dialog-actions"><button class="button-ghost personal-media-dialog-close" type="button">Cancel</button><button class="button-primary" type="submit">Create list</button></div>
-    </form>
-  `);
-  const form = overlay.querySelector("form");
-  const input = form?.querySelector("input");
-  const submit = form?.querySelector("[type=submit]");
-  const errorMessage = form?.querySelector("[data-personal-dialog-error]");
-  let submitting = false;
-  input?.focus();
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (submitting) return;
-    const name = String(input?.value || "").trim();
-    if (!name) return;
-    submitting = true;
-    if (submit) submit.disabled = true;
-    if (errorMessage) {
-      errorMessage.textContent = "";
-      errorMessage.classList.add("hidden");
-    }
-    try {
-      const list = await createCustomList(name);
-      if (afterCreateItem && list?.id) {
-        await addToCustomList(afterCreateItem, list.id);
-      } else {
-        closePersonalDialog(overlay);
-        setPersonalMessage(`${name} created.`, "success");
-      }
-    } catch (error) {
-      submitting = false;
-      if (submit && overlay.isConnected) submit.disabled = false;
-      const message = error?.message || "Unable to create the list.";
-      if (errorMessage && overlay.isConnected) {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove("hidden");
-      }
-      setPersonalMessage(message, "error");
-    }
-  });
-}
-
 export async function handlePersonalAction(actionButtonElement) {
   if (!actionButtonElement) return;
   const item = findPersonalItem(actionButtonElement.dataset.personalKey);
@@ -1153,12 +1060,17 @@ export async function handlePersonalAction(actionButtonElement) {
   }
   if (action.startsWith("remove-list:")) {
     const listId = action.slice("remove-list:".length);
-    const listName = (state.personalLists || []).find((entry) => String(entry.id) === String(listId))?.name || "Custom list";
+    const list = (state.personalLists || []).find((entry) => String(entry.id) === String(listId));
+    const listName = list?.name || "Playlist";
     const originalLabel = actionButtonElement.textContent || "Remove";
     actionButtonElement.disabled = true;
+    // An automatic playlist never adds the title back (decision 65).
+    const automaticNote = list?.rule
+      ? ` Its rule will not add ${item.media_type === "movie" ? "it" : "this show"} back.`
+      : "";
     const confirmed = await _cb.openConfirmDialog?.({
-      title: "Remove from custom list?",
-      body: `Remove "${item.title}" from "${listName}"?`,
+      title: "Remove from playlist?",
+      body: `Remove "${item.title}" from "${listName}"?${automaticNote}`,
       confirmLabel: "Remove",
       cancelLabel: "Keep",
       danger: true,
@@ -1205,16 +1117,16 @@ async function handlePanelClick(event) {
   const create = event.target.closest("[data-personal-create-list]");
   if (create) {
     event.preventDefault();
-    if (create.dataset.personalCreateList !== "custom-lists") return;
+    if (create.dataset.personalCreateList !== "playlists") return;
     openCreateListDialog();
     return;
   }
-  const deleteButton = event.target.closest("[data-personal-delete-list]");
-  if (deleteButton) {
+  if (event.target.closest("[data-personal-import-lists]")) {
     event.preventDefault();
-    deleteCustomList(deleteButton.dataset.personalDeleteList).catch((error) => setPersonalMessage(error.message, "error"));
+    openImportPlaylistsDialog();
     return;
   }
+  if (handlePlaylistClick(event)) return;
   const rateButton = event.target.closest("[data-personal-rate]");
   if (rateButton) {
     event.preventDefault();
@@ -1226,6 +1138,20 @@ async function handlePanelClick(event) {
   event.preventDefault();
   await handlePersonalAction(actionButtonElement);
 }
+
+initPlaylists({
+  normalizeItem,
+  personalCard,
+  emptyPersonalState,
+  personalRequest,
+  loadPersonalMedia,
+  setMessage: setPersonalMessage,
+  dialogFrame,
+  closePersonalDialog,
+  confirm: (options) => _cb.openConfirmDialog?.(options),
+  addToCustomList,
+  customListsForPersonalItem,
+});
 
 export function initPersonalMedia(callbacks = {}) {
   _cb = callbacks;

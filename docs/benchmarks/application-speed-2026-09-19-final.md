@@ -1,7 +1,7 @@
 # Application speed final verification - 19 September 2026
 
 The closing verification for
-[`plan/application-speed-remediation.md`](../../plan/application-speed-remediation.md), taken on
+[`plan/active/application-speed-remediation/plan.md`](../../plan/active/application-speed-remediation/plan.md), taken on
 the `develop` working tree after step 62. It re-measures the server, the unauthenticated shell,
 and the signed-in dashboard startup on the current code.
 
@@ -99,7 +99,7 @@ snapshot on that load was fresh, so no follow-up request was needed.
 Separately, on the first check of this pass the dashboard's Up Next cards issued seven
 `/api/media-app-links` provider lookups in parallel, three taking about 8 s. They do not block the
 dashboard (history and Up Next rendered first) and are the provider-availability path already
-tracked as `plan/speed.md` finding AJ.
+tracked as `plan/active/speed/step15-findings-scorecard.md` finding AJ.
 
 ## 6. Header logo (Phase F), before the fix
 

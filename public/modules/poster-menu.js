@@ -5,9 +5,10 @@
 // usually sits inside an <a> card - portaling the menu items out of that
 // anchor means clicking them never triggers card navigation.
 
-import { state } from "./state.js?v=1.2.2.0.15";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.2.2.0.15";
-import { isShowInUpNext } from "./up-next-shared.js?v=1.2.2.0.15";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { customListsForPersonalItem, isPersonalWatchlisted, loadPersonalMedia, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.2.2.0.16";
+import { isShowInUpNext } from "./up-next-shared.js?v=1.2.2.0.16";
+import { playlistAcceptsItem, playlistItemKind } from "./playlists.js?v=1.2.2.0.16";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
@@ -140,21 +141,23 @@ function buildCustomListSubmenu(trigger) {
   const submenu = document.createElement("div");
   submenu.className = "poster-overflow-submenu";
   submenu.setAttribute("role", "menu");
-  submenu.setAttribute("aria-label", "Custom lists");
-  const lists = Array.isArray(state.personalLists) ? state.personalLists : [];
+  submenu.setAttribute("aria-label", "Playlists");
   const dataset = personalDataset(trigger.dataset);
   const item = personalItemFromPosterMenuDataset(trigger.dataset);
+  // Only playlists of the item's type (Movies or TV) and Mixed ones are offered.
+  const lists = (Array.isArray(state.personalLists) ? state.personalLists : [])
+    .filter((list) => playlistAcceptsItem(list, item));
   const listIds = new Set(customListsForPersonalItem(item).map((list) => String(list.id)));
 
   if (!lists.length) {
     const empty = document.createElement("div");
     empty.className = "poster-overflow-submenu-empty";
     empty.setAttribute("role", "presentation");
-    empty.textContent = "No custom lists yet";
+    empty.textContent = playlistItemKind(item) === "tv" ? "No TV or Mixed playlists yet" : "No movie or Mixed playlists yet";
     submenu.appendChild(empty);
   } else {
     for (const list of lists) {
-      const listName = list.name || "Untitled list";
+      const listName = list.name || "Untitled playlist";
       const alreadyAdded = listIds.has(String(list.id));
       const action = alreadyAdded ? "remove" : "add";
       const listButton = menuItem("", alreadyAdded ? `Remove from ${listName}` : listName, {
@@ -168,7 +171,7 @@ function buildCustomListSubmenu(trigger) {
     }
   }
 
-  submenu.appendChild(menuItem("poster-overflow-item-create", "Create a new list", {
+  submenu.appendChild(menuItem("poster-overflow-item-create", "Create a new playlist", {
     posterMenuCreateList: "1",
     ...dataset,
   }));
@@ -208,11 +211,36 @@ function toggleCustomListSubmenu(trigger) {
     return;
   }
   closeSubmenu();
-  const submenu = buildCustomListSubmenu(trigger);
+  // Playlists load only on some routes; a page opened directly (e.g. /movies)
+  // has none yet, so load them here and rebuild once they arrive.
+  const needsLoad = !state.personalMediaLoadedAt;
+  const submenu = needsLoad ? buildLoadingSubmenu() : buildCustomListSubmenu(trigger);
   positionSubmenu(submenu, trigger);
   trigger.setAttribute("aria-expanded", "true");
   openMenu.submenu = submenu;
   openMenu.submenuTrigger = trigger;
+  if (!needsLoad) return;
+  const menu = openMenu;
+  loadPersonalMedia().catch(() => { }).finally(() => {
+    if (openMenu !== menu || menu.submenu !== submenu) return;
+    submenu.remove();
+    const loaded = buildCustomListSubmenu(trigger);
+    positionSubmenu(loaded, trigger);
+    menu.submenu = loaded;
+  });
+}
+
+function buildLoadingSubmenu() {
+  const submenu = document.createElement("div");
+  submenu.className = "poster-overflow-submenu";
+  submenu.setAttribute("role", "menu");
+  submenu.setAttribute("aria-label", "Playlists");
+  const loading = document.createElement("div");
+  loading.className = "poster-overflow-submenu-empty";
+  loading.setAttribute("role", "presentation");
+  loading.textContent = "Loading playlists...";
+  submenu.appendChild(loading);
+  return submenu;
 }
 
 function deferCloseAfterAction() {
@@ -230,7 +258,7 @@ function appendPersonalMenuActions(dropdown, button) {
     posterMenuWatchlist: watchlisted ? "remove" : "add",
     ...personal,
   }));
-  const listTrigger = menuItem("poster-overflow-item-has-submenu", "Add to Custom list", {
+  const listTrigger = menuItem("poster-overflow-item-has-submenu", "Add to playlist", {
     posterMenuCustomList: "1",
     ...personal,
   });

@@ -280,6 +280,28 @@ test("dashboard preview routes an unqualified title-only row through the unique 
   assert.equal(row?.show_tvdb_id, "453869");
 });
 
+test("dashboard preview leaves out the sync and watch-source records", async () => {
+  const movieId = await insert({
+    title: "Preview Payload Movie",
+    media_type: "movie",
+    watched_at: "2026-04-05T12:00:00.000Z",
+    source: "plex",
+    tmdb_id: "990001",
+    sync_dispatch_telemetry: "Dispatch status: success",
+    watch_provenance: { device: "Living Room" },
+  });
+  await repo.invalidateHistoryDerivedCaches();
+
+  const preview = await repo.queryWatchHistoryPreview({ limit: 120 });
+  const row = preview.find((entry) => entry.id === movieId);
+  assert.ok(row, "the movie should be in the preview");
+  assert.equal("sync_dispatch_telemetry" in row, false);
+  assert.equal("watch_provenance" in row, false);
+
+  const [full] = await repo.queryWatchHistory({ search: "Preview Payload Movie", limit: 5 });
+  assert.match(String(full?.sync_dispatch_telemetry || ""), /success/, "the full record still carries the sync record");
+});
+
 test("dashboard preview does not rebuild the full shows cache", async () => {
   await repo.invalidateHistoryDerivedCaches("preview-cache-regression");
   cacheTelemetry.resetCacheRebuildTelemetry();

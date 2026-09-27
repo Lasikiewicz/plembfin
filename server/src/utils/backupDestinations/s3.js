@@ -4,7 +4,7 @@
 // accessKeyId, forcePathStyle? }  Secrets: { secretAccessKey }
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { fetchWithTimeout } from "../outbound.js";
+import { fetchWithTimeout, uploadFileWithTimeout } from "../outbound.js";
 
 const FILE_PATTERN = /^plembfin-(?:watch-history-\d{8}T\d{6}Z\.json\.gz|backup-\d{8}T\d{6}Z\.encrypted\.json)$/;
 const EMPTY_SHA256 = crypto.createHash("sha256").update("").digest("hex");
@@ -109,9 +109,15 @@ export function signV4({ method, pathname, canonicalQuery = "", payloadHash, amz
   };
 }
 
-async function signedFetch(cfg, { method, key, query, body }) {
+// Hash a file in one streaming pass so a large backup is never held in memory.
+async function sha256File(localPath) {
+  const hash = crypto.createHash("sha256");
+  for await (const chunk of fs.createReadStream(localPath)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+function signedRequest(cfg, { method, key, query, payloadHash }) {
   const url = buildUrl(cfg, key, query);
-  const payloadHash = body ? sha256Hex(body) : EMPTY_SHA256;
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
   const canonicalQuery = url.search ? url.search.slice(1) : "";
 
@@ -133,16 +139,19 @@ async function signedFetch(cfg, { method, key, query, body }) {
     headers: signHeaders,
   });
 
-  return fetchWithTimeout(url.href, {
-    method,
+  return {
+    href: url.href,
     headers: {
       Authorization: authorization,
       "x-amz-content-sha256": payloadHash,
       "x-amz-date": amzDate,
-      ...(body ? { "Content-Type": "application/gzip" } : {}),
     },
-    body: body || undefined,
-  }, 60_000);
+  };
+}
+
+async function signedFetch(cfg, { method, key, query }) {
+  const { href, headers } = signedRequest(cfg, { method, key, query, payloadHash: EMPTY_SHA256 });
+  return fetchWithTimeout(href, { method, headers }, 60_000);
 }
 
 export function createS3Adapter(destination) {
@@ -176,13 +185,21 @@ export function createS3Adapter(destination) {
 
     async upload(localPath, remoteName) {
       const started = Date.now();
-      const body = fs.readFileSync(localPath);
-      const response = await signedFetch(cfg, { method: "PUT", key: `${cfg.prefix}${remoteName}`, body });
+      // Streamed, never read whole: a full backup is hundreds of MB. The 60s
+      // timeout restarts on every chunk sent, so it only catches a stalled upload.
+      // S3 rejects a chunked PUT, so the length is sent up front.
+      const { size } = await fs.promises.stat(localPath);
+      const payloadHash = await sha256File(localPath);
+      const { href, headers } = signedRequest(cfg, { method: "PUT", key: `${cfg.prefix}${remoteName}`, payloadHash });
+      const response = await uploadFileWithTimeout(href, {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/gzip", "Content-Length": String(size) },
+        filePath: localPath,
+      }, 60_000);
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(`S3 upload failed (${response.status}): ${text.slice(0, 200)}`);
+        throw new Error(`S3 upload failed (${response.status}): ${response.text.slice(0, 200)}`);
       }
-      return { bytes: body.length, durationMs: Date.now() - started };
+      return { bytes: size, durationMs: Date.now() - started };
     },
 
     async download(remoteName) {

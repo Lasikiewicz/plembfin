@@ -128,3 +128,29 @@ test("a lone same-title row whose TMDB and TVDB ids both disagree keeps its own 
   assert.ok(original);
   assert.notEqual(original.show_imdb_id, "tt81001", "the lone show must not take the reboot's IMDb id");
 });
+
+// An Up Next build asks about every show against one shared episode-row
+// snapshot, which is indexed once instead of rescanned per show. A reused
+// snapshot must find the same rows as a fresh read, including a row that
+// matches only by id under different title text.
+test("show detail through a reused episode-row snapshot matches a fresh read", async () => {
+  for (const [episode, showTitle] of [[1, "Index Probe"], [2, "Index Probe"], [3, "Index Probe Alt Name"]]) {
+    await insert({
+      title: `${showTitle} - S01E0${episode}`,
+      show_title: showTitle,
+      media_type: "episode",
+      watched_at: `2026-08-1${episode}T01:00:00.000Z`,
+      source: "manual",
+      tmdb_id: "91001",
+      season: 1,
+      episode,
+    });
+  }
+  const shared = repo.loadTrackedEpisodeRows();
+  const office = await repo.queryShowDetail({ episodeRows: shared, id: "tmdb:2996", title: "The Office", tmdbId: "2996" });
+  assert.equal(office.episode_count, 2);
+  const viaSnapshot = await repo.queryShowDetail({ episodeRows: shared, title: "Index Probe", tmdbId: "91001" });
+  const fresh = await repo.queryShowDetail({ title: "Index Probe", tmdbId: "91001" });
+  assert.deepEqual(viaSnapshot, fresh);
+  assert.deepEqual(viaSnapshot.episodes.map((row) => row.episode).sort(), [1, 2, 3]);
+});

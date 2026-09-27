@@ -62,8 +62,10 @@ There is no separate linter configured. A local `.env` at the repo root is loade
 with `DATA_DIR`).
 
 When implementation work completes an item in [`plan/todo.md`](../plan/todo.md), remove it in
-the same change, move its verified plan into `plan/archive/`, and refresh the relevant
-documentation and README section if the completed work changes user-visible behavior.
+the same change, move its verified plan folder from `plan/active/<name>/` into
+`plan/archive/<name>/` with the summary (`plan/<name>.md`) as `summary.md`, and refresh the
+relevant documentation and README section if the completed work changes user-visible behavior.
+The plan layout (summary, design, and step files) is described in `CLAUDE.md` "Plan layout".
 
 ## Module size limits
 
@@ -88,7 +90,7 @@ Grandfathered files, already over their limit (measured 2026-09-08):
 | `public/modules/tools-maintenance.js` | 1541 | 1500 |
 | `public/modules/onboarding.js` | 1442 | 1200 soft |
 | `public/modules/sync.js` | 1355 | 1200 soft |
-| `public/modules/tools-backups.js` | 1307 | 1200 soft |
+| `public/modules/tools-backups.js` | 1276 | 1200 soft |
 | `server/src/routes/sync.js` | 3389 | 1500 |
 | `server/src/routes/metadata.js` | 1505 | 1500 |
 | `server/src/routes/maintenance.js` | 1399 | 1200 soft |

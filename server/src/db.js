@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1280,6 +1281,262 @@ const migrations = [
           resolved_at INTEGER NOT NULL
         );
       `);
+    },
+  },
+  {
+    // Playlists: ordered items, episode items, and soft delete. The items
+    // media_type CHECK must accept 'episode', so both tables are rebuilt.
+    // A DROP TABLE with foreign keys on runs an implicit DELETE that cascades,
+    // so items are copied to a key-less backup and dropped before the lists.
+    // Existing lists get no personal_list_targets rows, so they stay
+    // Plembfin-only; positions follow the previous updated_at DESC order.
+    id: 43,
+    up(database) {
+      const listColumns = new Set(database.pragma("table_info(personal_lists)").map((column) => column.name));
+      const itemColumns = new Set(database.pragma("table_info(personal_list_items)").map((column) => column.name));
+      const itemsSql = String(database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'personal_list_items'").get()?.sql || "").toLowerCase();
+      const current = listColumns.has("deleted_at") && itemColumns.has("position") && itemsSql.includes("'episode'");
+      if (!current) {
+        database.exec(`
+          DROP TABLE IF EXISTS personal_lists_migrated;
+          DROP TABLE IF EXISTS personal_list_items_backup;
+          CREATE TABLE personal_lists_migrated (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            order_updated_at INTEGER,
+            deleted_at INTEGER,
+            deleted_origin TEXT
+          );
+          INSERT INTO personal_lists_migrated (id, name, created_at, updated_at)
+          SELECT id, name, created_at, updated_at FROM personal_lists;
+          CREATE TABLE personal_list_items_backup AS
+          SELECT list_id, media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url,
+            overview, release_date, created_at, updated_at,
+            ROW_NUMBER() OVER (PARTITION BY list_id ORDER BY updated_at DESC, media_key ASC) - 1 AS position
+          FROM personal_list_items;
+          DROP TABLE personal_list_items;
+          DROP TABLE personal_lists;
+          ALTER TABLE personal_lists_migrated RENAME TO personal_lists;
+          CREATE TABLE personal_list_items (
+            list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+            media_key TEXT NOT NULL,
+            media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
+            title TEXT NOT NULL,
+            tmdb_id TEXT,
+            tvdb_id TEXT,
+            imdb_id TEXT,
+            poster_url TEXT,
+            overview TEXT,
+            release_date TEXT,
+            show_title TEXT,
+            season INTEGER,
+            episode INTEGER,
+            episode_tmdb_id TEXT,
+            episode_tvdb_id TEXT,
+            episode_imdb_id TEXT,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (list_id, media_key),
+            CHECK (media_type <> 'episode' OR (season IS NOT NULL AND episode IS NOT NULL))
+          );
+          INSERT INTO personal_list_items
+            (list_id, media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, position, created_at, updated_at)
+          SELECT list_id, media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, position, created_at, updated_at
+          FROM personal_list_items_backup;
+          DROP TABLE personal_list_items_backup;
+        `);
+      }
+      // Names were unique case-sensitively; the app checked case-insensitively.
+      // Suffix any case-only duplicate so the active-name index can be built.
+      const seen = new Set();
+      const rename = database.prepare("UPDATE personal_lists SET name = ? WHERE id = ?");
+      for (const list of database.prepare("SELECT id, name FROM personal_lists WHERE deleted_at IS NULL ORDER BY created_at ASC, id ASC").all()) {
+        let name = list.name;
+        for (let suffix = 2; seen.has(name.toLowerCase()); suffix++) name = `${list.name} (${suffix})`;
+        if (name !== list.name) rename.run(name, list.id);
+        seen.add(name.toLowerCase());
+      }
+      database.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_personal_lists_active_name
+          ON personal_lists(name COLLATE NOCASE) WHERE deleted_at IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_personal_list_items_position
+          ON personal_list_items(list_id, position, media_key);
+      `);
+    },
+  },
+  {
+    // Playlists become Movies or TV (plan/archive/custom-playlist-sync/plan.md decisions
+    // 14, 15, 19). A playlist holding both keeps its movies and name; its
+    // shows and episodes move to a new "Name (TV)" playlist that targets the
+    // same apps with no app copy yet, so the push creates one and removes the
+    // moved entries from the original's app copies. Show items become episodes
+    // later (playlistShowConversion.js), because that needs metadata.
+    id: 44,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(personal_lists)").map((column) => column.name));
+      if (!columns.has("kind")) {
+        database.exec("ALTER TABLE personal_lists ADD COLUMN kind TEXT CHECK (kind IN ('movie', 'tv'))");
+      }
+      const lists = database.prepare(`
+        SELECT l.*,
+          (SELECT COUNT(*) FROM personal_list_items i WHERE i.list_id = l.id AND i.media_type = 'movie') AS movies,
+          (SELECT COUNT(*) FROM personal_list_items i WHERE i.list_id = l.id AND i.media_type <> 'movie') AS shows
+        FROM personal_lists l WHERE l.kind IS NULL ORDER BY l.created_at ASC, l.id ASC
+      `).all();
+      const setKind = database.prepare("UPDATE personal_lists SET kind = ? WHERE id = ?");
+      const nameTaken = database.prepare("SELECT 1 FROM personal_lists WHERE lower(name) = lower(?) AND deleted_at IS NULL");
+      const renumber = (listId) => {
+        const keys = database.prepare("SELECT media_key FROM personal_list_items WHERE list_id = ? ORDER BY position ASC, media_key ASC").all(listId);
+        const update = database.prepare("UPDATE personal_list_items SET position = ? WHERE list_id = ? AND media_key = ?");
+        keys.forEach((row, index) => update.run(index, listId, row.media_key));
+      };
+      for (const list of lists) {
+        if (!list.movies && !list.shows) continue;
+        if (!list.shows) { setKind.run("movie", list.id); continue; }
+        if (!list.movies) { setKind.run("tv", list.id); continue; }
+        const now = Date.now();
+        const id = crypto.randomUUID();
+        let name = `${list.name} (TV)`;
+        for (let suffix = 2; !list.deleted_at && nameTaken.get(name); suffix++) name = `${list.name} (TV) (${suffix})`;
+        database.prepare(`
+          INSERT INTO personal_lists (id, name, kind, created_at, updated_at, order_updated_at, deleted_at, deleted_origin)
+          VALUES (?, ?, 'tv', ?, ?, ?, ?, ?)
+        `).run(id, name, list.created_at, now, list.order_updated_at, list.deleted_at, list.deleted_origin);
+        database.prepare(`
+          INSERT INTO personal_list_targets (list_id, provider, desired_state, created_at, updated_at)
+          SELECT ?, provider, 'present', ?, ? FROM personal_list_targets WHERE list_id = ? AND desired_state = 'present'
+        `).run(id, now, now, list.id);
+        // Exclusions and availability reference the items, so they cannot
+        // follow a list_id change: exclusions are re-inserted, availability is
+        // rebuilt by the next push.
+        const exclusions = database.prepare(`
+          SELECT e.* FROM personal_list_item_exclusions e
+          JOIN personal_list_items i ON i.list_id = e.list_id AND i.media_key = e.media_key
+          WHERE e.list_id = ? AND i.media_type <> 'movie'
+        `).all(list.id);
+        database.prepare(`
+          DELETE FROM personal_list_item_exclusions WHERE list_id = ? AND media_key IN
+            (SELECT media_key FROM personal_list_items WHERE list_id = ? AND media_type <> 'movie')
+        `).run(list.id, list.id);
+        database.prepare(`
+          DELETE FROM personal_list_item_availability WHERE list_id = ? AND media_key IN
+            (SELECT media_key FROM personal_list_items WHERE list_id = ? AND media_type <> 'movie')
+        `).run(list.id, list.id);
+        database.prepare("UPDATE personal_list_items SET list_id = ? WHERE list_id = ? AND media_type <> 'movie'").run(id, list.id);
+        const reinsert = database.prepare(`
+          INSERT INTO personal_list_item_exclusions (list_id, media_key, season, episode, origin, excluded_at) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        for (const row of exclusions) reinsert.run(id, row.media_key, row.season, row.episode, row.origin, row.excluded_at);
+        setKind.run("movie", list.id);
+        database.prepare("UPDATE personal_lists SET updated_at = ? WHERE id = ?").run(now, list.id);
+        renumber(list.id);
+        renumber(id);
+      }
+    },
+  },
+  {
+    // Mixed playlists hold movies and episodes together
+    // (plan/archive/custom-playlist-sync/plan.md decision 25). A CHECK cannot be
+    // altered and a table rebuild would cascade-delete the items, so the
+    // column is swapped: a widened copy is added, filled, and renamed.
+    id: 45,
+    up(database) {
+      const sql = String(database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'personal_lists'").get()?.sql || "");
+      if (sql.includes("'mixed'")) return;
+      database.exec(`
+        ALTER TABLE personal_lists ADD COLUMN kind_widened TEXT CHECK (kind_widened IN ('movie', 'tv', 'mixed'));
+        UPDATE personal_lists SET kind_widened = kind;
+        ALTER TABLE personal_lists DROP COLUMN kind;
+        ALTER TABLE personal_lists RENAME COLUMN kind_widened TO kind;
+      `);
+    },
+  },
+  {
+    // App playlist entries Plembfin could not identify, counted per app at
+    // each pull (plan/archive/custom-playlist-sync/plan.md decision 24).
+    id: 46,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(personal_list_targets)").map((column) => column.name));
+      if (!columns.has("unidentified_count")) {
+        database.exec("ALTER TABLE personal_list_targets ADD COLUMN unidentified_count INTEGER NOT NULL DEFAULT 0");
+      }
+    },
+  },
+  {
+    // Automatic playlists (plan/archive/custom-playlist-sync/plan.md decisions
+    // 32 to 43): the rule that picks the items (NULL for a manual playlist),
+    // when it was last evaluated, and why the last evaluation failed.
+    id: 47,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(personal_lists)").map((column) => column.name));
+      if (!columns.has("rule_json")) database.exec("ALTER TABLE personal_lists ADD COLUMN rule_json TEXT");
+      if (!columns.has("rule_checked_at")) database.exec("ALTER TABLE personal_lists ADD COLUMN rule_checked_at INTEGER");
+      if (!columns.has("rule_error")) database.exec("ALTER TABLE personal_lists ADD COLUMN rule_error TEXT");
+    },
+  },
+  {
+    // A rule check held for Confirm or Discard (decisions 41, 47, 48): the
+    // desired items it would apply, as JSON, and when the user confirmed it.
+    // personal_list_held_changes cannot hold it (keyed per app target, and a
+    // Plembfin-only playlist has no target).
+    id: 48,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(personal_lists)").map((column) => column.name));
+      if (!columns.has("rule_hold_json")) database.exec("ALTER TABLE personal_lists ADD COLUMN rule_hold_json TEXT");
+      if (!columns.has("rule_hold_confirmed_at")) database.exec("ALTER TABLE personal_lists ADD COLUMN rule_hold_confirmed_at INTEGER");
+    },
+  },
+  {
+    // "Remove items once watched" (decisions 55 to 57), and the titles an
+    // automatic playlist handed off after a watch and never adds back
+    // (decision 56), one row per id key of the title.
+    id: 49,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(personal_lists)").map((column) => column.name));
+      if (!columns.has("remove_watched")) database.exec("ALTER TABLE personal_lists ADD COLUMN remove_watched INTEGER NOT NULL DEFAULT 0");
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS personal_list_handoffs (
+          list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+          identity TEXT NOT NULL,
+          handed_off_at INTEGER NOT NULL,
+          PRIMARY KEY (list_id, identity)
+        )
+      `);
+    },
+  },
+  {
+    // A title's TMDB original language, mirrored out of the details blob so
+    // the Language choice of automatic playlists (decisions 60 to 62) reads
+    // it for a whole library without parsing every blob. Backfilled from the
+    // stored details without a provider call.
+    id: 50,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(tmdb_metadata_cache)").map((column) => column.name));
+      if (!columns.has("original_language")) database.exec("ALTER TABLE tmdb_metadata_cache ADD COLUMN original_language TEXT");
+      database.exec(`
+        UPDATE tmdb_metadata_cache
+        SET original_language = CASE WHEN json_valid(details) THEN json_extract(details, '$.original_language') END
+        WHERE details IS NOT NULL AND original_language IS NULL
+      `);
+    },
+  },
+  {
+    // Playlist type (plan/archive/custom-playlist-sync decision 72): existing
+    // automatic playlists become Top rated with a maximum of 20, keep their
+    // order, and are due a rule check. The check's usual safety hold asks
+    // for Confirm when that removes many titles.
+    id: 51,
+    up(database) {
+      const rows = database.prepare("SELECT id, rule_json FROM personal_lists WHERE rule_json IS NOT NULL").all();
+      const update = database.prepare("UPDATE personal_lists SET rule_json = ?, rule_checked_at = NULL WHERE id = ?");
+      for (const row of rows) {
+        const rule = parseJsonValue(row.rule_json, null);
+        if (!rule || typeof rule !== "object" || rule.type) continue;
+        update.run(JSON.stringify({ ...rule, type: "top", limit: 20 }), row.id);
+      }
     },
   },
 ];

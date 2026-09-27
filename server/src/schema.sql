@@ -1025,17 +1025,38 @@ CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_delete AFTER DELETE ON
   UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
 END;
 
+-- Playlists (UI name; internal tables keep the personal_list names). Indexes on
+-- columns added by migration 43 (position, deleted_at) are created by that
+-- migration, because this file runs before migrations on older databases.
 CREATE TABLE IF NOT EXISTS personal_lists (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  order_updated_at INTEGER,
+  deleted_at INTEGER,
+  deleted_origin TEXT,
+  -- Automatic playlists: the rule as JSON (NULL for a manual playlist), when
+  -- it was last evaluated, and why the last evaluation failed.
+  rule_json TEXT,
+  rule_checked_at INTEGER,
+  rule_error TEXT,
+  -- A rule check held for Confirm or Discard: the held update as JSON, and
+  -- when the user confirmed it.
+  rule_hold_json TEXT,
+  rule_hold_confirmed_at INTEGER,
+  -- "Remove items once watched": 1 removes a movie or episode once it is
+  -- watched after it was added.
+  remove_watched INTEGER NOT NULL DEFAULT 0,
+  -- 'movie', 'tv', or 'mixed' (both); NULL until an empty pre-5d playlist gets
+  -- its first item. Kept last: migration 45 looks for 'mixed' in the table text.
+  kind TEXT CHECK (kind IN ('movie', 'tv', 'mixed'))
 );
 
 CREATE TABLE IF NOT EXISTS personal_list_items (
   list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
   media_key TEXT NOT NULL,
-  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
   title TEXT NOT NULL,
   tmdb_id TEXT,
   tvdb_id TEXT,
@@ -1043,8 +1064,110 @@ CREATE TABLE IF NOT EXISTS personal_list_items (
   poster_url TEXT,
   overview TEXT,
   release_date TEXT,
+  show_title TEXT,
+  season INTEGER,
+  episode INTEGER,
+  episode_tmdb_id TEXT,
+  episode_tvdb_id TEXT,
+  episode_imdb_id TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY (list_id, media_key)
+  PRIMARY KEY (list_id, media_key),
+  CHECK (media_type <> 'episode' OR (season IS NOT NULL AND episode IS NOT NULL))
 );
-CREATE INDEX IF NOT EXISTS idx_personal_list_items_list ON personal_list_items(list_id, updated_at DESC);
+
+-- Titles an automatic playlist with "Remove items once watched" handed off
+-- after a watch (a show goes to Up Next); the rule never adds them back. One
+-- row per id key, such as movie:tmdb:123 or show:tvdb:456.
+CREATE TABLE IF NOT EXISTS personal_list_handoffs (
+  list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+  identity TEXT NOT NULL,
+  handed_off_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, identity)
+);
+
+-- Episodes of a series item removed in an app, so series expansion skips them.
+CREATE TABLE IF NOT EXISTS personal_list_item_exclusions (
+  list_id TEXT NOT NULL,
+  media_key TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  episode INTEGER NOT NULL,
+  origin TEXT NOT NULL,
+  excluded_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, media_key, season, episode),
+  FOREIGN KEY (list_id, media_key) REFERENCES personal_list_items(list_id, media_key) ON DELETE CASCADE
+);
+
+-- One row per app a playlist targets. No rows means Plembfin-only. A
+-- deselected app stays as desired_state 'absent' until its playlist is deleted.
+CREATE TABLE IF NOT EXISTS personal_list_targets (
+  list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  desired_state TEXT NOT NULL DEFAULT 'present' CHECK (desired_state IN ('present', 'absent')),
+  remote_playlist_id TEXT,
+  remote_name TEXT,
+  last_synced_at INTEGER,
+  last_error TEXT,
+  last_error_at INTEGER,
+  not_found_passes INTEGER NOT NULL DEFAULT 0,
+  missing_since INTEGER,
+  unidentified_count INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, provider)
+);
+
+-- What Plembfin last wrote or saw per remote playlist entry. App-side changes
+-- are diffed against this ledger, never against the other side's live state.
+CREATE TABLE IF NOT EXISTS personal_list_entry_ledger (
+  list_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  remote_entry_id TEXT NOT NULL,
+  provider_item_id TEXT NOT NULL,
+  media_key TEXT,
+  season INTEGER,
+  episode INTEGER,
+  remote_position INTEGER,
+  origin TEXT NOT NULL CHECK (origin IN ('plembfin', 'provider')),
+  first_seen_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  absent_reads INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (list_id, provider, remote_entry_id),
+  FOREIGN KEY (list_id, provider) REFERENCES personal_list_targets(list_id, provider) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_personal_list_entry_ledger_item
+  ON personal_list_entry_ledger(list_id, provider, provider_item_id);
+
+-- Whether each playlist item resolved in each targeted app's library on the
+-- last push. A series counts as available when any episode resolved. A lookup
+-- that failed leaves the previous answer in place.
+CREATE TABLE IF NOT EXISTS personal_list_item_availability (
+  list_id TEXT NOT NULL,
+  media_key TEXT NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  status TEXT NOT NULL CHECK (status IN ('available', 'missing')),
+  episode_count INTEGER,
+  reason TEXT,
+  checked_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, media_key, provider),
+  FOREIGN KEY (list_id, media_key) REFERENCES personal_list_items(list_id, media_key) ON DELETE CASCADE
+);
+
+-- App-side changes the pull pass held back for confirmation instead of
+-- applying: many removals from one playlist in one pass, or a playlist
+-- deletion seen on more than one playlist of the same app at once.
+-- entry_ids is a JSON array of remote entry ids (removals only). A row with
+-- confirmed_at set is applied by the next pull.
+CREATE TABLE IF NOT EXISTS personal_list_held_changes (
+  list_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('removals', 'delete')),
+  entry_ids TEXT,
+  change_count INTEGER NOT NULL DEFAULT 0,
+  reason TEXT,
+  held_at INTEGER NOT NULL,
+  confirmed_at INTEGER,
+  PRIMARY KEY (list_id, provider, kind),
+  FOREIGN KEY (list_id, provider) REFERENCES personal_list_targets(list_id, provider) ON DELETE CASCADE
+);

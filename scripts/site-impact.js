@@ -69,6 +69,14 @@ export function parseSiteImpactTrailer(message) {
 export function computeWebsiteContentImpact({ commits = [], updatedFiles = [], reviewedUnchanged = [], surfaces = null } = {}) {
   const available = loadSurfaces(surfaces);
   const knownSlugs = new Set(available.map((surface) => normalisePath(surface?.docSlug)).filter(Boolean));
+  // A renamed guide lists its old slugs in `formerDocSlugs`, so a note written
+  // before the rename (already pushed, so it cannot be reworded) still resolves.
+  const renamedSlugs = new Map();
+  for (const surface of available) {
+    for (const former of surface?.formerDocSlugs || []) {
+      renamedSlugs.set(normalisePath(former).toLowerCase(), normalisePath(surface.docSlug));
+    }
+  }
   const updated = new Set(updatedFiles.map(normalisePath));
   for (const docSlug of reviewedUnchanged) updated.add(guidePath(normalisePath(docSlug).toLowerCase()));
 
@@ -93,7 +101,8 @@ export function computeWebsiteContentImpact({ commits = [], updatedFiles = [], r
     if (decision?.kind === "none") continue;
 
     if (decision?.kind === "target") {
-      for (const docSlug of decision.docSlugs) {
+      for (const notedSlug of decision.docSlugs) {
+        const docSlug = knownSlugs.has(notedSlug) ? notedSlug : renamedSlugs.get(notedSlug) || notedSlug;
         if (!knownSlugs.has(docSlug)) unknownSlugs.push({ docSlug, commit: shortId });
         else requireGuide(docSlug, shortId, []);
       }

@@ -1166,14 +1166,37 @@ export function playstateRecordFromMedia(media = {}, state = media?.syncAction |
 // shares any id: a caller that has just written a history row passes that row's
 // key, so an episode-id alias cannot take the write (the 19 September Slow
 // Horses review approval).
+// A new episode row goes under the show's single proven profile (decision 34
+// guard, as seriesIdsForEpisodeMedia applies it), not under the episode's own
+// ids or its title: those made alias and title-keyed rows the identity repair
+// then had to fold. Null when no profile applies; the row keeps its own key.
+function playstateRecordOnProvenProfile(normalized = {}) {
+  if (normalized.media_type !== "episode") return null;
+  const seriesIds = seriesIdsForEpisodeMedia(normalized);
+  if (!seriesIds || !(seriesIds.imdb || seriesIds.tmdb || seriesIds.tvdb)) return null;
+  return {
+    ...normalized,
+    imdb_id: seriesIds.imdb || null,
+    tmdb_id: seriesIds.tmdb || null,
+    tvdb_id: seriesIds.tvdb || null,
+  };
+}
+
 export function upsertPlaystateSync(record, stateOverride = undefined, { allowDuringRestore = false, mediaKey: pinnedKey = "" } = {}) {
-  const normalized = normalizeWatchRecord(record, record.source || "webhook");
+  let normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
   assertRestoreWriteAllowed(normalized.source, { allowDuringRestore });
 
   const state = normalizePlaystateState(stateOverride || normalized.sync_action);
-  const identityMatches = pinnedKey ? [] : playstateRowsForIdentity(normalized);
+  let identityMatches = pinnedKey ? [] : playstateRowsForIdentity(normalized);
+  if (!pinnedKey && !identityMatches.length) {
+    const keyed = playstateRecordOnProvenProfile(normalized);
+    if (keyed) {
+      normalized = keyed;
+      identityMatches = playstateRowsForIdentity(normalized);
+    }
+  }
   const mediaKey = pinnedKey || identityMatches[0]?.media_key || mediaKeyFor(normalized);
   const existing = selectPlaystateStmt.get(mediaKey) || identityMatches[0];
   const sources = new Set(parseJson(existing?.sources, []) || []);
@@ -3515,6 +3538,9 @@ export async function queryWatchHistory({ search = "", mediaType = "", limit = 5
   return enrichHistoryRowsWithShowArtwork(processed.slice(safeOffset, safeOffset + safeLimit));
 }
 
+// The preview leaves out sync_dispatch_telemetry and watch_provenance: they
+// were over half its bytes, and the readers that need them (the movie detail
+// Info panel, the Tools health check) load the full record instead.
 function compactHistoryPreviewRow(row = {}) {
   return {
     id: row.id,
@@ -3526,8 +3552,6 @@ function compactHistoryPreviewRow(row = {}) {
     episode: row.episode,
     poster_url: row.poster_url,
     sync_action: row.sync_action,
-    sync_dispatch_telemetry: row.sync_dispatch_telemetry,
-    watch_provenance: row.watch_provenance,
     watch_count: Array.isArray(row.playHistory) && row.playHistory.length ? row.playHistory.length : 1,
     sources: dedupeHistorySources([
       ...(Array.isArray(row.sources) ? row.sources : []),
@@ -5427,7 +5451,7 @@ export function findWatchedByAnyMediaKeySync(media) {
 // Whether history (and so the show and history pages) shows this item as
 // watched: the newest trusted watched/unwatched transition, resolved like
 // dedupeHistory does. Playstate can lag behind it; see
-// plan/playstate-episode-id-repair.md (Slow Horses S06E01).
+// plan/active/playstate-episode-id-repair/plan.md (Slow Horses S06E01).
 export function historyShowsWatchedSync(media = {}) {
   const ids = media.ids || {};
   const rows = new Map();
@@ -6339,6 +6363,33 @@ export function loadTrackedEpisodeRows() {
   return dedupeHistory(selectAllEpisodesStmt.all().map(rowToWatch).filter(isPlembfinTrackedEpisodeRow));
 }
 
+// Row positions by canonical show title and by each show id, built once per
+// episode-row array. An Up Next build asks queryShowDetail about every show
+// against one shared snapshot, and rescanning all rows per show (about 7,700
+// rows on a real library) cost seconds per build (loose-ends step 1). Keyed by
+// the array, so a snapshot's index lives only as long as the snapshot.
+const episodeRowIndexes = new WeakMap();
+
+function episodeRowIndex(rows) {
+  let index = episodeRowIndexes.get(rows);
+  if (index) return index;
+  index = { title: new Map(), tmdb: new Map(), tvdb: new Map(), imdb: new Map() };
+  const add = (map, key, position) => {
+    if (!key) return;
+    const positions = map.get(key);
+    if (positions) positions.push(position);
+    else map.set(key, [position]);
+  };
+  rows.forEach((row, position) => {
+    add(index.title, canonicalTitleKey(showTitleFrom(row.show_title || row.title)), position);
+    add(index.tmdb, String(row.show_tmdb_id || row.tmdb_id || ""), position);
+    add(index.tvdb, String(row.show_tvdb_id || row.tvdb_id || ""), position);
+    add(index.imdb, String(row.show_imdb_id || row.imdb_id || "").toLowerCase(), position);
+  });
+  episodeRowIndexes.set(rows, index);
+  return index;
+}
+
 export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId = "", imdbId = "", episodeRows = null } = {}) {
   const requestedId = cleanString(id);
   const requestedTmdbId = cleanString(tmdbId);
@@ -6388,15 +6439,17 @@ export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId
   // cache: a manual watch can be committed and visible through /api/history
   // while another request still holds the previous aggregate generation,
   // making the button immediately revert despite the correct stored row.
-  const rows = (episodeRows || loadTrackedEpisodeRows())
-    .filter((row) => {
-      const titleMatches = key && canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key;
-      if (titleMatches) return true;
-      if (!hasSelectedIdentity) return false;
-      return (selectedTmdbId && String(row.show_tmdb_id || row.tmdb_id || "") === selectedTmdbId)
-        || (selectedTvdbId && String(row.show_tvdb_id || row.tvdb_id || "") === selectedTvdbId)
-        || (selectedImdbId && String(row.show_imdb_id || row.imdb_id || "").toLowerCase() === selectedImdbId.toLowerCase());
-    });
+  // A row matches on its canonical title or on any selected id, kept in the
+  // snapshot's own order.
+  const sourceRows = episodeRows || loadTrackedEpisodeRows();
+  const rowIndex = episodeRowIndex(sourceRows);
+  const positions = new Set(key ? rowIndex.title.get(key) : []);
+  if (hasSelectedIdentity) {
+    for (const [map, id] of [[rowIndex.tmdb, selectedTmdbId], [rowIndex.tvdb, selectedTvdbId], [rowIndex.imdb, selectedImdbId.toLowerCase()]]) {
+      for (const position of (id && map.get(id)) || []) positions.add(position);
+    }
+  }
+  const rows = [...positions].sort((a, b) => a - b).map((position) => sourceRows[position]);
   // A canonical-title match can still span two distinct real shows sharing a
   // title (a reboot/revival) now that groupShowRows splits them by provider
   // id instead of blending them - the most substantial (or, failing that,
@@ -7238,7 +7291,7 @@ function bridgedPlaystateAliasProfile(showId, profiles, { findCached, pendingLoo
 }
 
 // Episode playstate rows keyed on the episode's own ids instead of its show's
-// (plan/playstate-episode-id-repair.md). Decision 34 rightly stops the local
+// (plan/active/playstate-episode-id-repair/plan.md). Decision 34 rightly stops the local
 // repair from folding them, so each alias is proven by an exact TMDB `find`
 // lookup of its own ids (bridged by the profile's own ids when the profile has
 // no TMDB id, tier 3), or failing that a TVDB episode lookup (tier 2), read
@@ -7273,6 +7326,9 @@ export async function repairPlaystateEpisodeIdAliases({
   const conflicts = [];
   const deleteKeys = [];
   const rekeys = [];
+  // A rekey never lands on a key another row (another title spelling, a
+  // dismissed row) already holds; such a row is left for the next pass.
+  const takenKeys = new Set(db.prepare("SELECT media_key FROM playstate").pluck().all());
   let groupIndex = 0;
   for (const { showKey, rows: group } of byShowCoordinate.values()) {
     groupIndex += 1;
@@ -7283,7 +7339,13 @@ export async function repairPlaystateEpisodeIdAliases({
     for (const row of group) {
       const rowIds = progressProviderIds(row);
       if (profiles.some((profile) => idsShareAny(rowIds, profile.ids))) continue;
-      const profile = provenPlaystateAliasProfile(row, profiles, proof);
+      // An id-less `episode:S:E:title:` row (phase 5 step 2) is proven by its
+      // title alone when the title has exactly one profile; with several
+      // (Scrubs and Scrubs (2026)) it is left for the Maintenance card.
+      const idless = !rowIds.imdb && !rowIds.tmdb && !rowIds.tvdb;
+      const profile = idless
+        ? (profiles.length === 1 ? profiles[0] : null)
+        : provenPlaystateAliasProfile(row, profiles, proof);
       if (!profile) continue;
       if (!aliasesByProfile.has(profile)) aliasesByProfile.set(profile, []);
       aliasesByProfile.get(profile).push(row);
@@ -7301,6 +7363,8 @@ export async function repairPlaystateEpisodeIdAliases({
       const ordered = aliases.slice().sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0));
       let series = siblings.find((row) => row.media_key === seriesKey) || newestByUpdatedAt(siblings);
       if (!series) {
+        if (takenKeys.has(seriesKey)) continue;
+        takenKeys.add(seriesKey);
         series = ordered.shift();
         rekeys.push({ previousKey: series.media_key, nextKey: seriesKey, ids: profile.ids });
       }
@@ -7333,7 +7397,7 @@ export async function repairPlaystateEpisodeIdAliases({
     });
     await invalidateHistoryDerivedCaches("repairPlaystateEpisodeIdAliases");
     console.log(
-      `[dataRepo] repairPlaystateEpisodeIdAliases: removed ${deleteKeys.length} episode-id playstate alias(es), rekeyed ${rekeys.length}; ${conflicts.length} conflicting alias(es) left for review`,
+      `[dataRepo] repairPlaystateEpisodeIdAliases: removed ${deleteKeys.length} episode-id or title-keyed playstate alias(es), rekeyed ${rekeys.length}; ${conflicts.length} conflicting alias(es) left for review`,
     );
   }
   invalidateSeriesIdentityIndex();

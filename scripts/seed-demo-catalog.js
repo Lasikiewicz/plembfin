@@ -469,10 +469,10 @@ async function main() {
     const insertListItem = db.prepare(`
       INSERT INTO personal_list_items (
         list_id, media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url,
-        overview, release_date, created_at, updated_at
+        overview, release_date, position, created_at, updated_at
       ) VALUES (
         @list_id, @media_key, @media_type, @title, @tmdb_id, @tvdb_id, @imdb_id, @poster_url,
-        @overview, @release_date, @created_at, @updated_at
+        @overview, @release_date, @position, @created_at, @updated_at
       )
     `);
     const insertDiscovery = db.prepare(`
@@ -676,7 +676,7 @@ async function main() {
       ];
       for (const list of DEMO_LISTS) insertList.run({ id: list.id, name: list.name, created_at: now, updated_at: now });
       for (const [list, items] of listItems) {
-        for (const item of items.map(personalMedia)) insertListItem.run({ list_id: list.id, ...item, created_at: now, updated_at: now });
+        items.map(personalMedia).forEach((item, position) => insertListItem.run({ list_id: list.id, ...item, position, created_at: now, updated_at: now }));
       }
       db.prepare("UPDATE personal_watchlist_meta SET revision = ?, updated_at = ? WHERE id = 1").run(watchlistItems.length, now);
       for (const row of discoveryRows) insertDiscovery.run({ ...row, updatedAt: now });

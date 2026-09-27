@@ -8,7 +8,7 @@ import {
 } from "../utils/playstateAliasReview.js";
 
 // Settings -> Tools -> Database Repairs -> Watch-State Aliases
-// (plan/playstate-episode-id-repair.md).
+// (plan/active/playstate-episode-id-repair/plan.md).
 //   GET  /api/playstate-aliases          shows with unproven episode-id aliases
 //   POST /api/playstate-aliases/fold     { showKey, profile } belongs to this show
 //   POST /api/playstate-aliases/dismiss  { showKey } different show

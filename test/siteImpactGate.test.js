@@ -104,6 +104,17 @@ test("a note naming an unknown guide fails", () => {
   assert.equal(failures[0].docSlug, "dashbord");
 });
 
+test("a note naming a renamed guide's former slug needs the renamed guide", () => {
+  const renamed = [...surfaces, { id: "playlists", label: "Playlists", docSlug: "playlists", formerDocSlugs: ["custom-lists"], sourcePaths: [] }];
+  const commits = [{ id: "abc1234", message: "feat: x\n\nsite-impact: custom-lists", files: [] }];
+  const missing = computeWebsiteContentImpact({ commits, updatedFiles: [], surfaces: renamed });
+  assert.equal(missing.failures.length, 1);
+  assert.equal(missing.failures[0].kind, "not-updated");
+  assert.equal(missing.failures[0].docSlug, "playlists");
+  const updated = computeWebsiteContentImpact({ commits, updatedFiles: ["website/src/content/docs/playlists.mdx"], surfaces: renamed });
+  assert.deepEqual(updated.failures, []);
+});
+
 test("a later none note does not cancel an earlier commit's need", () => {
   const commits = [
     { id: "aaa1111", message: "feat: retune sync thresholds", files: ["public/modules/tracker-settings.js"] },

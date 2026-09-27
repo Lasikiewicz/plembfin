@@ -140,6 +140,61 @@ test("scheduled identity repair collapses Ted Lasso episode aliases and future w
   });
 });
 
+test("new episode playstate writes key on the proven profile, not the episode ids or title (plan playstate-episode-id-repair phase 5)", { concurrency: false }, () => {
+  const series = { imdb_id: "tt15677150", tmdb_id: "136311", tvdb_id: "412448" };
+  for (const episode of [1, 2, 3]) insertHistory({ showTitle: "Shrinking", season: 1, episode, ids: series });
+  repo.invalidateSeriesIdentityIndex();
+  const write = (episode, ids = {}) => repo.upsertPlaystateSync({
+    title: `Shrinking - S01E${String(episode).padStart(2, "0")}`,
+    media_type: "episode",
+    season: 1,
+    episode,
+    source: "emby",
+    watched_at: "2026-09-20T00:00:00.000Z",
+    ...ids,
+  }, "watched");
+  const rowsAt = (episode) => db.prepare(
+    "SELECT * FROM playstate WHERE media_type = 'episode' AND title_lower LIKE 'shrinking - %' AND season = 1 AND episode = ?",
+  ).all(episode);
+  const showKey = (episode) => repo.mediaKeyFor({ media_type: "episode", season: 1, episode, ...series });
+
+  // Show-keyed row first, then an episode-id write for the same episode.
+  write(4, series);
+  const aliasWrite = write(4, { imdb_id: "tt99990004" });
+  assert.equal(aliasWrite.mediaKey, showKey(4));
+  assert.deepEqual(rowsAt(4).map((row) => row.media_key), [showKey(4)]);
+  assert.equal(rowsAt(4)[0].imdb_id, series.imdb_id);
+
+  // Episode-id write with no show-keyed row yet.
+  assert.equal(write(5, { imdb_id: "tt99990005" }).mediaKey, showKey(5));
+  assert.equal(rowsAt(5).length, 1);
+
+  // Id-less write: the show key, not an episode:S:E:title row.
+  assert.equal(write(6).mediaKey, showKey(6));
+  write(6);
+  assert.deepEqual(rowsAt(6).map((row) => row.media_key), [showKey(6)]);
+  assert.equal(rowsAt(6)[0].tvdb_id, series.tvdb_id);
+
+  // A same-title reboot's disagreeing series ids keep their own key (decision 34).
+  const reboot = write(7, { tmdb_id: "999001", tvdb_id: "999002" });
+  assert.equal(reboot.mediaKey, repo.mediaKeyFor({ media_type: "episode", season: 1, episode: 7, tmdb_id: "999001" }));
+  assert.equal(rowsAt(7)[0].tmdb_id, "999001");
+
+  // No profile for the show: the id-less write keeps its title key.
+  const orphan = repo.upsertPlaystateSync({
+    title: "Unprofiled Show - S02E03",
+    media_type: "episode",
+    season: 2,
+    episode: 3,
+    source: "plex",
+    watched_at: "2026-09-20T00:00:00.000Z",
+  }, "watched");
+  assert.match(orphan.mediaKey, /^episode:2:3:title:/);
+
+  // Later tests survey every episode playstate row.
+  db.prepare("DELETE FROM playstate WHERE title_lower LIKE 'shrinking - %' OR title_lower LIKE 'unprofiled show - %'").run();
+});
+
 test("a disagreeing series-level id outranks the single known title profile (decisions entry 34)", { concurrency: false }, async () => {
   // The only proven "Frasier" profile is the reboot, as when one provider's
   // library is mismatched. A fresh event resolved to the original show by its
@@ -488,6 +543,63 @@ test("tier 3: a profile with no TMDB id is bridged by its own ids resolving to T
 
   const again = await repo.repairPlaystateEpisodeIdAliases({ findCached, tvdbCached });
   assert.equal(again.deleted + again.rekeyed, 0, "the repair is idempotent");
+});
+
+test("id-less title-keyed playstate rows fold onto the title's sole profile (plan playstate-episode-id-repair phase 5 step 2)", { concurrency: false }, async () => {
+  const show = { imdb_id: "tt9600001", tmdb_id: "96001", tvdb_id: "96002" };
+  for (const episode of [1, 2, 3]) insertHistory({ showTitle: "Titlekey Show", season: 1, episode, ids: show });
+  for (const [tmdb_id, episodes] of [["96101", [1, 2]], ["96102", [1, 2]]]) {
+    for (const episode of episodes) insertHistory({ showTitle: "Titlekey Twins", season: 1, episode, ids: { tmdb_id } });
+  }
+  const insertPlaystate = db.prepare(`
+    INSERT INTO playstate (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, imdb_id, tmdb_id, tvdb_id, season, episode, updated_at)
+    VALUES (@media_key, @title, @title_lower, 'episode', @state, '2026-09-01T00:00:00.000Z', 'plex', '["plex"]', @imdb_id, @tmdb_id, @tvdb_id, 1, @episode, @updated_at)
+  `);
+  const playstate = (showTitle, episode, ids, state, updatedAt) => {
+    const title = `${showTitle} - S01E0${episode}`;
+    const record = { media_type: "episode", title, season: 1, episode, imdb_id: ids.imdb_id || null, tmdb_id: ids.tmdb_id || null, tvdb_id: ids.tvdb_id || null };
+    const media_key = repo.mediaKeyFor(record);
+    insertPlaystate.run({ ...record, media_key, title_lower: title.toLowerCase(), state, updated_at: updatedAt });
+    return media_key;
+  };
+  const seriesKey = (episode) => repo.mediaKeyFor({ media_type: "episode", season: 1, episode, ...show });
+
+  playstate("Titlekey Show", 1, show, "watched", 2000);
+  const older = playstate("Titlekey Show", 1, {}, "unwatched", 1000);
+  playstate("Titlekey Show", 2, show, "unwatched", 1000);
+  const newerConflict = playstate("Titlekey Show", 2, {}, "watched", 2000);
+  playstate("Titlekey Show", 3, show, "watched", 1000);
+  const newerAgreeing = playstate("Titlekey Show", 3, {}, "watched", 2000);
+  const orphan = playstate("Titlekey Show", 4, {}, "watched", 1000);
+  const twins = playstate("Titlekey Twins", 1, {}, "watched", 1000);
+  const unprofiled = playstate("Titlekey Nobody", 1, {}, "watched", 1000);
+  // The show key for episode 5 is already held by a row under another title
+  // spelling; the title-keyed row must not be rekeyed onto it.
+  insertPlaystate.run({ media_type: "episode", title: "Titlekey Show Renamed - S01E05", title_lower: "titlekey show renamed - s01e05", season: 1, episode: 5, ...show, media_key: seriesKey(5), state: "watched", updated_at: 1000 });
+  const blocked = playstate("Titlekey Show", 5, {}, "watched", 2000);
+  for (const key of [older, newerConflict, orphan, twins, unprofiled, blocked]) assert.match(key, /^episode:1:\d:title:/);
+
+  const none = () => null;
+  const result = await repo.repairPlaystateEpisodeIdAliases({ findCached: none, tvdbCached: none });
+  const keys = new Set(db.prepare("SELECT media_key FROM playstate WHERE title_lower LIKE 'titlekey %'").all().map((row) => row.media_key));
+
+  assert.equal(keys.has(older), false, "an older title-keyed row is deleted");
+  assert.equal(keys.has(newerAgreeing), false, "a newer title-keyed row with the same state is deleted");
+  assert.equal(keys.has(newerConflict), true, "a newer conflicting title-keyed row is not auto-resolved");
+  assert.ok(result.conflicts.some((conflict) => conflict.aliasKey === newerConflict && conflict.seriesKey === seriesKey(2)));
+  assert.equal(keys.has(orphan), false);
+  const rekeyed = db.prepare("SELECT * FROM playstate WHERE media_key = ?").get(seriesKey(4));
+  assert.equal(rekeyed?.state, "watched", "a title-keyed row with no show-keyed row is rekeyed onto the show");
+  assert.deepEqual([rekeyed.imdb_id, rekeyed.tmdb_id, rekeyed.tvdb_id], [show.imdb_id, show.tmdb_id, show.tvdb_id]);
+  assert.equal(keys.has(twins), true, "a title with several profiles is left for the card");
+  assert.equal(keys.has(unprofiled), true, "a title with no profile keeps its title key");
+  assert.equal(keys.has(blocked), true, "a rekey never overwrites a key another row holds");
+  assert.equal(result.pendingLookups.some((lookup) => /96/.test(lookup.id)), false, "a title match needs no lookup");
+
+  const again = await repo.repairPlaystateEpisodeIdAliases({ findCached: none, tvdbCached: none });
+  const keysAgain = new Set(db.prepare("SELECT media_key FROM playstate WHERE title_lower LIKE 'titlekey %'").all().map((row) => row.media_key));
+  assert.deepEqual([...keysAgain].sort(), [...keys].sort(), "the repair is idempotent");
+  assert.equal(again.conflicts.filter((conflict) => conflict.aliasKey === newerConflict).length, 1);
 });
 
 test("TVDB episode answers are classified and cached for the playstate repair", { concurrency: false }, async (t) => {

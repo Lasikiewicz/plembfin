@@ -110,7 +110,7 @@ Rules that keep this correct:
   toggle; `toggleThemeStyle()` in `modules/appearance.js` binds it and keeps the attribute and
   key in sync. Modern rules live in `public/styles-modern.css`, loaded after `styles.css`, and
   every rule there is scoped to `html[data-style="modern"]` (dark) or
-  `html[data-style="modern"].light-mode` (light). See `plan/archive/theme-styles.md`.
+  `html[data-style="modern"].light-mode` (light). See `plan/archive/theme-styles/plan.md`.
   `toggleThemeStyle()` dispatches `plembfin:theme-style` (`THEME_STYLE_EVENT`) on `document`,
   and `isModernStyle()` reports the current style. Modern-only dashboard behaviour lives in
   `modules/dashboard-modern.js` (imported by `dashboard.js`): consecutive watches of one show
@@ -121,13 +121,36 @@ Rules that keep this correct:
   it), clicking a folded poster opens that card, and a further click behaves as normal. The
   Now Playing heading is hidden; when nothing is
   playing the first Up Next item is featured there in a backdrop layout (and hidden from the
-  Up Next rail by CSS), and live sessions take the same layout side by side. Dashboard cards
-  carry `data-art="type|tmdb|tvdb|imdb|title"` (live cards get it from
-  `state.activeSessions`); each key's backdrop is looked up once through the batched TMDB
-  details request and published as a rule in an injected `#modernArtStyles` stylesheet, so
-  the cards are never mutated and their reconcile signatures stay stable. One
+  Up Next rail by CSS), and live sessions take the same layout side by side. One
   MutationObserver on `#timeline-view` drives all of this, so `sync.js` and `up-next.js`
   have no hooks for it.
+- The Posters only switch on Library, Discover, History, Watchlist, Ratings, and Playlists
+  (`data-card-mode-toggle`, wired in `app-events.js`, which puts `.page-card-mode-compact` on
+  the page panel) folds every item to its poster in every view. `modules/page-card-open.js`
+  (imported by `media-card.js` and `dashboard-modern.js`) gives those posters the Dashboard
+  compact rows' behaviour: a capture-phase click on a folded poster adds `.page-card-open`
+  to it instead of following its link, closing the one that was open; a click on the open
+  item behaves as normal. It stays open until another poster opens, the page changes, or
+  the switch is used, and a re-render of the page reopens it. The poster-mode rules in
+  `styles.css` skip `.page-card-open`, and the full-card rules match it, so it takes its
+  Posters-off look: three poster slots in a grid (the whole row on phones, or with
+  `.page-card-open-full` where fewer than three posters fit), a full-width row in a list or
+  table view, its caption under its poster in History's grid view, and its full width in the
+  Discover and Playlists rails.
+- On History, `modules/history-poster-overlay.js` (imported by `explorer.js`) adds an overlay
+  to every poster in all three views: episode name (TV only), watched date, and app badge.
+  `styles.css` hides it except on folded posters with Posters only on, where it sits along
+  the bottom edge over a blurred dark tint (a stronger tint without `backdrop-filter`). A
+  resolved episode title updates both the card and the overlay.
+- Modern card backdrops live in `modules/card-art.js`. Cards on the Dashboard, History, the
+  library, Discover, Watchlist, Ratings, and Playlists carry
+  `data-art="type|tmdb|tvdb|imdb|title"` (`cardArtAttribute()`; live cards get it from
+  `state.activeSessions` in `dashboard-modern.js`). One MutationObserver on `.page-shell`
+  finds cards as any page renders them, and an IntersectionObserver requests a key only when
+  one of its cards nears view. Each key's backdrop is looked up through the batched TMDB
+  details request and published as a rule in an injected `#modernArtStyles` stylesheet, so
+  the cards are never mutated and their reconcile signatures stay stable. A failed lookup is
+  retried after 5 s, 30 s, and 2 min; a title with no backdrop is not asked again.
 - Every dynamic import carries the canonical `?v=` token. `assets:check` fails an unstamped
   or stale one (`test/assetVersionDynamicImports.test.js`).
 - Detail pages mark `plembfin:detail-primary-ready` (`markDetailPrimaryReady()` in
@@ -176,7 +199,7 @@ SPA navigation via `history.pushState`:
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
 | `/discover` | Deterministic TMDB discovery feeds |
-| `/watchlist`, `/ratings`, `/custom-lists` | Personal watchlist, ratings, and custom lists |
+| `/watchlist`, `/ratings`, `/playlists` | Personal watchlist, ratings, and playlists (`/custom-lists` redirects to `/playlists`, and a stored `custom-lists` view maps to `playlists`) |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
 | `/sync-activity` | Sync Activity: per-media sync rows, newest first |
 | `/settings`, `/settings/:section` | Settings landing list and parent-group administration sections; child sections use `#hash` anchors |
@@ -296,15 +319,104 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
 
 ### Personal media organization
 
-The personal media module backs the Watchlist, Ratings, and Custom Lists pages, as well
-as the personal actions on movie and TV show detail pages. Watchlist and custom-list
+The personal media module backs the Watchlist, Ratings, and Playlists pages, as well
+as the personal actions on movie and TV show detail pages. Watchlist and playlist
 membership use provider identity when available, with normalized title/year matching as
 a fallback. Detail-page actions update their labels immediately after a successful
-change; an existing watchlist item offers removal, while the custom-list chooser marks
-each list that already contains the title as **Added**. Custom Lists renders every named
-collection as its own horizontal media rail, keeps up to four rails in the desktop viewport,
+change; an existing watchlist item offers removal, while the playlist chooser marks
+each playlist that already contains the title as **Added**. Playlists renders every
+playlist as its own horizontal media rail, keeps up to four rails in the desktop viewport,
 and places additional rails below. Vertical mouse-wheel input enters a rail only after the
 pointer has stopped over it, preserving normal page scrolling while the pointer is moving.
+
+The Playlists page itself lives in `playlists.js` (the sync behind it is described in
+[sqlite-schema.md](sqlite-schema.md) "Playlist tables"). Each
+heading shows the selected apps as icon-and-name badges (icon dimmed while waiting for the
+first sync, with a dot for a failed sync or a playlist the app no longer finds; the tooltip
+says which) or "Plembfin only", the item count, and on the right an **Options** menu
+(`details.playlist-options`, closed by an outside click, Escape, or choosing an item) with
+Edit and Delete. On desktop, cards are dragged and dropped within
+their rail to reorder (`bindPlaylistDragAndDrop`, delegated on the panel): the held card moves
+through the rail live, the others slide aside, its slot shows as a dashed insert outline, and a
+drag that ends without a drop puts the cards back; full cards also carry a **Move** pill
+(`< MOVE >`, centred at the bottom of the card) for touch (the first card's
+left arrow and the last card's right arrow are disabled). Both send the whole new order
+(`list-reorder`). Playlist cards show no summary (`personalCard(..., { hideOverview })`). Full cards show a "Missing from <app>" note for each selected app whose
+library lacks the title; posters-only mode hides the card body, so a "Missing" badge on the
+poster carries it instead (tooltip names the apps). New items join the top of a playlist.
+A change the sync held for confirmation shows a banner with Confirm and
+Discard. Delete moves a playlist to **Recently deleted**, a toolbar button (with its count)
+shown only while something is there (`recentlyDeletedButtonHtml`); it opens a wide dialog with
+Restore and Delete permanently on each row, plus Delete all permanently (one confirmation,
+shown when more than one playlist is there), which closes while it runs and opens again with
+what is left; a restore whose name a live playlist took meanwhile asks for a new name. The create/edit dialog (also opened from
+media pages and the poster menu) has the app picker: connected apps can be ticked, an app
+already selected stays tickable while disconnected, and a notice explains that each app's
+copy holds only titles in that app's library.
+
+Each playlist is **Movies**, **TV**, or **Mixed** (movies and episodes together), chosen in
+the create dialog and fixed afterwards (opened from a title, the other single type is
+disabled and Mixed stays offered); the heading shows the type. A playlist left empty from
+before types existed stays untyped until its first title. Add-to menus and the add-to dialog
+offer only playlists that accept the title (`playlistAcceptsItem`; Mixed accepts both). TV
+and Mixed playlists hold separate episodes, so adding a show opens the
+episode picker (`playlist-episode-picker.js`): every episode the metadata lists, specials
+and unaired ones included, grouped by season with a select-all per season; episodes already
+in the playlist are shown ticked and disabled. The picked episodes go to the top of the
+playlist as one block in episode order (`list-add-episodes`).
+
+Automatic playlists (`playlist-rules.js`): the create and edit dialog is a wide dialog with
+steps down the side (Name and type, Rule, Apps; a scrolling row on top at 760 px and below).
+Opened from the Playlists page it offers "Pick items" or "Automatic"; Automatic adds the Rule
+step with the rule editor (source: your libraries or
+the TMDB catalogue, genres with any/all from `list-rule-genres`, original languages as tick
+boxes (English ticked on a new automatic playlist; none ticked means any), years or a decade, watched
+(movies only; a TV playlist holds the next episode of each show), recently added for the
+library source only, type (Top rated, the default, Popular, Trending this week, or New
+releases), maximum (20 on a new playlist), order (Ranked, the type's own ranking, by default))
+and rules out Mixed. Every playlist's Name and type step
+has a "Remove items once watched" switch (`remove_watched`), ticked on a new playlist; its help
+line for an automatic TV playlist says the show moves to Up Next. Refresh now reads
+"Refreshing" and a spinner shows left of the title until the check and reload finish; the
+playlist payload's `rule_checking` keeps it spinning after a page reload, and the 10 s reload below also runs
+while any check is in progress. A confirmed held check is a "Confirmed" tag in the heading
+row. An automatic playlist's cards keep "Remove from this playlist" in the poster menu: the
+title is handed off (as with a watched one) so the rule never adds it back; for TV the whole
+show leaves. An automatic playlist that has never been checked
+says "Checking the rule, this can take a minute or two.", and while one exists and the
+Playlists tab is on screen and visible, `watchUncheckedPlaylistRules` reloads the playlists
+every 10 s. Otherwise the same watcher asks the server every 30 s for `list-stamp` (a
+fingerprint of the playlists part of the payload, also sent as `playlists_stamp`) and reloads
+only when it differs, so a scheduled pass (a watched title removed, a rule check, a sync) shows
+without a manual reload; it skips a round while a drag is in progress. Editing an
+automatic playlist can change its rule; a manual playlist cannot be made automatic. An
+automatic playlist's heading row carries an "Auto" label on the right, left of Options (its
+tooltip gives the last check), and its Options menu adds Info (a pop-up listing every detail
+of the rule, `playlistRuleDetails`), Refresh now (`list-refresh-rule`), and Stop updating
+(`list-stop-rule`, asked first), so its rail is as tall as any other. Only a rule error or a held check (Confirm/Discard, `list-rule-held`) adds
+a line below the heading. Its cards have no
+remove, drag, or Move arrows, and add-to menus leave it out (`playlistAcceptsItem`).
+
+"Import from apps" beside New playlist opens the import dialog (`playlist-import.js`): each
+connected app's playlists not linked yet (`list-import-candidates`), with item count and type,
+smart playlists counted in a note, and a failing app shown with its error. A picked row shows
+Merge / Import separately when its name clashes (Merge by default, offered only for a
+compatible type) and "Sync to" app choices with only its own app ticked. Import sends
+`list-import`.
+
+With Posters only on, TV and Mixed playlists stack neighbouring episodes of one show
+(`playlistStackRuns`): a stack card (the show's poster, an "N episodes" count, and a Missing
+badge if any episode is missing) sits before its episode cards, which are hidden while it is
+collapsed. A movie or another show between episodes starts a new stack, so the poster order
+stays the playing order; a lone episode is a plain poster. Clicking the stack expands it in
+place (each episode keeps its own Missing badge) and clicking again collapses it; the open
+state survives re-renders. `page-card-open.js` leaves stack cards alone. A collapsed stack
+drags as a block (`reorderedBlock`), and a drop onto a stack lands before its first or after
+its last episode. With Posters only off, stack cards are hidden and every episode shows.
+Every folded episode poster in a playlist (stacked or not) carries the History poster
+overlay (`history-poster-overlay` classes plus `playlist-poster-overlay`): its episode code
+and name. The Missing badge sits in the poster's top-left corner on every playlist poster
+(movie, episode, or stack), since the top right holds the menu button and the stack count.
 
 Movie and TV ratings use their provider identity. An episode rating originates from
 the episode row on the show detail page and is keyed by the parent show's identity
@@ -331,7 +443,7 @@ The panel writes its live one-line state to `#watchlistSyncSummary`, never to
 `#watchlistSyncHelp` - the latter belongs to `renderSettingsInlineHelp`'s static guide, and
 when both wrote to one element the 30-second status poll destroyed the guide every time.
 
-At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use the
+At mobile widths, Discover, Watchlist, Ratings, Playlists, and History use the
 dashboard's compact poster-first card geometry. Each feed or collection is a
 horizontal rail that exposes the next card at the right edge, while the card's
 metadata and actions remain below its poster inside the tile.
@@ -339,7 +451,7 @@ metadata and actions remain below its poster inside the tile.
 The mobile page topbar mounts only the active page's controls. Explorer and Upcoming
 control groups keep their hidden state when they are moved into the shared topbar, so
 their search/calendar controls cannot leak onto Discover, personal-media, History,
-Stats, or Settings pages. Upcoming, Discover, Watchlist, Ratings, Custom Lists, History,
+Stats, or Settings pages. Upcoming, Discover, Watchlist, Ratings, Playlists, History,
 Stats, and Settings use the same media-detail-style icon/label action strip; secondary
 filters, search, sizing, and settings-section controls live in a compact Options disclosure.
 Calendar navigation remains visible for Upcoming, while the other page controls keep the
@@ -507,14 +619,21 @@ The size limits and grandfathered files that constrain these modules are in `CLA
 | Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
 | Sync Activity page (`/sync-activity`), including its route-scoped action/event handlers | `modules/sync-activity.js` |
 | Dashboard rendering | `modules/dashboard.js` |
-| Modern-style-only dashboard behaviour (collapsed runs, Now Playing feature layout, card backdrops) and the compact Recently watched rows | `modules/dashboard-modern.js` |
+| Modern-style-only dashboard behaviour (collapsed runs, Now Playing feature layout) and the compact Recently watched rows | `modules/dashboard-modern.js` |
+| Modern backdrop artwork behind cards on every page | `modules/card-art.js` |
+| Posters only on the library and media pages: a clicked poster opens its card in place | `modules/page-card-open.js` |
+| History, Posters only: episode, date and app overlaid on each poster | `modules/history-poster-overlay.js` |
 | Shared media identity/deduplication | `modules/media-records.js` |
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |
 | Upcoming page (scrolling month calendar of upcoming episode air dates) | `modules/upcoming.js` |
 | Up Next rail, provider push, dismissed-items dialog | `modules/up-next.js` |
 | Up Next show identity, same-title show veto, dismissal keys, and action markup | `modules/up-next-shared.js` |
-| Personal ratings/watchlist/custom-list metadata fill (overview, release date) | `modules/personal-media-metadata.js` |
+| Personal ratings/watchlist/playlist metadata fill (overview, release date) | `modules/personal-media-metadata.js` |
+| Playlists page: rails, app picker, Movies/TV/Mixed type, reorder, missing notes, held changes, Recently deleted | `modules/playlists.js` |
+| Playlist episode picker (adding a show to a TV playlist) | `modules/playlist-episode-picker.js` |
+| "Import from apps" dialog (app playlists into Plembfin playlists) | `modules/playlist-import.js` |
+| Automatic playlists: rule editor, rule summary and Info pop-up, Auto label, Refresh now, Stop updating, held rule check | `modules/playlist-rules.js` |
 | Backup/restore tools (Settings route) | `modules/tools-backups.js` |
 | Settings changelog renderer and Main/Alpha tabs (build-version display formatting is core, in `modules/utils.js`) | `modules/changelog-channels.js` |
 | TV/movie detail entry points, lookups, modal-close routing | `modules/media-detail.js` |

@@ -126,7 +126,7 @@ test("the Manual Watch review summary shares one in-flight request", async () =>
 
 test("personal metadata fill asks only about the page being viewed", async () => {
   state.token = "session";
-  state.activeView = "custom-lists";
+  state.activeView = "playlists";
   state.personalMediaTab = "lists";
   state.tmdbDetailsCache = new Map();
   state.personalRatings = [{ media_type: "movie", tmdb_id: 1, title: "Rated" }];
@@ -140,7 +140,7 @@ test("personal metadata fill asks only about the page being viewed", async () =>
   });
   const changed = await hydratePersonalMetadata({ normalizeItem: (item) => item });
   assert.equal(changed, true);
-  assert.deepEqual(requested, [3], "ratings and watchlist items are not fetched from Custom Lists");
+  assert.deepEqual(requested, [3], "ratings and watchlist items are not fetched from Playlists");
   assert.equal(state.personalLists[0].items[0].overview, "About 3");
   assert.equal(state.personalRatings[0].overview, undefined);
   state.token = "";

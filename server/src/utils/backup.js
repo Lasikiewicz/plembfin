@@ -328,6 +328,34 @@ export function getFullBackup(origin = "") {
   return backup;
 }
 
+// The same document as JSON.stringify(getFullBackup()), produced in pieces so a
+// large library never holds the whole backup in memory at once. Rows are read
+// with a synchronous iterator, so callers must consume it without awaiting.
+export function* fullBackupJsonChunks(origin = "") {
+  const placeholder = "__plembfinCollectionsPlaceholder__";
+  const manifest = backupManifest(origin);
+  manifest.portable = false;
+  manifest.collections = placeholder;
+  const [head, tail] = JSON.stringify(manifest).split(JSON.stringify(placeholder));
+  yield `${head}{`;
+  let firstCollection = true;
+  for (const name of BACKUP_COLLECTIONS) {
+    const config = collections[name];
+    if (!config) continue;
+    yield `${firstCollection ? "" : ","}${JSON.stringify(name)}:[`;
+    firstCollection = false;
+    const select = config.numericKey ? `${config.key}, *` : "*";
+    let firstRow = true;
+    for (const row of db.prepare(`SELECT ${select} FROM ${config.table} ORDER BY ${config.key}`).iterate()) {
+      const document = { id: String(row[config.key]), data: portableValue(config.rowToData(row)) };
+      yield `${firstRow ? "" : ","}${JSON.stringify(document)}`;
+      firstRow = false;
+    }
+    yield "]";
+  }
+  yield `}${tail}`;
+}
+
 export function exportCollectionPage(name, { cursor = "", limit = 250, browserSafe = true } = {}) {
   const config = collections[name];
   if (!config) throw new Error(`Unknown backup collection: ${name}`);

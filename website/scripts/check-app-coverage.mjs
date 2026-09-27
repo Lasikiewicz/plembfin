@@ -38,7 +38,7 @@ for (const item of surface) {
 
 const appShell = read("public/index.html");
 const settingsShell = read("public/modules/settings-shell.js");
-for (const label of ["Dashboard", "Movies", "TV Shows", "Upcoming", "Discover", "Watchlist", "Ratings", "Custom Lists", "History", "Stats", "Settings"]) {
+for (const label of ["Dashboard", "Movies", "TV Shows", "Upcoming", "Discover", "Watchlist", "Ratings", "Playlists", "History", "Stats", "Settings"]) {
   if (!appShell.includes(`>${label}<`) && !appShell.includes(`"${label}"`)) {
     failures.push(`app shell no longer contains the expected user-facing label: ${label}`);
   }

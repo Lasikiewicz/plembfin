@@ -329,3 +329,91 @@ test("manual watch review does not repaint an acted-on item from a stale full re
 
   assert.deepEqual(state.manualWatchReviews, [], "a stale response must not repaint the acted-on row");
 });
+
+test("manual watch review summary still counts a new review after an earlier one was approved", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  t.after(() => {
+    stopManualWatchReviewPolling();
+    globalThis.fetch = originalFetch;
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+  });
+
+  const makeElement = () => ({
+    dataset: {},
+    innerHTML: "",
+    classList: { toggle() {} },
+    addEventListener(type, handler) {
+      this.handlers = this.handlers || {};
+      this.handlers[type] = handler;
+    },
+    querySelectorAll() { return []; },
+    setAttribute() {},
+    removeAttribute() {},
+  });
+  const rows = makeElement();
+  globalThis.document = {
+    body: makeElement(),
+    querySelector(selector) {
+      return selector === "#manualWatchReviewRows" ? rows : null;
+    },
+    querySelectorAll() { return []; },
+  };
+  globalThis.window = {
+    addEventListener() {},
+    setInterval() { return 1; },
+    clearInterval() {},
+  };
+
+  const approved = { id: "review-approved-earlier", media_type: "movie", title: "Approved movie", source: "plex" };
+  state.token = "test-token";
+  state.activeView = "manualWatchReview";
+  state.manualWatchReviews = [approved];
+  state.manualWatchReviewCount = 1;
+  state.manualWatchReviewLoaded = true;
+  state.manualWatchReviewLoading = false;
+  state.manualWatchReviewError = "";
+
+  let resolvePost;
+  globalThis.fetch = (url, options = {}) => {
+    if (options.method === "POST") return new Promise((resolve) => { resolvePost = resolve; });
+    // The provider flag for a different title arrives after the approval:
+    // the server now holds only that one new review.
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      async json() { return { ok: true, count: 1, reviewCount: 1, ids: ["review-new-flag"], reviews: [] }; },
+    });
+  };
+
+  initManualWatchReview({ openConfirmDialog: async () => true });
+  const card = makeElement();
+  card.dataset.manualWatchReviewId = approved.id;
+  const button = makeElement();
+  button.dataset.manualWatchReviewAction = "approve";
+  button.dataset.manualWatchReviewMode = "now";
+  button.disabled = false;
+  button.closest = (selector) => selector.includes("data-manual-watch-review") ? card : null;
+  rows.handlers.click({
+    target: {
+      closest(selector) {
+        if (selector === "button" || selector.includes("data-manual-watch-review-action")) return button;
+        return null;
+      },
+    },
+    button: 0,
+  });
+  for (let attempt = 0; attempt < 10 && !resolvePost; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  resolvePost({ ok: true, status: 200, async json() { return { ok: true, count: 0 }; } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(state.manualWatchReviewCount, 0);
+
+  // The user moves to another page; only the sidebar summary poll runs.
+  state.activeView = "playlists";
+  await loadManualWatchReview({ summaryOnly: true });
+  assert.equal(state.manualWatchReviewCount, 1, "the approved review is no longer on the server, so it must not cancel out the new one");
+});

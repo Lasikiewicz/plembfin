@@ -7,7 +7,7 @@ globalThis.history ??= { state: null, pushState() {}, replaceState() {} };
 globalThis.window ??= { addEventListener() {}, location: { origin: "http://localhost:5055", pathname: "/" } };
 globalThis.document = { addEventListener() {}, querySelector: () => null, documentElement: { getAttribute: (name) => (name === "data-style" ? style : null) } };
 
-const { bindDashboardRuns, dashboardCardArtAttribute, dashboardTvRowUnits, isDashboardRowCompact, observeDashboardCardArtwork, setDashboardRowCompact, setDashboardRunExpanded } = await import("../public/modules/dashboard-modern.js");
+const { bindDashboardRuns, dashboardTvRowUnits, isDashboardRowCompact, setDashboardRowCompact, setDashboardRunExpanded } = await import("../public/modules/dashboard-modern.js");
 
 const episode = (id, show, season, number) => ({ id, media_type: "episode", show_tmdb_id: show, show_title: `Show ${show}`, season, episode: number });
 
@@ -88,52 +88,15 @@ test("an expanded run gives one card per episode, with no Collapse control", () 
   assert.equal(dashboardTvRowUnits(history)[0].key, "run:id:1:3");
 });
 
-test("cards carry a backdrop lookup key for the show or the movie", () => {
-  assert.equal(
-    dashboardCardArtAttribute({ media_type: "episode", show_tmdb_id: 12, show_tvdb_id: 34, show_title: "Show", tmdb_id: 99 }),
-    ' data-art="tv|12|34||Show"',
-  );
-  assert.equal(dashboardCardArtAttribute({ media_type: "movie", tmdb_id: 7, imdb_id: "tt1", title: "A \"Film\"" }), ' data-art="movie|7||tt1|A &quot;Film&quot;"');
-  assert.equal(dashboardCardArtAttribute({ media_type: "movie" }), "");
+test("opening a run folds any other open run back into its stack", () => {
+  style = "modern";
+  const rows = [...history.slice(0, 3), episode(8, 2, 2, 3), episode(7, 2, 2, 2)];
+  setDashboardRunExpanded("run:id:1:3", true);
+  setDashboardRunExpanded("run:id:2:7", true);
+  const units = dashboardTvRowUnits(rows);
+  assert.equal(units[0].key, "run:id:1:3");
+  assert.deepEqual(units.slice(1).map((unit) => unit.runKey), ["run:id:2:7", "run:id:2:7"]);
+  setDashboardRunExpanded("run:id:2:7", false);
+  assert.deepEqual(dashboardTvRowUnits(rows).map((unit) => unit.key), ["run:id:1:3", "run:id:2:7"]);
 });
 
-test("Modern defers dashboard backdrop lookups until cards approach view", async () => {
-  style = "modern";
-  const originalObserver = globalThis.IntersectionObserver;
-  const originalWindowObserver = window.IntersectionObserver;
-  const originalFetch = globalThis.fetch;
-  let callback;
-  let requests = 0;
-  const observed = [];
-  const card = { getAttribute: () => "movie|12345|||Observer deferral fixture" };
-  class FakeObserver {
-    constructor(onChange, options) {
-      callback = onChange;
-      assert.equal(options.rootMargin, "200px");
-    }
-    observe(node) { observed.push(node); }
-    unobserve(node) { assert.equal(node, card); }
-    disconnect() {}
-  }
-  globalThis.IntersectionObserver = FakeObserver;
-  window.IntersectionObserver = FakeObserver;
-  globalThis.fetch = async () => {
-    requests++;
-    return { ok: true, status: 200, json: async () => ({ results: [{ details: null }] }) };
-  };
-  try {
-    observeDashboardCardArtwork({ querySelectorAll: () => [card] });
-    assert.deepEqual(observed, [card]);
-    assert.equal(requests, 0);
-    callback([{ target: card, isIntersecting: false }]);
-    assert.equal(requests, 0);
-    callback([{ target: card, isIntersecting: true }]);
-    await new Promise((resolve) => setTimeout(resolve, 70));
-    assert.equal(requests, 1);
-  } finally {
-    observeDashboardCardArtwork(null);
-    globalThis.IntersectionObserver = originalObserver;
-    window.IntersectionObserver = originalWindowObserver;
-    globalThis.fetch = originalFetch;
-  }
-});

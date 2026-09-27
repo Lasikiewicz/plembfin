@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { requireAdmin } from "../utils/auth.js";
 import { readJson } from "../utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed } from "../utils/http.js";
@@ -43,7 +46,7 @@ import {
   createPlembfinBackup,
   deletePlembfinBackup,
   plembfinBackupStatus,
-  readPlembfinBackupFile,
+  plembfinBackupFilePath,
   savePlembfinBackupConfig,
 } from "../utils/plembfinBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "../utils/backupDestinations/onedrive.js";
@@ -161,17 +164,19 @@ export async function handlePlembfinBackups(req, res) {
     if (!filename) {
       return sendJson(res, plembfinBackupStatus());
     }
+    let absolute;
     try {
-      const file = readPlembfinBackupFile(filename);
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      const buffer = Buffer.from(file.content, "utf8");
-      res.setHeader("Content-Length", String(buffer.length));
-      return res.end(buffer);
+      absolute = plembfinBackupFilePath(filename);
     } catch (error) {
       return sendJson(res, { error: error.message }, 404);
     }
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(absolute)}"`);
+    res.setHeader("Content-Length", String(fs.statSync(absolute).size));
+    return pipeline(fs.createReadStream(absolute), res).catch((error) => {
+      console.error("Backup download failed", error.message);
+    });
   }
 
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -323,7 +328,7 @@ const RESTORE_TARGET_FAILURE_THRESHOLD = Math.min(Math.max(Number(process.env.PL
 // Test-only, opt-in: a disposable fixture with no providers configured makes
 // the whole push phase a no-op (no targets means no jobs), so a restore
 // against it finishes in seconds and never exercises the poll/log UI over a
-// realistic multi-minute window (see plan/speed.md, Test 4). Setting this
+// realistic multi-minute window (see plan/active/speed/step1-phase0-quick-wins.md, Test 4). Setting this
 // inserts a synthetic per-row wait, at the same concurrency the real push
 // uses, so the live log and progress polling are measured honestly without
 // contacting any provider. Zero (the default) is a no-op in every other case.

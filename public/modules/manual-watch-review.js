@@ -1,9 +1,9 @@
-import { state } from "./state.js?v=1.2.2.0.15";
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.2.2.0.15";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.2.0.15";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.2.0.15";
-import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.2.2.0.15";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.2.2.0.16";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.2.0.16";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.2.0.16";
+import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.2.2.0.16";
 
 let _cb = {};
 let _openConfirmDialog = async () => false;
@@ -1734,7 +1734,8 @@ export async function loadManualWatchReview({ summaryOnly = false, refresh = fal
     if (!response.ok || !body.ok) throw new Error(body.error || `Manual Watch review failed with ${response.status}`);
     const serverCount = Number(body.count || 0);
     const responseReviews = Array.isArray(body.reviews) ? body.reviews : [];
-    const responseIds = new Set(responseReviews.map((review) => String(review.id)));
+    const summaryIds = summaryOnly && Array.isArray(body.ids) ? new Set(body.ids.map(String)) : null;
+    const responseIds = summaryIds || new Set(responseReviews.map((review) => String(review.id)));
     const isLatestFullRequest = !summaryOnly && requestId === latestManualWatchReviewFullRequest;
     // An older full response can be missing an item that a newer response
     // still contains (for example when the action and provider refresh race).
@@ -1745,10 +1746,13 @@ export async function loadManualWatchReview({ summaryOnly = false, refresh = fal
         if (!responseIds.has(id)) suppressedManualWatchReviewIds.delete(id);
       }
     }
+    // Subtract only hidden reviews the server still counts. A decided review
+    // the server has already dropped would otherwise cancel out a newly
+    // flagged one and hide the sidebar notice until a reload.
     const hiddenReviews = [
       ...pendingManualWatchReviewActions.values(),
       ...suppressedManualWatchReviewIds.values(),
-    ];
+    ].filter((review) => !summaryIds || summaryIds.has(String(review.id)));
     const hiddenCount = manualWatchReviewDisplayCount(hiddenReviews);
     const visibleServerCount = Math.max(0, serverCount - hiddenCount);
     // Summary and full-page requests can overlap during navigation or while a

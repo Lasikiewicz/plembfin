@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.2.2.0.15";
-import { readStoredDebugLogs } from "./logs.js?v=1.2.2.0.15";
-import { isDemoMode } from "./utils.js?v=1.2.2.0.15";
+import { readStoredAdminToken } from "./auth.js?v=1.2.2.0.16";
+import { readStoredDebugLogs } from "./logs.js?v=1.2.2.0.16";
+import { isDemoMode } from "./utils.js?v=1.2.2.0.16";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -21,7 +21,7 @@ export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
 export const THEME_STYLE_KEY = "plembfin:style";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
-export const PERSONAL_MEDIA_VIEWS = ["watchlist", "ratings", "custom-lists"];
+export const PERSONAL_MEDIA_VIEWS = ["watchlist", "ratings", "playlists"];
 export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "discover", ...PERSONAL_MEDIA_VIEWS, "settings", "help", "search", "history", "syncActivity", "manualWatchReview", "setup"];
 export const SETTINGS_TABS = ["account", "connections", "metadata", "data", "system"];
 
@@ -45,7 +45,8 @@ const initialState = {
   claimRequired: false,
   mustChangePassword: false,
   currentUser: undefined,
-  activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
+  // Custom Lists was renamed Playlists; a stored view from before keeps working.
+  activeView: (localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard").replace(/^custom-lists$/, "playlists"),
   activeSettingsTab: localStorage.getItem(ACTIVE_SETTINGS_TAB_KEY) || "general",
   activeSettingsRoute: null,
   activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
@@ -216,6 +217,8 @@ const initialState = {
   personalRatings: [],
   personalWatchlist: [],
   personalLists: [],
+  personalDeletedLists: [],
+  playlistProviders: [],
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
   dashboardPosterObserver: undefined,

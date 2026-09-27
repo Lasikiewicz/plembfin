@@ -32,6 +32,32 @@ function isSameOrigin(req) {
   }
 }
 
+function sameHost(value, req) {
+  try {
+    const requestHost = String(req.get("host") || "");
+    return Boolean(requestHost) && new URL(value).host === requestHost;
+  } catch {
+    return false;
+  }
+}
+
+// Strict check for the interactive account and tracker authorization routes:
+// a request must prove it came from this app's own pages. Sec-Fetch-Site is
+// only sent in secure contexts (HTTPS or localhost) and browsers leave Origin
+// off same-origin GETs, so a plain-HTTP LAN address sends neither on a status
+// poll (issue 39). Referer is then the proof: the app sends
+// Referrer-Policy: same-origin, so it is present on its own requests and
+// never on cross-site ones. A request with none of the three is rejected.
+export function isSameOriginBrowserRequest(req) {
+  const fetchSite = String(req.get("sec-fetch-site") || "").toLowerCase();
+  if (fetchSite) return fetchSite === "same-origin";
+  const origin = req.get("origin");
+  if (origin) return sameHost(origin, req);
+  const referer = req.get("referer");
+  if (referer) return sameHost(referer, req);
+  return false;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

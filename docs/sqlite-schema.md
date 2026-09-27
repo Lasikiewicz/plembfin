@@ -40,9 +40,16 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `personal_watchlist_sync_queue` | Durable latest-intent provider additions/removals with leases and retry state | watchlist repository/worker | watchlist queue worker |
 | `personal_watchlist_sync_runs` | Provider snapshot generations, completion markers, cursors, counts, and errors | watchlist snapshot worker | complete-snapshot safety/status |
 | `personal_watchlist_activity` | Redacted watchlist-specific activity and removal reasons | watchlist repository/worker | Watchlist settings activity feed |
+| `personal_lists` / `personal_list_items` | Playlists (formerly Custom Lists), each Movies, TV, or Mixed, and their ordered movie and episode items, with soft delete for Recently deleted | personal-media list actions | Playlists page, playlist sync |
+| `personal_list_handoffs` | Titles an automatic playlist removed as watched and never adds back | `playlistWatched.js` | playlist rule engine |
+| `personal_list_item_exclusions` | Episodes of a pre-conversion show item removed in an app (no new rows) | playlist pull engine (before migration 44) | show-to-episodes conversion |
+| `personal_list_targets` | Which apps each playlist targets, remote playlist id, and sync/not-found state | playlist routes and sync engine | playlist sync, status |
+| `personal_list_entry_ledger` | Per-remote-entry record of what Plembfin last wrote or saw | playlist sync engine | app-side change detection |
+| `personal_list_item_availability` | Per-item, per-app library availability from the last push | playlist push engine | "Missing from <app>" notes |
+| `personal_list_held_changes` | App-side mass removals or deletions held for confirmation | playlist pull engine | confirm/discard of held changes |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
-| `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match). `status`, poster and backdrop paths are also mirrored into their own columns, written on every cache write and backfilled from the stored blob on upgrade, so the TV Shows grid can read them without parsing a details blob that averages 64KB for a TV entry. The stored document keeps streaming availability only for the regions the detail page reads (GB and US) and drops the unread release-dates block, which is about 40% of the cache | tmdb-details handler | detail pages, prefetch |
+| `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match). `status`, `original_language` (read by the Language choice of automatic playlists), poster and backdrop paths are also mirrored into their own columns, written on every cache write and backfilled from the stored blob on upgrade, so the TV Shows grid can read them without parsing a details blob that averages 64KB for a TV entry. The stored document keeps streaming availability only for the regions the detail page reads (GB and US) and drops the unread release-dates block, which is about 40% of the cache | tmdb-details handler | detail pages, prefetch |
 | `tmdb_search_cache` | TMDB search results and versioned Discover feed snapshots | tmdb-search/discover handlers | TMDB search and Discover |
 | `recommendation_exclusions` | Movies and TV shows excluded from the personalized Discover recommendation rail | Discover card action | Discover recommendation filtering |
 | `tmdb_season_cache` | Unused compatibility table; season data is stored in `tvdb_season_cache` | - (unused) | - |
@@ -242,6 +249,170 @@ only a successful complete snapshot may interpret a previously owned item missin
 the next snapshot as a confirmed provider removal. Restore resets remote observations,
 queue success markers, and snapshot completion, records a restore revision, and stores a
 separate restore-pending flag until explicit publish.
+
+## Playlist tables
+
+The UI calls these Playlists; the tables keep their original `personal_list` names.
+Migration 43 rebuilt `personal_lists` and `personal_list_items` (the `media_type` CHECK had
+to accept `episode`). Existing lists kept their items and got `position` numbered from the
+old newest-first order; they have no target rows, so they stay Plembfin-only.
+
+- `personal_lists`: `deleted_at` / `deleted_origin` (`local` or a provider) mark a playlist
+  in Recently deleted; active lists have `deleted_at IS NULL`. Names are unique
+  case-insensitively among active lists only (partial index
+  `idx_personal_lists_active_name`), so a deleted playlist does not block reusing its name.
+  `order_updated_at` records the last Plembfin-side reorder, so an app-side reorder is
+  imported only when Plembfin's order did not change since the last sync.
+- `personal_list_items`: ordered by `position`; a new item takes the next position and a
+  re-add keeps its place. Episode items use the `personal_ratings` convention: `tmdb_id` /
+  `tvdb_id` / `imdb_id` are the show's ids, plus `show_title`, `season`, `episode`, and
+  `episode_*` ids. A CHECK requires season and episode on episode rows.
+- `personal_lists.kind` (migration 44, widened by migration 45): `movie`, `tv`, or `mixed`
+  (movies and episodes together), fixed at creation; NULL only for a
+  playlist that was empty when the column arrived, until its first item (a Plembfin add or
+  an imported app add) sets it. Migration 44 typed existing playlists by their items and
+  split a mixed one: the original keeps its name and movies as `movie`, and its shows and
+  episodes move to a new `Name (TV)` playlist (`(TV) (2)` on a name clash) with the same
+  deleted state and copies of the `present` targets without a remote id, so the push
+  creates the app copies and removes the moved entries from the original's.
+- `personal_lists.rule_json`, `rule_checked_at`, `rule_error` (migration 47): automatic
+  playlists (server side built; the Playlists page does not show them yet). `rule_json` is
+  NULL for a manual playlist; otherwise the rule `{ source: "library" | "catalogue", genres,
+  genreMatch: "any" | "all", yearFrom, yearTo, watched: "any" | "unwatched" | "watched",
+  addedWithinDays, limit, order: "newest" | "oldest" | "title" | "random" | "rating" }`, with
+  `rule_checked_at` the last evaluation time and `rule_error` why the last one failed. `kind`
+  stays `movie` or `tv`. `server/src/utils/playlistRuleEngine.js` evaluates it hourly (from
+  the scheduled playlist pass) and on Refresh now, and replaces the items; a failed library,
+  TMDB, or episode read changes nothing and sets `rule_error`.
+- `personal_lists.rule_hold_json`, `rule_hold_confirmed_at` (migration 48): a rule check that
+  would remove at least 3 items that are also more than half the playlist is held whole (no
+  adds or reorders either) as `{ removal_count, item_count, desired_count, held_at }`.
+  Confirm sets `rule_hold_confirmed_at` and re-checks, applying even a large removal; Discard
+  clears the hold and keeps the items until the next hourly check, which holds again if still
+  needed. Kept here rather than in `personal_list_held_changes`, which is keyed per app target.
+  An episode replaced by its own show's next episode does not count toward the hold.
+- `personal_lists.remove_watched` (migration 49, default 0): "Remove items once watched".
+  `server/src/utils/playlistWatched.js` deletes a movie or episode item whose latest trusted
+  watch is later than the item's `created_at`, every scheduled playlist pass and before each
+  rule check; the next push removes it from the apps.
+- `personal_list_handoffs` (migration 49): `(list_id, identity, handed_off_at)`, one row per id
+  key (`movie:tmdb:123`, `show:tvdb:456`) of a title an automatic playlist removed as watched.
+  The rule never adds those titles back, even after an unwatch, a rule edit, or turning the
+  switch off. Cascades when the playlist is deleted.
+- `personal_list_items` with `media_type = 'tv'` (a whole show) exist only from before
+  TV playlists held separate episodes. `server/src/utils/playlistShowConversion.js`, run at
+  the start of each scheduled playlist pass for every playlist (Plembfin-only and deleted
+  ones too), replaces each with every episode the TMDB metadata lists (specials and unaired
+  included) minus its exclusions, at the show's place; episodes already present keep theirs.
+  The show's ledger rows are relinked to the episode keys so the push keeps the app entries.
+  A failed fetch keeps the show and retries next pass; the sync skips a playlist until its
+  shows are converted.
+- `personal_list_item_exclusions`: episodes of a pre-conversion show item removed in an app.
+  Only the show conversion reads it now; nothing writes new rows. Cascades when the show
+  item is removed.
+- `personal_list_targets`: one row per app a playlist targets, with the remote playlist id
+  and last seen name. `desired_state = 'absent'` keeps a deselected app's row (and its
+  remote id) until that app's playlist is deleted. `not_found_passes` / `missing_since`
+  count definite not-found reads, since one not-found is never a deletion.
+  `unidentified_count` is how many entries of that app's playlist the last pull could not
+  identify (left in the app untouched; the Playlists page shows a note per app).
+- `personal_list_entry_ledger`: what Plembfin last wrote or saw per remote entry
+  (`remote_entry_id` is Plex `playlistItemID` or Emby/Jellyfin `PlaylistItemId`). App-side
+  changes are diffed against this ledger, never against the other side's live state, so
+  Plembfin's own writes are not re-imported. `absent_reads` counts consecutive reads missing
+  the entry, since one short read never drives a removal. Cascades from its target row.
+- `personal_list_item_availability`: whether each item resolved in each targeted app's
+  library on the last push (`available` / `missing`, with a `reason`; `episode_count` was for
+  the retired series items). A lookup that failed leaves the previous row; an item the app playlist still
+  holds counts as available even when the lookup missed it. Written by
+  `server/src/utils/playlistPushEngine.js`; cascades when the item is removed. A new table in
+  `schema.sql`, so no migration.
+- `personal_list_held_changes`: app-side changes the pull pass held for confirmation instead
+  of applying (`kind` `removals`: at least 3 user removals that are more than half the
+  ledger in one pass, with the remote `entry_ids` as JSON; `kind` `delete`: a concluded app
+  deletion while more than one playlist of the same app reads as not found). Setting
+  `confirmed_at` makes the next pull apply it; discarding forgets the held ledger rows (the
+  push re-adds them) or clears the remote id (the push recreates the playlist). Written by
+  `server/src/utils/playlistPullEngine.js`; cascades from its target row. New table, no
+  migration.
+
+The indexes on columns added by migration 43 are created by that migration, not
+`schema.sql`, because `schema.sql` runs before migrations on older databases.
+
+Route actions on `POST /api/personal-media` (`server/src/routes/personal.js`) that write
+these tables, each scheduling a debounced sync:
+
+- `list-create` / `list-update`: `providers` sets the target apps. A newly selected app must
+  be connected; an already selected app may stay while disconnected. Deselecting an app with
+  a remote playlist marks it `absent` (the sync deletes it); without one the row is dropped.
+- `list-create` needs `kind` (`movie`, `tv`, or `mixed`; 400 `kind_required`).
+- `list-add`: a new item takes `position` 0 and shifts the rest down; re-adding keeps its place.
+  The item must match the playlist's type (400 `wrong_type`; a `mixed` playlist takes movies and
+  episodes), a whole show is refused
+  (400 `show_needs_episodes`), and the first item of an untyped playlist sets its `kind`.
+- `list-add-episodes`: the picked episodes of one show go to the top as one block in episode
+  order; episodes already present keep their place. `show-episodes` (read-only) returns
+  every episode the metadata lists for the picker.
+- `list-reorder`: `order` must be every media key of the playlist, else 409. Sets
+  `order_updated_at`. The pull pass imports an app-side reorder only while
+  `order_updated_at` is not later than that target's `last_synced_at` (and the target has no
+  `last_error`); importing sets `order_updated_at` too, so a second app reordered in the same
+  pass is moved back.
+- `list-delete`: every playlist is soft-deleted (`deleted_origin = 'local'`) and its held
+  changes cleared. `list-restore` clears the soft delete; when an active playlist took the
+  name it answers 409 with `code: "name_taken"` and changes nothing, and the page asks for a
+  new `name` to send. It also drops `absent` targets whose app playlist is already gone, and
+  resets the `present` targets' not-found and error state so the push recreates them.
+  `list-purge` hard-deletes a soft-deleted playlist once no connected app still holds a copy.
+- `list-held`: confirm or discard a held change. With `ROLE=web` it only records the
+  decision and the worker's next scheduled pass applies it.
+- `list-import-candidates` (read-only, `server/src/utils/playlistImport.js`): each connected
+  app's playlists that no `personal_list_targets.remote_playlist_id` links yet (a soft-deleted
+  playlist's link still counts). Smart playlists are left out and counted in `smart_skipped`;
+  an app whose list read fails comes back with `status: "error"`, never as an empty list. Each
+  candidate carries its entry count, a `kind_guess` (`movie`, `tv`, `mixed`, or `empty` when it
+  holds no movie or episode), `other_count` (entries that are neither), and `clash`:
+  `name_taken`, `merge_into` (a live playlist of the same name, trimmed and case-insensitive,
+  whose type can take it: same type, Mixed, or untyped, and that has no playlist in that app
+  yet), and `same_name` candidates in other apps.
+- Automatic playlists (`rule_json` set): `list-add`, `list-remove`, `list-add-episodes`, and
+  `list-reorder` answer 409 `code: "automatic_playlist"`. `list-create` accepts `rule`
+  (validated, 400 `code: "invalid_rule"`; `kind` movie or tv only; Recently added only with
+  the library source; the catalogue source defaults to a maximum of 100). `list-update`
+  accepts `rule` only for an automatic playlist (400 `code: "not_automatic"`) and resets the
+  check time. `list-refresh-rule` checks at once, rereading the libraries (`ROLE=web`: 202,
+  marked due for the worker). `list-rule-held` with `decision` confirm or discard.
+  `list-stop-rule` runs a last one-way push (so app edits made while automatic are never
+  imported), then clears the rule and any hold. The push for an automatic playlist removes
+  app entries the rule does not want, re-adds removed ones at once, and forgets ledger rows
+  whose entries left the app; the pull imports only renames and app-side deletion.
+- `list-rule-genres` (read-only, `server/src/utils/playlistRuleCatalogue.js`): body `kind`
+  (`movie` or `tv`, else 400). Reads each connected app's library catalogue (every movie and
+  show with genres, year, added date, rating, and ids; Plex genre membership read per genre,
+  since its list responses carry only a few tags; cached per app for 50 minutes; a failed or
+  short read is an app `status: "error"`, never a partial library) and returns `genres`: TMDB's
+  genres for that kind plus the apps' genres, merged by a key that ignores case, spacing, and
+  punctuation and maps known alternate spellings (`Sci-Fi` and `Science Fiction`); a merged
+  genre carries TMDB's name where TMDB has one, its `tmdb_id` for that kind, the `providers`
+  reporting it, and `app_titles`. `apps` gives each app's read status.
+- `list-import` (`importAppPlaylists` in the same file) takes `picks`: `{ provider,
+  remote_playlist_id, mode: "merge" | "separate", merge_into?, targets }`. Each app playlist is
+  re-read (gone or smart is refused), then all picks are linked in one transaction, so any
+  refusal changes nothing: already linked (`already_linked`), a merge of Movies with TV
+  (`kinds_differ`), or a playlist that already has a playlist in that app (`app_taken`).
+  Separate creates a playlist of the guessed type (untyped when empty), named `Name (App)` when
+  the name is taken or another pick shares it. Merge links into `merge_into`, or, without it,
+  groups the merge picks of one name into a new playlist. The source app's target row gets
+  `remote_playlist_id`, `remote_name` set to the app title (so the Plembfin name wins and the
+  push renames the app playlist), and an empty ledger; the other ticked apps are added as
+  targets, and no other app is touched. The route then runs each playlist's first sync
+  (worker roles only): with an empty ledger the pull imports every identified entry and the
+  push only adds. Returns `imported` and per-playlist `lists` (`added`, `unidentified`,
+  `errors`).
+
+`GET` returns each active playlist with its selected `providers` (sync status), per-item
+`availability` for those apps, and `held_changes`, plus `deleted_lists` and
+`playlist_providers` (which apps are connected).
 
 ## `watch_history` sync retry columns
 

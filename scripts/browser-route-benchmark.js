@@ -1,4 +1,4 @@
-// Browser route benchmark for plan/application-speed-remediation.md (Phase A/B/G).
+// Browser route benchmark for plan/active/application-speed-remediation/plan.md (Phase A/B/G).
 //
 // Paste into the DevTools console of a signed-in Plembfin tab, or inject it
 // with a browser automation tool. It adds a "Start route benchmark" button;

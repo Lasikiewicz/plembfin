@@ -1,11 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state, elements } from "./state.js?v=1.2.2.0.15";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.2.2.0.15";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.2.2.0.15";
-import { ifLoaded } from "./route-modules.js?v=1.2.2.0.15";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.2.2.0.15";
-import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.15";
-import { bindDashboardRuns, dashboardCardArtAttribute, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.16";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.2.2.0.16";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.2.2.0.16";
+import { ifLoaded } from "./route-modules.js?v=1.2.2.0.16";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.2.2.0.16";
+import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.16";
+import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.2.2.0.16";
+import { cardArtAttribute } from "./card-art.js?v=1.2.2.0.16";
 
 // The setup wizard loads only when setup is unfinished or its checklist has
 // items (see the deferred check in app.js); until then there is nothing to show.
@@ -437,10 +438,10 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
     isPendingRemoval ? "up-next-card-removing" : "",
   ].filter(Boolean).join(" ");
   const cardOpen = isPartWatched
-    ? `<article class="${cardClass}"${dashboardCardArtAttribute(entry)} data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
+    ? `<article class="${cardClass}"${cardArtAttribute(entry)} data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
     : isUpNext
-      ? `<article class="${cardClass}"${dashboardCardArtAttribute(entry)}${isSaving ? ` aria-busy="true"` : ""} data-up-next-card-id="${escapeAttribute(cardId)}">`
-      : `<a class="${cardClass}"${dashboardCardArtAttribute(entry)} data-history-id="${escapeAttribute(cardId)}"${options.explorerAttributes || ""} href="${escapeAttribute(options.explorerHref || href)}">`;
+      ? `<article class="${cardClass}"${cardArtAttribute(entry)}${isSaving ? ` aria-busy="true"` : ""} data-up-next-card-id="${escapeAttribute(cardId)}">`
+      : `<a class="${cardClass}"${cardArtAttribute(entry)} data-history-id="${escapeAttribute(cardId)}"${options.explorerAttributes || ""} href="${escapeAttribute(options.explorerHref || href)}">`;
   const cardClose = isInteractive ? "</article>" : "</a>";
   const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;
   const showProgress = isResume && playbackPositionKnown && (!isUpNext || hasActualResumeProgress(entry));

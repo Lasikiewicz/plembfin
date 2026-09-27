@@ -5,19 +5,18 @@
 // parsed when Settings is opened. app-events.js wires this module through
 // onRouteModuleLoaded() with the same callbacks object it received, so each
 // wrapper below reads the app.js implementation at call time.
-import { rotateWebhookSecret } from "./auth.js?v=1.2.2.0.15";
-import { clearDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.2.2.0.15";
-import { state, elements } from "./state.js?v=1.2.2.0.15";
-import { formatNumber } from "./utils.js?v=1.2.2.0.15";
-import { loadSyncHistory, loadSyncJobs, triggerCronSync, triggerStopSync } from "./sync.js?v=1.2.2.0.15";
-import { ifLoaded, lazyExport } from "./route-modules.js?v=1.2.2.0.15";
+import { rotateWebhookSecret } from "./auth.js?v=1.2.2.0.16";
+import { clearDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.16";
+import { loadSyncHistory, loadSyncJobs, triggerCronSync, triggerStopSync } from "./sync.js?v=1.2.2.0.16";
+import { ifLoaded, lazyExport } from "./route-modules.js?v=1.2.2.0.16";
 
 const lazyTools = (name) => lazyExport("tools", name);
 const lazyBackups = (name) => lazyExport("tools-backups", name);
 const renderSettingsInlineHelp = ifLoaded("help-content", "renderSettingsInlineHelp");
 const renderImportPreview = ifLoaded("tools", "renderImportPreview"), appendImportLog = ifLoaded("tools", "appendImportLog");
 const loadCacheStats = lazyTools("loadCacheStats"), parseSelectedFiles = lazyTools("parseSelectedFiles"), startImport = lazyTools("startImport"), runRepairWorkflow = lazyTools("runRepairWorkflow"), runTraktBackfill = lazyTools("runTraktBackfill"), runEpisodeTitleAudit = lazyTools("runEpisodeTitleAudit"), runEpisodeTitleBackfill = lazyTools("runEpisodeTitleBackfill"), runRematchTvShows = lazyTools("runRematchTvShows"), runSystemIntegrityCheck = lazyTools("runSystemIntegrityCheck"), triggerClearMissingTelemetry = lazyTools("triggerClearMissingTelemetry"), triggerRetryAllCategory = lazyTools("triggerRetryAllCategory");
-const setBackupTransferState = lazyBackups("setBackupTransferState"), readPlembfinBackup = lazyBackups("readPlembfinBackup"), importPlembfinBackup = lazyBackups("importPlembfinBackup");
+const selectPlembfinBackupFile = lazyBackups("selectPlembfinBackupFile"), importPlembfinBackup = lazyBackups("importPlembfinBackup");
 const restoreRemoteBackupFromCard = lazyBackups("restoreRemoteBackupFromCard"), loadWatchBackups = lazyBackups("loadWatchBackups"), postWatchBackupAction = lazyBackups("postWatchBackupAction");
 const saveWatchBackupSettings = lazyBackups("saveWatchBackupSettings"), createWatchBackupNow = lazyBackups("createWatchBackupNow"), downloadWatchBackup = lazyBackups("downloadWatchBackup");
 const uploadWatchBackupFile = lazyBackups("uploadWatchBackupFile"), restoreWatchBackup = lazyBackups("restoreWatchBackup");
@@ -318,23 +317,9 @@ export function initSettingsEvents(callbacks = {}) {
   });
 
   elements.backupImportFile?.addEventListener("change", async () => {
-    state.backupImport = null;
-    elements.backupImportButton.disabled = true;
-    const file = elements.backupImportFile.files?.[0];
-    if (!file) {
-      setBackupTransferState("Idle", "muted", "[idle] Enter a passphrase, then choose an encrypted Plembfin backup.", "restore");
-      return;
-    }
-    try {
-      state.backupImport = await readPlembfinBackup(file);
-      const documentCount = state.backupImport.included.reduce((sum, name) => sum + state.backupImport.backup.collections[name].length, 0);
-      elements.backupImportButton.disabled = false;
-      const encryptionLabel = state.backupImport.encrypted ? "Encrypted Plembfin backup" : "Legacy unencrypted Plembfin backup";
-      setBackupTransferState("Ready", "ready", `${encryptionLabel}: ${file.name}\n${formatNumber(documentCount)} documents across ${formatNumber(state.backupImport.included.length)} supported collections.`, "restore");
-    } catch (error) {
-      setBackupTransferState("Invalid", "error", `Backup file rejected: ${error.message}`, "restore");
-      setMessage(error.message, "error");
-    }
+    const file = elements.backupImportFile.files?.[0] || null;
+    await selectPlembfinBackupFile(file);
+    elements.backupImportButton.disabled = !file;
   });
 
   elements.backupImportButton?.addEventListener("click", () => {

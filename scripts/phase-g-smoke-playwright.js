@@ -1,4 +1,4 @@
-// Benchmark helper for plan/application-speed-remediation.md (Phase G).
+// Benchmark helper for plan/active/application-speed-remediation/step7-phase-g-verification.md (Phase G).
 // Not a node script: this file is a single Playwright page function. Paste it
 // into the Playwright MCP browser tool's run-code action with a signed-in
 // local Plembfin tab open; it returns its measurements as JSON. It never enters

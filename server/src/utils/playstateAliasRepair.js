@@ -8,7 +8,7 @@ import { lookupTmdbExternalIdKind } from "./tmdbGateway.js";
 import { lookupTvdbEpisodeKind } from "./tvdbGateway.js";
 
 // Scheduling for the playstate episode-id alias repair
-// (plan/playstate-episode-id-repair.md). The scheduler tick runs the repair
+// (plan/active/playstate-episode-id-repair/plan.md). The scheduler tick runs the repair
 // from cached TMDB `find` and TVDB episode answers only; ids it has no answer
 // for are looked up by a background job, which then runs the repair again.
 // TVDB (tier 2) ids only become pending once the row's TMDB answers are cached.

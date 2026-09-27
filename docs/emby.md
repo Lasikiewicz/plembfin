@@ -131,7 +131,7 @@ platform that reported them.
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` / `fetchEmbyNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchEmbyPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
-| `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress. **Known defect:** Emby 4.9.5.0 returns 204 but does not store the numeric `Rating`, so writes report success without effect and the snapshot reads no ratings (see `plan/personal-rating-sync.md`) |
+| `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress. **Known defect:** Emby 4.9.5.0 returns 204 but does not store the numeric `Rating`, so writes report success without effect and the snapshot reads no ratings (see `plan/active/personal-rating-sync/step4-emby-readback.md`) |
 
 ## Artwork
 

@@ -48,10 +48,11 @@
     "sourcePaths": ["public/index.html", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "docs/frontend.md", "docs/media-detail.md"]
   },
   {
-    "id": "custom-lists",
-    "label": "Custom Lists",
-    "docSlug": "custom-lists",
-    "sourcePaths": ["public/index.html", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "docs/frontend.md", "docs/media-detail.md"]
+    "id": "playlists",
+    "label": "Playlists",
+    "docSlug": "playlists",
+    "formerDocSlugs": ["custom-lists"],
+    "sourcePaths": ["public/index.html", "public/modules/playlists.js", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "server/src/utils/playlistPushEngine.js", "server/src/utils/playlistPullEngine.js", "docs/frontend.md", "docs/media-detail.md"]
   },
   {
     "id": "history-search",

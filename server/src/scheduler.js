@@ -24,6 +24,7 @@ import { runScheduledWatchBackup, runScheduledRemoteWatchBackup } from "./utils/
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { runRatingSyncScheduler } from "./utils/personalRatingSync.js";
 import { runWatchlistSyncScheduler } from "./utils/personalWatchlistSync.js";
+import { runPlaylistSyncScheduler } from "./utils/playlistSyncTriggers.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import { runScheduledPlaystateAliasRepair } from "./utils/playstateAliasRepair.js";
 import {
@@ -453,6 +454,10 @@ async function runScheduledTickSteps({ isLeader = () => true } = {}) {
   // reconciliation. Keep this independent from ratings so a provider outage
   // or large watchlist does not delay watch history or the other personal sync.
   await runWithTimeBudget("Personal watchlist sync", () => runWatchlistSyncScheduler(), 45_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
+  // Two-way playlist sync; runs its own pass once per interval.
+  await runWithTimeBudget("Playlist sync", () => runPlaylistSyncScheduler(), 60_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);

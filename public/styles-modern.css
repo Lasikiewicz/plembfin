@@ -1,5 +1,5 @@
 /*
- * Modern theme style (plan/theme-styles.md).
+ * Modern theme style (plan/archive/theme-styles/plan.md).
  *
  * Loaded after styles.css. Every rule here must be scoped to
  * html[data-style="modern"] (dark) or html[data-style="modern"].light-mode
@@ -923,6 +923,42 @@ html[data-style="modern"] .page-shell .shared-media-card .shared-media-card-rele
   font-weight: 600;
 }
 
+/* History, Discover, and Personal Media cards take the dashboard's backdrop
+   (modules/card-art.js) under the same heavy shade, which reads whether the
+   poster sits beside the text or above it on phones. */
+html[data-style="modern"] #history-view .history-list .history-page-card[data-art],
+html[data-style="modern"] .page-shell .shared-media-card[data-art] {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-style="modern"] #history-view .history-list .history-page-card[data-art]::before,
+html[data-style="modern"] #history-view .history-list .history-page-card[data-art]::after,
+html[data-style="modern"] .page-shell .shared-media-card[data-art]::before,
+html[data-style="modern"] .page-shell .shared-media-card[data-art]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+html[data-style="modern"] #history-view .history-list .history-page-card[data-art]::before,
+html[data-style="modern"] .page-shell .shared-media-card[data-art]::before {
+  background: var(--modern-art, none) center 30% / cover no-repeat;
+}
+
+html[data-style="modern"] #history-view .history-list .history-page-card[data-art]::after,
+html[data-style="modern"] .page-shell .shared-media-card[data-art]::after {
+  opacity: var(--modern-art-shade, 0);
+  background: linear-gradient(90deg, rgba(12, 16, 22, 0.94) 0%, rgba(12, 16, 22, 0.84) 55%, rgba(12, 16, 22, 0.66) 100%);
+}
+
+html[data-style="modern"].light-mode #history-view .history-list .history-page-card[data-art]::after,
+html[data-style="modern"].light-mode .page-shell .shared-media-card[data-art]::after {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.86) 55%, rgba(255, 255, 255, 0.7) 100%);
+}
+
 html[data-style="modern"] .page-shell .shared-media-card .shared-media-card-rating {
   border: 1px solid color-mix(in srgb, var(--accent), transparent 60%);
   border-radius: 999px;
@@ -1036,41 +1072,42 @@ html[data-style="modern"].light-mode .page-shell[data-active-view="explorer"] #e
 }
 
 /* History grid and list modes. Poster mode (.page-card-mode-compact) is left
-   alone until its design call is made. */
-html[data-style="modern"] .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-poster {
+   alone until its design call is made, except for a poster opened into its
+   tile or row (.page-card-open, modules/page-card-open.js). */
+html[data-style="modern"] .page-shell [data-view-panel="history"] :where(.history-grid-card):is(:not(.page-card-mode-compact *), .page-card-open) .history-grid-poster {
   border-radius: 10px;
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-poster {
+html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"] :where(.history-grid-card):is(:not(.page-card-mode-compact *), .page-card-open) .history-grid-poster {
   border-color: rgba(255, 255, 255, 0.07);
 }
 
-html[data-style="modern"].light-mode .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-poster {
+html[data-style="modern"].light-mode .page-shell [data-view-panel="history"] :where(.history-grid-card):is(:not(.page-card-mode-compact *), .page-card-open) .history-grid-poster {
   border-color: rgba(15, 23, 42, 0.09);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-html[data-style="modern"] .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-card:hover .history-grid-poster {
+html[data-style="modern"] .page-shell [data-view-panel="history"] .history-grid-card:is(:not(.page-card-mode-compact *), .page-card-open):hover .history-grid-poster {
   border-color: var(--accent);
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
 
-html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-card:hover .history-grid-poster {
+html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"] .history-grid-card:is(:not(.page-card-mode-compact *), .page-card-open):hover .history-grid-poster {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 }
 
-html[data-style="modern"].light-mode .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-card:hover .history-grid-poster {
+html[data-style="modern"].light-mode .page-shell [data-view-panel="history"] .history-grid-card:is(:not(.page-card-mode-compact *), .page-card-open):hover .history-grid-poster {
   box-shadow: 0 3px 6px rgba(15, 23, 42, 0.14);
 }
 
-html[data-style="modern"] .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) :is(.history-grid-copy b, .history-list-title) {
+html[data-style="modern"] .page-shell [data-view-panel="history"] :where(.history-grid-card, .history-list-row):is(:not(.page-card-mode-compact *), .page-card-open) :is(.history-grid-copy b, .history-list-title) {
   font-weight: 700;
 }
 
 /* The episode title line, as on the cards; movies keep the muted "Movie". */
-html[data-style="modern"] .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-grid-card[data-prefetch-type="tv"] .history-grid-copy span:not(.rewatch-badge) {
+html[data-style="modern"] .page-shell [data-view-panel="history"] .history-grid-card[data-prefetch-type="tv"]:is(:not(.page-card-mode-compact *), .page-card-open) .history-grid-copy span:not(.rewatch-badge) {
   color: var(--accent);
   font-weight: 600;
 }
@@ -1102,26 +1139,26 @@ html[data-style="modern"].light-mode .page-shell .explorer-list-header span {
   color: #475569;
 }
 
-html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list-row:hover {
+html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"] .history-list-row:is(:not(.page-card-mode-compact *), .page-card-open):hover {
   background: rgba(245, 158, 11, 0.08);
 }
 
-html[data-style="modern"].light-mode .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list-row:hover {
+html[data-style="modern"].light-mode .page-shell [data-view-panel="history"] .history-list-row:is(:not(.page-card-mode-compact *), .page-card-open):hover {
   background: rgba(37, 99, 235, 0.06);
 }
 
 /* Provider badges as on the library list (step 3): tinted border, and the
    colour lightened (dark) or darkened (light) to reach 4.5:1. */
-html[data-style="modern"] .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list-row .source-badge {
+html[data-style="modern"] .page-shell [data-view-panel="history"] .history-list-row:is(:not(.page-card-mode-compact *), .page-card-open) .source-badge {
   border-color: color-mix(in srgb, var(--modern-provider, currentColor), transparent 55%);
   font-weight: 700;
 }
 
-html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list-row .source-badge {
+html[data-style="modern"]:not(.light-mode) .page-shell [data-view-panel="history"] .history-list-row:is(:not(.page-card-mode-compact *), .page-card-open) .source-badge {
   color: color-mix(in srgb, var(--modern-provider, var(--soft)), #ffffff 35%);
 }
 
-html[data-style="modern"].light-mode .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list-row .source-badge {
+html[data-style="modern"].light-mode .page-shell [data-view-panel="history"] .history-list-row:is(:not(.page-card-mode-compact *), .page-card-open) .source-badge {
   color: color-mix(in srgb, var(--modern-provider, var(--soft)), #000000 40%);
 }
 

@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state } from "./state.js?v=1.2.2.0.15";
-import { escapeAttribute, escapeHtml, episodeCode, formatDate } from "./utils.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { escapeAttribute, escapeHtml, episodeCode, formatDate } from "./utils.js?v=1.2.2.0.16";
 
 // ── Watch-state aliases ─────────────────────────────────────────────────────
 // Episode playstate rows keyed on the episode's own ids that no TMDB or TVDB
-// lookup could tie to the show (plan/playstate-episode-id-repair.md). The
+// lookup could tie to the show (plan/active/playstate-episode-id-repair/plan.md). The
 // scheduled repair never folds these; the user decides per show. Only local
 // playstate changes, nothing is dispatched to connected platforms.
 

@@ -373,7 +373,7 @@ export async function resolveTvdbSeriesIdFromEpisodeId(tvdbEpisodeId, { lane = "
 
 // What a TVDB id is as an episode: its series and aired-order coordinate, or
 // nothing (TVDB answers 404). Tier 2 of the playstate episode-id repair
-// (plan/playstate-episode-id-repair.md) reads the cache only; the lookup runs
+// (plan/active/playstate-episode-id-repair/plan.md) reads the cache only; the lookup runs
 // from its background job and throws on any other failure, so nothing is
 // cached and the id is retried later.
 const EPISODE_KIND_TTL_MS = 30 * DAY_MS;

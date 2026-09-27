@@ -1,11 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 
 import {
   assertSafeOutboundUrl,
   boundedFetchTimeoutMs,
   createUpstreamTimeoutError,
   fetchWithTimeout,
+  uploadFileWithTimeout,
 } from "../server/src/utils/outbound.js";
 import { applyTuningConfig, resetTuningForTests } from "../server/src/utils/tuning.js";
 
@@ -145,6 +150,75 @@ test("fetchWithTimeout honors an explicit timeoutMs override regardless of tunin
       return true;
     },
   );
+});
+
+// A local upload target: `respond(req, res, body)` runs once the body is in.
+async function uploadServer(t, respond) {
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => respond(req, res, Buffer.concat(chunks)));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  return `http://127.0.0.1:${server.address().port}/upload`;
+}
+
+function tempFile(t, content) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-upload-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const filePath = path.join(dir, "file.bin");
+  fs.writeFileSync(filePath, content);
+  return filePath;
+}
+
+test("uploadFileWithTimeout sends the file with its headers and returns the response", async (t) => {
+  let seen = null;
+  const url = await uploadServer(t, (req, res, body) => {
+    seen = { method: req.method, headers: req.headers, body: body.toString() };
+    res.writeHead(201).end("stored");
+  });
+  const filePath = tempFile(t, "backup body");
+
+  const result = await uploadFileWithTimeout(url, { method: "PUT", headers: { "Content-Length": "11", "x-test": "1" }, filePath }, 1000);
+  assert.deepEqual(result, { ok: true, status: 201, text: "stored" });
+  assert.equal(seen.method, "PUT");
+  assert.equal(seen.body, "backup body");
+  assert.equal(seen.headers["x-test"], "1");
+  assert.equal(seen.headers["transfer-encoding"], undefined);
+});
+
+test("uploadFileWithTimeout keeps going past the timeout while data keeps flowing", async (t) => {
+  // The answer trickles in over about 500ms, well past the 200ms timeout.
+  const url = await uploadServer(t, (req, res) => {
+    res.writeHead(200);
+    let sent = 0;
+    const tick = setInterval(() => {
+      res.write("x");
+      sent += 1;
+      if (sent === 5) { clearInterval(tick); res.end(); }
+    }, 100);
+  });
+  const filePath = tempFile(t, "body");
+  const result = await uploadFileWithTimeout(url, { headers: { "Content-Length": "4" }, filePath }, 200);
+  assert.equal(result.text, "xxxxx");
+});
+
+test("uploadFileWithTimeout fails a transfer that stalls longer than the timeout", async (t) => {
+  const url = await uploadServer(t, (req, res) => { setTimeout(() => res.writeHead(200).end(), 600); });
+  const filePath = tempFile(t, "body");
+  await assert.rejects(
+    uploadFileWithTimeout(url, { headers: { "Content-Length": "4" }, filePath }, 200),
+    (error) => {
+      assert.equal(error.status, 504);
+      return true;
+    },
+  );
+});
+
+test("uploadFileWithTimeout refuses unsafe URLs before connecting", async (t) => {
+  const filePath = tempFile(t, "body");
+  await assert.rejects(uploadFileWithTimeout("http://169.254.169.254/latest", { filePath }), /blocked metadata endpoint/);
 });
 
 test("fetchWithTimeout blocks redirects to metadata endpoints", async (t) => {

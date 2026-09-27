@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
-import { state } from "./state.js?v=1.2.2.0.15";
-import { showTitleFrom, slug } from "./utils.js?v=1.2.2.0.15";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
+import { state } from "./state.js?v=1.2.2.0.16";
+import { showTitleFrom, slug } from "./utils.js?v=1.2.2.0.16";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;
@@ -200,9 +200,11 @@ export async function resolveEpisodeTitleFromTmdb(entry, element) {
     if (tmdbEpisode?.name) {
       entry.episode_title = tmdbEpisode.name;
       entry.episodeTitle = tmdbEpisode.name;
-      if (element) {
-        element.textContent = tmdbEpisode.name;
-        element.title = tmdbEpisode.name;
+      // One element, or a list of them (a History item's card and its poster overlay).
+      for (const target of element?.forEach ? element : [element]) {
+        if (!target) continue;
+        target.textContent = tmdbEpisode.name;
+        target.title = tmdbEpisode.name;
       }
     }
     if (tmdbEpisode?.air_date) {

@@ -1,4 +1,4 @@
-import { requireAdmin } from "../utils/auth.js";
+import { isSameOriginBrowserRequest, requireAdmin } from "../utils/auth.js";
 import { writeAuditLog } from "../db.js";
 import { sendJson, sendOptions, methodNotAllowed } from "../utils/http.js";
 import { readJson } from "../utils/requestBody.js";
@@ -11,10 +11,7 @@ import { isAuthoritativeRestoreActive } from "../utils/configStore.js";
 
 function requireBrowserAdmin(req, res, principal) {
   if (principal.via !== "session") { sendJson(res, { error: "An administrator browser session is required" }, 403); return null; }
-  const fetchSite = String(req.get("sec-fetch-site") || "").toLowerCase();
-  const origin = req.get("origin");
-  const sameOrigin = fetchSite ? fetchSite === "same-origin" : origin && (() => { try { return new URL(origin).host === String(req.get("host") || ""); } catch { return false; } })();
-  if (!sameOrigin) { sendJson(res, { error: "Same-origin request required" }, 403); return null; }
+  if (!isSameOriginBrowserRequest(req)) { sendJson(res, { error: "Same-origin request required" }, 403); return null; }
   return principal;
 }
 

@@ -302,7 +302,9 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 
-app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
+// A backup upload can be over 1 GB; its handler streams the body to disk.
+const isStreamedUpload = (req) => /^\/api\/plembfin-backups\/upload\/?$/i.test(String(req.path || ""));
+app.all("/api/*path", express.raw({ type: (req) => !isStreamedUpload(req), limit: "15mb" }), (req, res) => {
   Promise.resolve(dispatch(req, res)).catch((error) => {
     console.error("Unhandled API error", error);
     if (res.headersSent) return;

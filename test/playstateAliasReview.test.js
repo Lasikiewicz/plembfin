@@ -113,6 +113,9 @@ test("Maintenance card: unproven aliases are listed, folded newest-wins, or dism
   answers["imdb_id:tt8100011"] = { kind: "episode", showId: "8002", season: 1, episode: 1 };
   const result = await repo.repairPlaystateEpisodeIdAliases({ findCached, tvdbCached, skipKeys: review.dismissedPlaystateAliasKeys() });
   assert.ok(rowAt(seriesIdAlias), "a dismissed alias is never folded");
-  assert.equal(result.rekeyed, 1, "the proven alias of the other show is still repaired");
+  assert.equal(result.rekeyed, 2, "the proven alias of the other show is still repaired");
   assert.equal(rowAt(provenAlias), undefined);
+  // Phase 5 step 2: the id-less title-keyed row folds onto the sole profile.
+  assert.equal(rowAt("episode:1:4:title:kinlike review---s01e04"), undefined);
+  assert.equal(rowAt(seriesKey(4)).imdb_id, show.imdb_id);
 });

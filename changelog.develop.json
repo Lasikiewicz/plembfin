@@ -1,14 +1,14 @@
 {
-  "version": "1.2.2.0.15",
-  "build": 15,
+  "version": "1.2.2.0.16",
+  "build": 16,
   "resetCommit": "7b7a931d414af7634703386462c9d1d99a8c98fe",
-  "updatedAt": "2026-09-25T08:05:50.799Z",
+  "updatedAt": "2026-09-27T13:26:36.872Z",
   "entries": [
     {
-      "build": 15,
-      "date": "2026-09-25T08:05:50.799Z",
-      "commit": "574bcf37af8060ccb679c17c4f16d7f39b1b9e1c",
-      "message": "Feature - Add the Modern style, fold watched runs into stacks, and show one Up Next card per show",
+      "build": 16,
+      "date": "2026-09-27T13:26:36.872Z",
+      "commit": "52b93eab99c65dc64bf076b5f1402d36194c50b4",
+      "message": "This update includes add the Modern style, fold watched runs into stacks, and show one Up Next card per show and sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores.",
       "author": "Lasikiewicz",
       "details": [
         "Added a Classic/Modern switch in the sidebar, just above the Light/Dark toggle; the choice is remembered in this browser and works with both light and dark mode",
@@ -41,7 +41,34 @@
         "Movies overview cards with long titles no longer push their details past the card edge",
         "In Modern light, list mode column headers on History, Movies and TV Shows are easier to read",
         "The TV Shows page keeps existing cards on screen while loading more or re-sorting by Next Airing, and refreshes its cached pages after 30 minutes so next-airing dates stay current",
-        "Modern dashboard card artwork loads as cards scroll near the screen instead of all at once"
+        "Modern dashboard card artwork loads as cards scroll near the screen instead of all at once",
+        "Custom Lists are now Playlists, listed above Ratings, and can be synced two ways to Plex, Emby, and Jellyfin, with the apps chosen per playlist, a Recently deleted pop-up with Delete all permanently, drag and drop reordering, and moves made in an app read back",
+        "Playlists can be Movies, TV, or Mixed; TV playlists hold separate episodes chosen with an episode picker, and neighbouring episodes of a show stack into one poster with Posters only on",
+        "Import playlists made in Plex, Emby, or Jellyfin from an Import from apps dialog, showing item counts, a type guess, and name clash hints, merged into a same-name playlist or kept separate",
+        "A playlist shows a note when an app holds items Plembfin could not identify, which stay in that app untouched, and the Missing badge sits in the top-left corner of every playlist poster",
+        "Automatic playlists fill themselves from a rule: a Type (Top rated by default, Popular, Trending this week, New releases), genres, original language (English ticked on new ones), years, watched state, and recently added, from your libraries or the TMDB catalogue, checked hourly or on Refresh now and sent one way to the apps",
+        "Automatic playlists can be ordered by rank or by full release date, default to a maximum of 20 titles, and leave out talk and news shows and library titles not yet matched to TMDB, IMDb, or TVDB",
+        "Automatic TV playlists hold the next episode to watch of each show; with the new Remove items once watched setting, watched movies and episodes leave the playlist, and with it off a watched show moves on to its next episode at the next sync",
+        "The playlist dialog is larger and wider, with its steps down the side, Settings-style choices, and a visible close button in the light theme; a new automatic playlist shows Checking the rule until its titles arrive",
+        "The Playlists page heading is tidied into TV Shows, app icon badges, an Auto tag, and one Options menu with an Info pop-up and a refresh spinner, and the page updates itself when a scheduled sync changes a playlist",
+        "Playlist posters open across the screen on phones without being cut off, and dragging on desktop shows the other cards sliding aside with a centred Move pill",
+        "Fixed Plex ignoring some playlist moves by re-reading and rebuilding its order",
+        "Modern card backdrops show on History, Discover, Watchlist, Ratings, and Playlists, and failed backdrop lookups are retried",
+        "With Posters only on, clicking a poster opens its card in place on Library, Discover, History, Watchlist, Ratings, and Playlists, and History and playlist episode posters show the episode code and name over them",
+        "Discover and Playlists poster views stay as sideways rows with posters sized to their row",
+        "Opening a Dashboard TV stack folds any other open run back into its stack",
+        "Up Next rebuilds are about twice as fast and stop re-asking every provider for titles and series they already checked",
+        "The dashboard history preview is much smaller (about 130 KB instead of 324 KB), so the dashboard loads faster",
+        "The Manual Watch review notice stays in the sidebar when a new item is flagged after an earlier review was decided",
+        "Fixed connecting Trakt, Plex, or Jellyfin getting stuck on Waiting for confirmation with Same-origin request required when Plembfin is opened by a plain HTTP LAN address",
+        "The nightly Plembfin backup is written to disk in small pieces instead of being built in memory, which needed about 3 GB for a 490 MB backup and got the server killed; a failed day is retried at most three times an hour apart, and half-written backup files from a killed run are deleted",
+        "Backblaze backups are sent from disk in small pieces, and an upload taking longer than 60 seconds is no longer cut off while it is still moving; the Backblaze setup guide links to the Backblaze pages it mentions",
+        "Backups made by the server can be restored from the Restore page, which always said the passphrase was wrong",
+        "Full Plembfin backups of any size restore on the server from the list or from an uploaded file, with upload, check, and import progress; the file is checked in full before anything changes, and large backups can be downloaded from the backup list"
+      ],
+      "messageFragments": [
+        "Feature - Add the Modern style, fold watched runs into stacks, and show one Up Next card per show",
+        "Feature - Sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores"
       ]
     }
   ]

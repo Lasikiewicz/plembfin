@@ -193,10 +193,19 @@ The local fallback can queue the detail page's first unwatched released episode 
 provider feed mentions it. Watch history only records a native provider item id once something
 has been played, so a next unwatched episode never carries one; the projection resolves it against
 the configured Plex, Emby, and Jellyfin libraries with the same lookup the push uses
-(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. A lookup that
+(`upNextLibraryLookup.js`), caching hits for six hours and misses for two hours, so a newly added next episode can take up to
+two hours to appear. For a show whose known episodes are all watched, the projection reads the
+show's full episode list from each library to find an episode the metadata does not know yet; that
+list is kept for thirty minutes. A lookup that
 fails (the server is unreachable or returns an error) is not cached as a miss; instead that provider's
 lookups stand down for one minute, so an outage costs one failed request per minute rather than one
-per show on every rebuild, and cached answers keep being used meanwhile. An episode
+per show on every rebuild, and cached answers keep being used meanwhile. Each build that uses the
+real library lookups writes one `Up Next build:` line to the diagnostic log with its duration and
+how many library lookups and series inventories were live, cached, or skipped for the per-build
+budget of 32 live lookups; a build with no live lookups means both caches are full. The lookups a
+build skips for that budget are then asked in the background, 32 at a time with a two-second pause
+between batches, so the next rebuild finds them cached; one top-up runs at a time and writes one
+`Up Next lookup top-up:` line when it finishes. An episode
 that no configured library contains is still not queued. A show manually added to Up Next is also
 eligible before its first watch, but a show whose current records are all explicit unwatch actions
 is excluded, so a deliberate clear cannot be resurrected by a stale Continue Watching or Next Up

@@ -57,14 +57,14 @@ const metaGetByTvdbIdStmt = db.prepare(
 // lose its poster and status.
 const metaSetStmt = db.prepare(
   `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, status, poster_path, cached_poster_url,
-     backdrop_path, cached_backdrop_url, tvdb_poster_url, schema_version, updated_at_ms)
+     backdrop_path, cached_backdrop_url, tvdb_poster_url, original_language, schema_version, updated_at_ms)
    VALUES (@id, @tmdb_id, @media_type, @title, @details, @status, @poster_path, @cached_poster_url,
-     @backdrop_path, @cached_backdrop_url, @tvdb_poster_url, @schema_version, @updated_at_ms)
+     @backdrop_path, @cached_backdrop_url, @tvdb_poster_url, @original_language, @schema_version, @updated_at_ms)
    ON CONFLICT(id) DO UPDATE SET tmdb_id=excluded.tmdb_id, media_type=excluded.media_type, title=excluded.title,
      details=excluded.details, status=excluded.status, poster_path=excluded.poster_path,
      cached_poster_url=excluded.cached_poster_url, backdrop_path=excluded.backdrop_path,
      cached_backdrop_url=excluded.cached_backdrop_url, tvdb_poster_url=excluded.tvdb_poster_url,
-     schema_version=excluded.schema_version, updated_at_ms=excluded.updated_at_ms`,
+     original_language=excluded.original_language, schema_version=excluded.schema_version, updated_at_ms=excluded.updated_at_ms`,
 );
 function metaGet(id) {
   const row = metaGetStmt.get(id);
@@ -97,6 +97,7 @@ function metaSet(id, value) {
     backdrop_path: details.backdrop_path || null,
     cached_backdrop_url: details.cached_backdrop_url || details.cachedBackdropUrl || null,
     tvdb_poster_url: details.tvdb_poster_url || details.tvdbPosterUrl || null,
+    original_language: typeof details.original_language === "string" && details.original_language ? details.original_language.toLowerCase() : null,
     schema_version: value.schemaVersion ?? null,
     updated_at_ms: value.updatedAtMs ?? Date.now(),
   });
@@ -1345,6 +1346,30 @@ export async function getTmdbDiscovery({ mediaType = "all", genreId = "", force 
 // Seasons only exist for TV, so this is entirely TVDB-backed now - it resolves
 // the TVDB ID off the show details already cached under tv_{tmdbId} (getTmdbDetails
 // always runs first in every caller's flow) and fetches episodes from TVDB.
+// One uncached page of TMDB Discover, for automatic playlists with the
+// catalogue source (plan/archive/custom-playlist-sync step 8b). Throws on any failure.
+export async function discoverTmdbPage({ mediaType = "movie", params = {}, lane = "enrichment" } = {}) {
+  if (isDemoMode()) {
+    const error = new Error("TMDB Discover is not available in demo mode");
+    error.status = 503;
+    throw error;
+  }
+  const type = mediaTypeFor(mediaType) === "tv" ? "tv" : "movie";
+  return upstream(`discover/${type}`, { include_adult: false, ...params }, 0, { lane });
+}
+
+// One uncached page of TMDB's weekly trending list, for automatic playlists
+// of the Trending type (step 8g). Throws on any failure.
+export async function trendingTmdbPage({ mediaType = "movie", page = 1, lane = "enrichment" } = {}) {
+  if (isDemoMode()) {
+    const error = new Error("TMDB Trending is not available in demo mode");
+    error.status = 503;
+    throw error;
+  }
+  const type = mediaTypeFor(mediaType) === "tv" ? "tv" : "movie";
+  return upstream(`trending/${type}/week`, { include_adult: false, page }, 0, { lane });
+}
+
 export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seasonNumber, lane = "enrichment" }) {
   const id = String(tmdbId || "");
   const directTvdbId = String(requestedTvdbId || "");

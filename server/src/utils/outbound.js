@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import { outboundTimeoutMs } from "./tuning.js";
 import { acquireOutboundSlot, noteOutboundResponse, configureOutboundGovernor } from "./outboundGovernor.js";
 import { isDemoMode } from "./demoMode.js";
@@ -255,6 +258,93 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
   } finally {
     clearTimeout(timeout);
     if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);
+    releaseSlot();
+  }
+}
+
+const UPLOAD_RESPONSE_TEXT_LIMIT = 64 * 1024;
+
+// Streams a local file as a request body with node:http(s). Node's fetch keeps
+// every chunk of a streamed body alive until the request ends, which for a
+// multi-hundred-MB backup costs as much memory as reading it whole. Same policy
+// as fetchWithTimeout (demo mode, URL safety, per-host slot), but no redirects
+// are followed, and the timeout restarts whenever a chunk is sent or received,
+// so a large file can take as long as it needs while a stalled one still fails.
+// Resolves to { ok, status, text } with the response text capped at 64 KB.
+export async function uploadFileWithTimeout(url, { method = "PUT", headers = {}, filePath, lane = "sync" } = {}, timeoutMs = undefined) {
+  if (isDemoMode()) {
+    const error = outboundPolicyError("Outbound requests are disabled in demo mode", OUTBOUND_POLICY_CODES.DEMO_DISABLED);
+    error.status = 503;
+    error.expose = true;
+    throw error;
+  }
+  const resolvedTimeoutMs = boundedFetchTimeoutMs(timeoutMs ?? outboundTimeoutMs());
+  const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
+  const releaseSlot = await acquireOutboundSlot(safeUrl.hostname, { lane });
+  trackOutbound(safeUrl);
+  const timeoutError = createUpstreamTimeoutError(resolvedTimeoutMs);
+  const file = fs.createReadStream(filePath);
+  const transport = safeUrl.protocol === "https:" ? https : http;
+  const request = transport.request(safeUrl, { method, headers });
+  let timer = null;
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const fail = (error) => {
+        clearTimeout(timer);
+        reject(error);
+      };
+      const restartTimer = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fail(timeoutError), resolvedTimeoutMs);
+      };
+      const networkFail = (error) => {
+        const networkFailure = safeNetworkFailure(error);
+        const safeError = new Error(networkFailure
+          ? `Upstream request failed (${networkFailure.label})`
+          : "Upstream request failed");
+        safeError.code = "UPSTREAM_REQUEST_FAILED";
+        if (networkFailure) {
+          safeError.failureCode = networkFailure.code;
+          safeError.failureReason = networkFailure.label;
+        }
+        fail(safeError);
+      };
+
+      restartTimer();
+      file.on("data", restartTimer);
+      file.on("error", fail);
+      request.on("error", networkFail);
+      request.on("response", (response) => {
+        restartTimer();
+        const chunks = [];
+        let kept = 0;
+        response.on("data", (chunk) => {
+          restartTimer();
+          if (kept < UPLOAD_RESPONSE_TEXT_LIMIT) {
+            chunks.push(chunk);
+            kept += chunk.length;
+          }
+        });
+        response.on("error", networkFail);
+        response.on("end", () => {
+          clearTimeout(timer);
+          noteOutboundResponse(safeUrl.hostname, response.statusCode, response.headers["retry-after"] || "");
+          resolve({
+            ok: response.statusCode >= 200 && response.statusCode < 300,
+            status: response.statusCode,
+            text: Buffer.concat(chunks).toString("utf8").slice(0, UPLOAD_RESPONSE_TEXT_LIMIT),
+          });
+        });
+      });
+      file.pipe(request);
+    });
+  } finally {
+    clearTimeout(timer);
+    file.destroy();
+    // An early answer (an error before the body was sent) or a failure leaves
+    // the request unfinished; drop its socket rather than reuse it.
+    if (!request.writableFinished) request.destroy();
     releaseSlot();
   }
 }
