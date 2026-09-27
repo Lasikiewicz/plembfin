@@ -102,10 +102,10 @@ test("saved config is applied only after the shell modules are initialized", () 
   assert.match(ensure, /loadRouteModules\(SHELL_ROUTE_MODULES\)/);
 });
 
-test("settings-only status modules load with Settings and stop their timers away from it", () => {
+test("settings-only status modules run only while signed in on Settings", () => {
   const forState = appSource.match(/function routeModulesForState\(\) \{[\s\S]*?\n}/)?.[0] || "";
   assert.match(forState, /case "settings":[\s\S]*?\.\.\.SETTINGS_ROUTE_MODULES/);
-  assert.match(appSource, /if \(state\.activeView !== "settings"\) \{[\s\S]*?stopRatingSyncSettings\(\);[\s\S]*?stopWatchlistSyncSettings\(\);/);
+  assert.match(appSource, /if \(state\.activeView !== "settings" \|\| !state\.token\) \{[\s\S]*?stopRatingSyncSettings\(\);[\s\S]*?stopWatchlistSyncSettings\(\);/);
   assert.match(appSource, /resumeRatingSyncSettings\(\)\.catch[\s\S]*?resumeWatchlistSyncSettings\(\)\.catch/);
   const status = appSource.match(/function startDeferredStatusWork\(\) \{[\s\S]*?\n}/)?.[0] || "";
   assert.doesNotMatch(status, /refresh(?:TrackerSettings|RatingSyncStatus|WatchlistSyncStatus)\(\)/, "settings status refreshes must not run in the global startup batch");

@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { verifyUsername, verifyPassword, verifyWebhookToken, AUTH } from "../server/src/appConfig.js";
+import { verifyUsername, verifyPassword, verifyWebhookToken, AUTH, isDefaultPassword, updateAdminCredentials } from "../server/src/appConfig.js";
+
+test("isDefaultPassword is memoized and follows credential changes", () => {
+  updateAdminCredentials({ username: AUTH.username, password: "admin" });
+  assert.equal(isDefaultPassword(), true);
+  const started = process.hrtime.bigint();
+  for (let i = 0; i < 20; i += 1) isDefaultPassword();
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsedMs < 20, `20 repeat calls took ${elapsedMs}ms; scrypt is not memoized`);
+  updateAdminCredentials({ username: AUTH.username, password: "not-the-default-1" });
+  assert.equal(isDefaultPassword(), false);
+  updateAdminCredentials({ username: AUTH.username, password: "admin" });
+  assert.equal(isDefaultPassword(), true);
+});
 
 test("verifyUsername performs constant-time matching correctly", () => {
   assert.equal(verifyUsername(AUTH.username), true);

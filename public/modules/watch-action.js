@@ -1,15 +1,15 @@
-import { state, elements } from "./state.js?v=1.2.2.0.16";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.2.2.0.16";
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
-import { isWatchedHistoryAction } from "./sync.js?v=1.2.2.0.16";
-import { mergeShowDetail } from "./explorer.js?v=1.2.2.0.16";
-import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.16";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.2.2.0.16";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.2.0.16";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.2.0.16";
-import { tmdbPoster } from "./images.js?v=1.2.2.0.16";
-import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.2.2.0.16";
-import { ifLoaded } from "./route-modules.js?v=1.2.2.0.16";
+import { state, elements } from "./state.js?v=1.2.2.0.17";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.2.2.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.17";
+import { isWatchedHistoryAction } from "./sync.js?v=1.2.2.0.17";
+import { mergeShowDetail } from "./explorer.js?v=1.2.2.0.17";
+import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.17";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.2.2.0.17";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.2.0.17";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.2.0.17";
+import { tmdbPoster } from "./images.js?v=1.2.2.0.17";
+import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.2.2.0.17";
+import { ifLoaded } from "./route-modules.js?v=1.2.2.0.17";
 
 const resetPartWatchedView = ifLoaded("dashboard", "resetPartWatchedView");
 const renderPartWatched = ifLoaded("dashboard", "renderPartWatched");

@@ -704,8 +704,10 @@ async function applyWatchedStateToNewContainer(media, config, target) {
   let episodes = [];
   try {
     if (target === "jellyfin") {
-      const { fetchJellyfinEpisodes } = await import("../utils/jellyfinClient.js");
-      episodes = await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
+      const { fetchJellyfinEpisodes, fetchJellyfinEpisodesForSeries } = await import("../utils/jellyfinClient.js");
+      episodes = media.type === "series"
+        ? await fetchJellyfinEpisodesForSeries(config.jellyfin, media.itemId)
+        : await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
     } else if (target === "emby") {
       const { fetchEmbyEpisodes } = await import("../utils/embyClient.js");
       episodes = await fetchEmbyEpisodes(config.emby, media.itemId);
@@ -3506,8 +3508,10 @@ export async function handleWebhook(req, res) {
     let episodes = [];
     try {
       if (media.source === "jellyfin") {
-        const { fetchJellyfinEpisodes } = await import("../utils/jellyfinClient.js");
-        episodes = await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
+        const { fetchJellyfinEpisodes, fetchJellyfinEpisodesForSeries } = await import("../utils/jellyfinClient.js");
+        episodes = media.type === "series"
+          ? await fetchJellyfinEpisodesForSeries(config.jellyfin, media.itemId)
+          : await fetchJellyfinEpisodes(config.jellyfin, media.itemId);
       } else if (media.source === "emby") {
         const { fetchEmbyEpisodes } = await import("../utils/embyClient.js");
         episodes = await fetchEmbyEpisodes(config.emby, media.itemId);

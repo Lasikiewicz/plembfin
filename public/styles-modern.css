@@ -659,9 +659,8 @@ html[data-style="modern"] #history-view .dashboard-collapsed-run-card[data-run-s
    one per peeking card, laid exactly over the face and rim that the shadows
    draw; the shadows still fill the corners beside the front card's curve).
    The card cannot clip its overflow, which would hide them, so a clip-path
-   keeps its rounded corners and stops just past the stack: a compact row's
-   folded card still hides its details, which the peeks cover where they run
-   past the card. */
+   keeps its rounded corners and stops just past the stack. Compact folded
+   cards hide their details separately so text cannot enter that strip. */
 html[data-style="modern"] #timeline-view .dashboard-collapsed-run-card[data-run-stack],
 html[data-style="modern"] #history-view .dashboard-collapsed-run-card[data-run-stack] {
   position: relative;
@@ -686,6 +685,12 @@ html[data-style="modern"] #timeline-view .dashboard-collapsed-run-card[data-run-
    the card no longer clips on its right. */
 html[data-style="modern"] #timeline-view .dashboard-row-compact .dashboard-collapsed-run-card:not(.dashboard-card-open) > .history-card-poster-wrapper {
   border-radius: 0 9px 9px 0;
+}
+
+/* The stack peeks extend beyond the folded card. Keep its full-width details
+   out of that exposed strip until the run expands into separate cards. */
+html[data-style="modern"] #timeline-view .dashboard-row-compact .dashboard-collapsed-run-card:not(.dashboard-card-open) > .history-card-details {
+  display: none;
 }
 
 html[data-style="modern"] .dashboard-run-peek {

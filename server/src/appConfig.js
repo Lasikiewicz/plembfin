@@ -149,8 +149,15 @@ export const AUTH = {
   sessionSecret: config.sessionSecret,
 };
 
+// scrypt is ~45ms on the event loop and auth/status is polled, so the answer is
+// memoized per stored hash; any credential change produces a new hash.
+let defaultPasswordMemo = { hash: null, value: false };
 export function isDefaultPassword() {
-  return isDefaultPasswordHash(config.passwordHash);
+  const hash = config.passwordHash;
+  if (defaultPasswordMemo.hash !== hash) {
+    defaultPasswordMemo = { hash, value: isDefaultPasswordHash(hash) };
+  }
+  return defaultPasswordMemo.value;
 }
 
 // True while a pristine install has no path to sign in yet: no in-app

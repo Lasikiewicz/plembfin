@@ -25,6 +25,15 @@ failed batch is not an error state: every card simply falls back to the
 behaviour that existed before. The `format=image` redirect stays a single
 request, since it is used directly as an `<img>` source and cannot be batched.
 
+When such an `<img>` fails to load (the Movies and TV grids render cards this
+way), the shared image error handler asks for a fallback URL through
+`batchedFallbackPosterUrl`: failures arriving within 100 ms are sent as one
+batch with `fallback: true` per item (up to 240, any overflow in a following
+batch). A batch result, hit or miss, is remembered like a single fallback
+lookup. A lone failure, a failed batch request, or an id missing from the
+response uses the single `GET /api/poster?fallback=1` lookup as before, and
+cache-only surfaces (`allowNetwork: false`) never queue a lookup.
+
 
 ## Files
 

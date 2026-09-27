@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
-import { state } from "./state.js?v=1.2.2.0.16";
-import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.2.2.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.17";
+import { state } from "./state.js?v=1.2.2.0.17";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.2.2.0.17";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -574,6 +574,61 @@ export async function hydratePosterFallbacks(container = document.body, { allowN
   await Promise.allSettled(workers);
 }
 
+// Grid images that fail to load arrive one error event at a time, and each used
+// to start its own fallback lookup. Collect them briefly and resolve them with
+// one poster-batch request instead. Anything the batch cannot answer (a failed
+// request, a lone poster) takes the per-poster fallback path exactly as before.
+const POSTER_FALLBACK_BATCH_DELAY_MS = 100;
+const POSTER_FALLBACK_BATCH_MAX = 240;
+const posterFallbackBatchQueue = new Map();
+let posterFallbackBatchTimer = null;
+
+export function batchedFallbackPosterUrl(posterId, { allowNetwork = true } = {}) {
+  if (!posterId || isDemoMode() || !allowNetwork || !state.token) return lookupPosterUrl(posterId, { fallback: true, allowNetwork });
+  return new Promise((resolve) => {
+    const waiters = posterFallbackBatchQueue.get(posterId) || [];
+    waiters.push(resolve);
+    posterFallbackBatchQueue.set(posterId, waiters);
+    if (!posterFallbackBatchTimer) posterFallbackBatchTimer = setTimeout(flushPosterFallbackBatch, POSTER_FALLBACK_BATCH_DELAY_MS);
+  });
+}
+
+async function flushPosterFallbackBatch() {
+  posterFallbackBatchTimer = null;
+  const queued = [...posterFallbackBatchQueue.entries()].slice(0, POSTER_FALLBACK_BATCH_MAX);
+  for (const [posterId] of queued) posterFallbackBatchQueue.delete(posterId);
+  if (posterFallbackBatchQueue.size) posterFallbackBatchTimer = setTimeout(flushPosterFallbackBatch, 0);
+
+  const answered = new Map();
+  if (queued.length > 1) {
+    try {
+      const response = await fetch("/api/poster-batch", {
+        method: "POST",
+        headers: { ...buildAuthHeaders(state.token), "Content-Type": "application/json" },
+        body: JSON.stringify({ items: queued.map(([id]) => ({ id, fallback: true })) }),
+      });
+      const body = response.ok ? await response.json().catch(() => ({})) : {};
+      for (const result of Array.isArray(body.results) ? body.results : []) {
+        const id = String(result?.id || "");
+        if (id) answered.set(id, compactPosterUrl(result?.payload?.url || ""));
+      }
+    } catch (error) {
+      console.warn("Poster fallback batch lookup failed", error);
+    }
+  }
+
+  await Promise.all(queued.map(async ([posterId, waiters]) => {
+    let posterUrl;
+    if (answered.has(posterId)) {
+      posterUrl = answered.get(posterId);
+      rememberPosterLookup(posterId, posterUrl);
+    } else {
+      posterUrl = await lookupPosterUrl(posterId, { fallback: true });
+    }
+    for (const resolve of waiters) resolve(posterUrl);
+  }));
+}
+
 export function bindPosterImageErrorHandler(image, { allowNetwork = true } = {}) {
   if (image.dataset.posterErrorBound) return;
   image.dataset.posterErrorBound = "1";
@@ -587,7 +642,7 @@ export function bindPosterImageErrorHandler(image, { allowNetwork = true } = {})
 
     image.dataset.posterFallbackAttempted = "1";
     const brokenUrl = image.currentSrc || image.src;
-    const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true, allowNetwork });
+    const fallbackUrl = await batchedFallbackPosterUrl(posterId, { allowNetwork });
     const safeFallbackUrl = safePosterElementUrl(fallbackUrl);
     if (safeFallbackUrl && safeFallbackUrl !== brokenUrl && image.isConnected) {
       image.src = encodeURI(safeFallbackUrl);

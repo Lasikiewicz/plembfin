@@ -563,6 +563,26 @@ function pickSeasonId(extended, seasonNumber) {
   return official || seasons.find((season) => Number(season.number) === number) || null;
 }
 
+function absoluteTvdbArtworkUrl(value) {
+  const image = String(value || "");
+  return image.startsWith("/") ? `https://artworks.thetvdb.com${image}` : image;
+}
+
+// The series payload (meta=episodes) already carries every season's episodes,
+// so a cold show costs one throttled TVDB call instead of one per season. The
+// derived row keeps the series fetch time so it is never fresher than its
+// source; a series row older than the season's TTL is refetched once first.
+// Seasons absent from the payload still use the season-extended endpoint.
+function seasonFromSeriesEpisodes(id, extended, number) {
+  const episodes = (Array.isArray(extended?.episodes) ? extended.episodes : [])
+    .filter((episode) => Number(episode.seasonNumber) === number)
+    .map((episode) => ({ ...episode, image: absoluteTvdbArtworkUrl(episode.image) }));
+  if (!episodes.length) return null;
+  const details = { episodes };
+  const updatedAtMs = Number(seriesGetStmt.get(`series_${id}`)?.updated_at_ms) || 0;
+  return { details, updatedAtMs, fresh: fresh(updatedAtMs, seasonCacheTtl(details)) };
+}
+
 export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber, lane = "enrichment" }) {
   const id = normalizeTvdbId(tvdbId);
   const number = Number(seasonNumber);
@@ -577,7 +597,16 @@ export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber, lane = "enri
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
     if (cached?.details && fresh(cached.updatedAtMs, seasonCacheTtl(cached.details))) return shapeEpisodes(cached.details);
     try {
-      const extended = await getTvdbSeriesExtended(id, { lane });
+      let extended = await getTvdbSeriesExtended(id, { lane });
+      let fromSeries = seasonFromSeriesEpisodes(id, extended, number);
+      if (fromSeries && !fromSeries.fresh) {
+        extended = await getTvdbSeriesExtended(id, { force: true, lane });
+        fromSeries = seasonFromSeriesEpisodes(id, extended, number);
+      }
+      if (fromSeries?.fresh) {
+        seasonSetStmt.run({ id: cacheId, tvdb_id: id, season_number: number, details: toJson(fromSeries.details), updated_at_ms: fromSeries.updatedAtMs });
+        return shapeEpisodes(fromSeries.details);
+      }
       const season = pickSeasonId(extended, number);
       if (!season?.id) {
         if (cached?.details) return shapeEpisodes(cached.details);

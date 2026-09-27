@@ -317,7 +317,10 @@ export function schedulerTimingTelemetry() {
   };
 }
 
-async function runWithTimeBudget(label, task, timeoutMs) {
+// The budget only stops the tick waiting; the task itself keeps running. So an
+// exhausted budget is logged as "still running" (not "failed"), and the task's
+// real outcome is logged when it settles.
+export async function runWithTimeBudget(label, task, timeoutMs) {
   const startOffsetMs = schedulerTickStartedAt ? performance.now() - schedulerTickStartedAt : 0;
   if (scheduledTasksInFlight.has(label)) {
     console.warn(`${label} is still running from a previous tick; skipping this tick.`);
@@ -344,8 +347,16 @@ async function runWithTimeBudget(label, task, timeoutMs) {
       }),
     ]);
   } catch (error) {
-    failed = true;
-    console.error(`${label} failed`, error);
+    if (budgetExhausted) {
+      console.warn(`${label} is still running after ${timeoutMs}ms; the tick moves on and it finishes in the background.`);
+      taskPromise.then(
+        () => console.log(`${label} finished in the background after ${Math.round(performance.now() - startedAt)}ms.`),
+        (lateError) => console.error(`${label} failed`, lateError),
+      );
+    } else {
+      failed = true;
+      console.error(`${label} failed`, error);
+    }
   } finally {
     clearTimeout(timeout);
     recordSchedulerStep({

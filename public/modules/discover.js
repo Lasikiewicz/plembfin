@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
-import { state, elements } from "./state.js?v=1.2.2.0.16";
-import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.2.2.0.16";
-import { hydratePosters } from "./images.js?v=1.2.2.0.16";
-import { renderMediaCard } from "./media-card.js?v=1.2.2.0.16";
-import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.2.2.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.17";
+import { state, elements } from "./state.js?v=1.2.2.0.17";
+import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.2.2.0.17";
+import { hydratePosters } from "./images.js?v=1.2.2.0.17";
+import { renderMediaCard } from "./media-card.js?v=1.2.2.0.17";
+import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.2.2.0.17";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;
 const DISCOVER_TIMEOUT_MS = 20000;

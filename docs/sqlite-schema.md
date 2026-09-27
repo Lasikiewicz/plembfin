@@ -55,7 +55,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tmdb_season_cache` | Unused compatibility table; season data is stored in `tvdb_season_cache` | - (unused) | - |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |
 | `tvdb_metadata_cache` | Raw TheTVDB series/extended response, key `series_${tvdbId}` (also holds title-search results, key `search_${hash}`) | tvdbGateway | tv show detail resolution |
-| `tvdb_season_cache` | Raw TheTVDB season/extended episode list, key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
+| `tvdb_season_cache` | TheTVDB season episode list (from the series payload's episodes, or season/extended when a season is missing there), key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
 | `omdb_cache` | OMDb/IMDb ratings, 7-day TTL, key is the IMDb ID (`tt…`) | omdb-rating handler | media detail pages |
 | `fanart_cache` | Raw fanart.tv responses including "no artwork" misses, 7-day TTL (1 day for misses), key `movies/<tmdbId>` / `tv/<tvdbId>` | fanartGateway | artwork resolution, edit-image galleries |
 | `youtube_meta_cache` | Trailer metadata per YouTube video ID, 30-day TTL | youtube-meta handler | trailer playback |

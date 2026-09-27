@@ -210,6 +210,59 @@ function storeJellyfinEntry(entry, aliases) {
   while (entries.length > SERIES_CACHE_MAX_ENTRIES) deleteJellyfinEntry(entries.shift());
 }
 
+function isJellyfinEpisodeWithCoordinates(item) {
+  if (!item || (item.Type && String(item.Type).toLowerCase() !== "episode")) return false;
+  const season = item.ParentIndexNumber;
+  const episode = item.IndexNumber;
+  if (season === null || season === undefined || season === "" || episode === null || episode === undefined || episode === "") return false;
+  const seasonNumber = Number(season);
+  const episodeNumber = Number(episode);
+  return Number.isInteger(seasonNumber) && seasonNumber >= 0
+    && Number.isInteger(episodeNumber) && episodeNumber > 0;
+}
+
+async function fetchJellyfinEpisodesBySeriesId(config, seriesId, media = null) {
+  requireJellyfinConfig(config);
+  const id = String(seriesId || "").trim();
+  if (!id) return [];
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Shows/${encodeURIComponent(id)}/Episodes`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("Fields", "ProviderIds,MediaSources,MediaStreams,Width,Height");
+  url.searchParams.set("EnableUserData", "true");
+  const data = await fetchJson(url, config, media);
+  return (data?.Items || []).filter(isJellyfinEpisodeWithCoordinates);
+}
+
+// Prefer the existing item-tree query when it returns real episode rows. Some
+// Jellyfin-compatible libraries expose only a Season container there, while
+// the dedicated Shows endpoint returns the episode items. Keep this separate
+// from fetchJellyfinEpisodes because callers may pass a Season Id as parentId.
+export async function fetchJellyfinEpisodesForSeries(config, seriesId, media = null) {
+  requireJellyfinConfig(config);
+  const id = String(seriesId || "").trim();
+  if (!id) return [];
+  let genericError = null;
+  try {
+    const items = await fetchJellyfinEpisodes(config, id, media);
+    const episodes = items.filter(isJellyfinEpisodeWithCoordinates);
+    if (episodes.length) return episodes;
+  } catch (error) {
+    genericError = error;
+  }
+
+  try {
+    const episodes = await fetchJellyfinEpisodesBySeriesId(config, id, media);
+    traceLog("Jellyfin series episode lookup used the dedicated Shows endpoint", { seriesId: id, episodeCount: episodes.length });
+    return episodes;
+  } catch (error) {
+    if (!genericError) throw error;
+    throw new Error(
+      `Jellyfin episode lookup failed through both item-tree and Shows endpoints: ${genericError.message || genericError}; ${error.message || error}`,
+      { cause: error },
+    );
+  }
+}
+
 async function resolveJellyfinSeriesIdentity(config, media) {
   const aliases = jellyfinSeriesAliases(config, media);
   // A provider-id lookup can legitimately fall back to a title search. Keep
@@ -234,7 +287,7 @@ async function resolveJellyfinSeriesIdentity(config, media) {
       storeJellyfinEntry(empty, aliases);
       return empty;
     }
-    const settled = await Promise.allSettled(series.map((item) => fetchJellyfinEpisodes(config, item.Id, media)));
+    const settled = await Promise.allSettled(series.map((item) => fetchJellyfinEpisodesForSeries(config, item.Id, media)));
     const episodes = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
     if (!episodes.length && settled.every((result) => result.status === "rejected")) throw settled[0].reason;
     const episodesByCoordinate = new Map();
@@ -615,7 +668,7 @@ export async function fetchJellyfinSeriesEpisodes(config, media) {
   if (!series.length) return [];
 
   // Reuse stable native series identity but always read mutable UserData fresh.
-  const episodeGroups = await Promise.all(series.map((item) => fetchJellyfinEpisodes(config, item.Id, media).catch(() => [])));
+  const episodeGroups = await Promise.all(series.map((item) => fetchJellyfinEpisodesForSeries(config, item.Id, media).catch(() => [])));
   return episodeGroups.flat();
 }
 

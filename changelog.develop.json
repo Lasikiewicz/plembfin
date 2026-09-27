@@ -1,14 +1,14 @@
 {
-  "version": "1.2.2.0.16",
-  "build": 16,
+  "version": "1.2.2.0.17",
+  "build": 17,
   "resetCommit": "7b7a931d414af7634703386462c9d1d99a8c98fe",
-  "updatedAt": "2026-09-27T13:26:36.872Z",
+  "updatedAt": "2026-09-27T16:31:10.779Z",
   "entries": [
     {
-      "build": 16,
-      "date": "2026-09-27T13:26:36.872Z",
-      "commit": "52b93eab99c65dc64bf076b5f1402d36194c50b4",
-      "message": "This update includes add the Modern style, fold watched runs into stacks, and show one Up Next card per show and sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores.",
+      "build": 17,
+      "date": "2026-09-27T16:31:10.779Z",
+      "commit": "caed585dc7260cc9e7282e86b8227eba21cc69dd",
+      "message": "This update includes add the Modern style, fold watched runs into stacks, and show one Up Next card per show, sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores, and faster seasons and sign-in checks, Jellyfin episode fallback, backup log and dashboard fixes.",
       "author": "Lasikiewicz",
       "details": [
         "Added a Classic/Modern switch in the sidebar, just above the Light/Dark toggle; the choice is remembered in this browser and works with both light and dark mode",
@@ -64,11 +64,20 @@
         "The nightly Plembfin backup is written to disk in small pieces instead of being built in memory, which needed about 3 GB for a 490 MB backup and got the server killed; a failed day is retried at most three times an hour apart, and half-written backup files from a killed run are deleted",
         "Backblaze backups are sent from disk in small pieces, and an upload taking longer than 60 seconds is no longer cut off while it is still moving; the Backblaze setup guide links to the Backblaze pages it mentions",
         "Backups made by the server can be restored from the Restore page, which always said the passphrase was wrong",
-        "Full Plembfin backups of any size restore on the server from the list or from an uploaded file, with upload, check, and import progress; the file is checked in full before anything changes, and large backups can be downloaded from the backup list"
+        "Full Plembfin backups of any size restore on the server from the list or from an uploaded file, with upload, check, and import progress; the file is checked in full before anything changes, and large backups can be downloaded from the backup list",
+        "Opening a show's seasons for the first time is much faster (about 7 seconds down to a few milliseconds on a large library).",
+        "Movies and TV Shows grids look up posters that fail to load together in one request instead of one at a time.",
+        "The dashboard no longer asks for Up Next twice when it first loads.",
+        "The Settings page no longer makes status requests before you sign in.",
+        "Checking whether you are signed in no longer blocks the server for about 45 ms on every call.",
+        "Episode sync can now find items in Jellyfin-compatible libraries whose generic item query omits episodes.",
+        "In the Modern style, a folded TV episode stack on the dashboard no longer shows its details spilling past the card.",
+        "A scheduled step that runs past its time slot, such as a large nightly backup, is now logged as still running and then as finished, instead of a false \"failed ... timed out\" error; a real failure after that point is logged too."
       ],
       "messageFragments": [
         "Feature - Add the Modern style, fold watched runs into stacks, and show one Up Next card per show",
-        "Feature - Sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores"
+        "Feature - Sync playlists with Plex, Emby, and Jellyfin, add automatic playlists, and fix large backups and restores",
+        "Performance - Faster seasons and sign-in checks, Jellyfin episode fallback, backup log and dashboard fixes"
       ]
     }
   ]

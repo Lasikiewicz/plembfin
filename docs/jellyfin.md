@@ -109,6 +109,7 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `updateJellyfinUserData` | Merges selected UserData fields, used to order a verified Next Up series without resetting play count or progress |
 | `markJellyfinUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
+| `fetchJellyfinEpisodesForSeries` | A series' episodes for identity resolution and season operations: uses the item-tree query when it returns episode rows, otherwise `/Shows/<seriesId>/Episodes` (some Jellyfin-compatible libraries return only Season containers from the item tree) |
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` / `fetchJellyfinNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchJellyfinPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
 | `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress. A clear sends `Rating: 0`: Jellyfin (verified on 12.0.0) ignores `Rating: null` in this partial update |

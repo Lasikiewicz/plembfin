@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.2.2.0.16";
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.16";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.2.2.0.16";
+import { state } from "./state.js?v=1.2.2.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.17";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.2.2.0.17";
 import {
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.2.2.0.16";
+} from "./plex-history-policy.js?v=1.2.2.0.17";
 
 let bound = false;
 let preview = null;
@@ -415,6 +415,7 @@ function renderConfig({ selectedUserId = "" } = {}) {
 let statusRequest = null;
 let statusAt = 0;
 function loadStatus({ maxAgeMs = 0 } = {}) {
+  if (!state.token) return Promise.resolve();
   if (maxAgeMs && statusRequest) return statusRequest;
   if (maxAgeMs && Date.now() - statusAt < maxAgeMs) return Promise.resolve();
   statusRequest = fetchStatus().finally(() => { statusRequest = null; });

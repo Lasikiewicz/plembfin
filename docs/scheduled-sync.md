@@ -507,6 +507,10 @@ addresses.
   carrying the achieved interval between tick starts. That is the measurement to reach for
   when a later step looks starved by an earlier one, because the claim is about wall-clock
   offsets inside a tick rather than about any one step's own duration.
+- A step that runs past its time budget (a large Plembfin backup, a long catch-up pass) is
+  not stopped: the tick moves on, the log says "`<step>` is still running after Nms", and
+  "finished in the background" (or "`<step>` failed" with the real error) follows when it
+  settles. Later ticks skip that step with "still running from a previous tick" meanwhile.
 - Set `LOG_VERBOSE=true` to add the per-phase narration, including
   `"live sessions: N, cached sessions in tracking: M"`, which tells you whether the
   poller is seeing anything. A user-triggered catch-up run logs those phases to its
