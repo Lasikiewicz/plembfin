@@ -3,10 +3,11 @@ title: TV Shows
 description: Browse tracked series, inspect episode progress, and open a show media page.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/index.html
   - public/modules/explorer.js
+  - public/modules/page-card-open.js
   - public/modules/poster-menu.js
   - docs/tv-shows.md
 screenshots:
@@ -26,19 +27,22 @@ next-airing context.
 
 
 1. Open **TV Shows** in the sidebar.
-2. Adjust poster size with the **Size** slider at the front of the control bar.
+2. Use the **Posters only** switch at the front of the control bar to fold every show to its
+   poster; select a folded poster to open its card in place.
 3. Search by show title or use the sort and A–Z controls.
-4. Switch between poster grid, list view, and overview cards.
+4. Switch between the card grid, list view, and overview cards.
 5. Use **Hide Fully Watched** to remove shows with no remaining unwatched episodes.
 6. Use **Hide Ended** to remove ended shows when focusing on continuing series.
 7. Select a show card to open its TV show media page.
 
-The Size slider and both hide toggles sit directly in the control bar; there is no separate
-Options menu.
+The Posters only switch and both hide toggles sit directly in the control bar; there is no
+separate Options menu.
 
-Large libraries load progressively as you scroll. On a show media page, season episode
-details load when a season is expanded so the initial summary is not held up by every
-season's episode payload.
+Large libraries load progressively as you scroll. The shows already on screen stay in place
+while more load, and while the list re-sorts by **Next Airing**. Saved pages are refreshed
+after 30 minutes even when nothing was watched, so next-airing dates stay current. On a show
+media page, season episode details load when a season is expanded so the initial summary is
+not held up by every season's episode payload.
 
 ## Show cards and progress
 
@@ -49,8 +53,8 @@ season's episode payload.
   caption="Show cards summarize episode progress and next-airing context before you open details."
 />
 
-A show card can include watched-versus-total progress, last-play information, and the next
-airing date. The list view can expand a show into seasons and episodes, but the selected
+A show card can include the show's summary, watched-versus-total progress, last-play
+information with the **App Used** for the latest watch, and the next airing date. The list view can expand a show into seasons and episodes, but the selected
 show's media page is where title-level actions live.
 
 Unaired episodes are not treated as completed watches by a bulk action. If the title,

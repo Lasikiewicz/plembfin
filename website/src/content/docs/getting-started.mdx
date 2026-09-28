@@ -3,7 +3,7 @@ title: Getting started
 description: Install Plembfin, claim the instance, and complete the in-app Guided Setup flow.
 category: Start here
 order: 1
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - README.md
   - docs/onboarding.md
@@ -116,6 +116,28 @@ It keeps the database, settings, credentials, artwork cache, logs, and backups a
 container recreation or upgrades.
 
 Back up this directory and use Plembfin's own backup tools for a portable archive.
+
+### Docker Desktop on macOS or Windows
+
+Use a named volume for `/data` instead of the `./data` folder. Docker Desktop shares host
+folders through a file sharing layer that can corrupt the SQLite database under heavy
+writes, such as a first Trakt sync. The damage shows up as `database disk image is
+malformed`.
+
+```yaml
+services:
+  plembfin:
+    # image, ports, environment, and restart as above
+    volumes:
+      - plembfin-data:/data
+
+volumes:
+  plembfin-data:
+```
+
+Never open `plembfin.db` from the host while the container is running. Linux hosts are
+not affected. To move an existing install, take a backup in
+[Backups and operations](/docs/operations/) and restore it into the new volume.
 
 ## Install with Node.js
 

@@ -3,7 +3,7 @@ title: Playlists
 description: Collect movies and TV shows into ordered playlists and keep them in sync with Plex, Emby, and Jellyfin.
 category: Media and discovery
 order: 3.33
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/index.html
   - public/modules/playlists.js
@@ -26,39 +26,85 @@ screenshots:
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
 
-Playlists are ordered collections of movies and TV shows. A playlist can stay in Plembfin
-only, or sync to any connected Plex, Emby, or Jellyfin server. Playlists never change
-watched state.
+Playlists are ordered collections of movies, TV episodes, or both. You pick the titles
+yourself, or let an [automatic playlist](#automatic-playlists) fill itself from a rule. A
+playlist can stay in Plembfin only, or sync to any connected Plex, Emby, or Jellyfin server.
+Playlists never change watched state.
 
 ## Open Playlists
 
 <ScreenshotFigure
   darkSrc="/assets/app-captures/playlists-dark.png"
   lightSrc="/assets/app-captures/playlists-light.png"
-  alt="Plembfin Playlists page showing playlist rails with app icons and item counts"
-  caption="Each playlist is a rail with its synced apps, item count, and Edit and Delete controls."
+  alt="Plembfin Playlists page showing playlist rails with app badges, item counts, and Options menus"
+  caption="Each playlist is a rail with its type, synced apps, item count, and an Options menu."
 />
 
-Select **Playlists** in the sidebar. Each playlist is its own rail. The first four show
-together; more playlists follow below. Old `/custom-lists` links open this page.
+Select **Playlists** in the sidebar, just above Ratings. Each playlist is its own rail. The
+first four show together; more playlists follow below. Old `/custom-lists` links open this
+page.
 
-Beside each name, app icons show where the playlist syncs. Hover an icon for its status:
-synced, waiting for the first sync, failed, or not found. **Plembfin only** means no app is
-selected.
+Each heading shows:
+
+- the playlist type: **Movies**, **TV**, or **Mixed**;
+- an app badge for each app it syncs to. Hover a badge for its status: synced, waiting for
+  the first sync, failed, or not found. **Plembfin only** means no app is selected;
+- the item count, and an **Auto** tag on automatic playlists;
+- an **Options** menu with **Edit** and **Delete**.
+
+The page updates itself when a scheduled sync changes a playlist.
+
+When an app holds items Plembfin could not identify, a note under the heading says how many.
+Those items stay in that app untouched.
 
 ## Create a playlist
 
-Choose **New playlist**, enter a name, and tick the apps under **Sync to apps**. Only
-connected apps can be ticked; see [Settings → Media servers](/docs/settings/media-servers/).
-Leave every app unticked to keep the playlist in Plembfin only.
+1. Choose **New playlist**, then **Pick items** (or **Automatic**, see below).
+2. On **Name and type**, enter a name and choose **Movies**, **TV**, or **Mixed**. The type
+   cannot change later.
+3. Leave **Remove items once watched** on to drop titles from the playlist once you watch
+   them, or turn it off to keep them.
+4. On **Apps**, tick the apps to sync to. Only connected apps can be ticked; see
+   [Settings → Media servers](/docs/settings/media-servers/). Leave every app unticked to
+   keep the playlist in Plembfin only.
+
+## Automatic playlists
+
+An automatic playlist fills itself from a rule. Choose **New playlist → Automatic**, then set
+the rule:
+
+- **Type**: Top rated (the default), Popular, Trending this week, or New releases.
+- **Source**: your libraries, or the whole TMDB catalogue.
+- Genres, original language (English is ticked on a new playlist), years or a decade, watched
+  state (movies only), and recently added (library source only).
+- **Maximum** titles (20 by default) and the order: ranked, or by full release date.
+
+Talk and news shows, and library titles not yet matched to TMDB, IMDb, or TVDB, are left out.
+An automatic playlist can be Movies or TV, not Mixed. A TV one holds the next episode to watch
+of each show.
+
+Plembfin checks the rule every hour. A new playlist shows **Checking the rule** until its
+titles arrive. The **Options** menu adds **Info** (the full rule), **Refresh now**, and
+**Stop updating**.
+
+Automatic playlists are sent one way, from Plembfin to the apps. With **Remove items once
+watched** on, watched titles leave the playlist. With it off, a watched TV show moves on to
+its next episode at the next sync.
+
+## Import from apps
+
+Choose **Import from apps** beside **New playlist** to bring in playlists made in Plex, Emby,
+or Jellyfin. The dialog lists each app's playlists with their item count and a type guess.
+When a name matches an existing Plembfin playlist, choose **Merge** to add to it or **Import
+separately** to keep a second playlist.
 
 ## How app sync works
 
 - Each app's copy holds only titles in that app's library. A title the app lacks stays in
-  the Plembfin playlist with a **Missing from** note and joins the app's copy once it arrives.
-- A TV show adds every episode the app has, in season and episode order. New episodes join
-  on later syncs.
-- The app playlists follow Plembfin's order.
+  the Plembfin playlist with a **Missing from** note (a **Missing** badge on posters) and
+  joins the app's copy once it arrives.
+- TV and Mixed playlists hold individual episodes, not whole shows.
+- The app playlists follow Plembfin's order, and moves made in an app are read back.
 - A Plembfin edit syncs a few seconds later. A background pass also runs every 5 minutes.
 
 ### Changes made in an app
@@ -87,38 +133,49 @@ holds the change and shows a banner above the rail. Choose **Confirm** to apply 
 />
 
 Use **Add to playlist** on a movie or TV detail page, or the **Add to playlist** submenu in
-a poster card's menu. Pick a playlist, or choose **Create a new playlist**. The action reads
-**In playlist** once the title belongs to one. A title can be in several playlists and also
-in [Watchlist](/docs/watchlist/) or [Ratings](/docs/ratings/).
+a poster card's menu. Pick a playlist, or choose **Create a new playlist**. Only playlists
+that accept the title are offered, and automatic playlists are left out.
+
+Adding a show to a TV or Mixed playlist opens the episode picker. Tick episodes one by one or
+a whole season; episodes already in the playlist show ticked. New titles join the top of the
+playlist.
+
+A title can be in several playlists and also in [Watchlist](/docs/watchlist/) or
+[Ratings](/docs/ratings/). With **Posters only** on, neighbouring episodes of one show stack
+into a single poster.
 
 ## Reorder and remove titles
 
 <ScreenshotFigure
   darkSrc="/assets/app-captures/playlists-cards-dark.png"
   lightSrc="/assets/app-captures/playlists-cards-light.png"
-  alt="Plembfin playlist cards with Earlier and Later buttons"
-  caption="Earlier and Later move a title one place; the card menu removes it from the playlist."
+  alt="Plembfin playlist cards with the Move pill"
+  caption="Drag a card to reorder it on desktop, or use its Move pill on a touch screen."
 />
 
-- **Earlier** and **Later** move a title one place in the playlist. They appear on full
-  cards when the playlist has more than one title.
+- On desktop, drag a card within its rail. The other cards slide aside to show where it will
+  land.
+- On a touch screen, use the **Move** pill at the bottom of a full card.
 - **Remove from this playlist** in the card menu removes the title from this playlist only.
   Other playlists, Watchlist, Ratings, the library, and watch history stay unchanged.
+
+Automatic playlists follow their rule, so their cards cannot be dragged or moved.
 
 ## Edit or delete a playlist
 
 - **Edit** renames the playlist or changes its apps. Unticking an app deletes the playlist
-  from that app.
+  from that app. An automatic playlist can also change its rule.
 - **Delete** asks first, then moves the playlist to Recently deleted and deletes it from its
   synced apps.
 
 ## Recently deleted
 
-Deleted playlists appear under **Recently deleted** at the bottom of the page, with who
-deleted them (Plembfin or an app) and when.
+The **Recently deleted** button (with a count) appears while a deleted playlist is waiting.
+It opens a list showing who deleted each playlist (Plembfin or an app) and when.
 
 - **Restore** brings the playlist back in Plembfin and in every app it synced to.
 - **Delete permanently** removes it for good. It cannot be undone.
+- **Delete all permanently** clears the whole list after one confirmation.
 
 ## Privacy and watched state
 

@@ -3,7 +3,7 @@ title: Integrations
 description: Connect media servers, Trakt, Tautulli, Seerr, and metadata providers with the right expectations.
 category: Connect services
 order: 4
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - docs/plex.md
   - docs/emby.md
@@ -58,11 +58,17 @@ Add the other services once the first connection is healthy.
 
 | Service | What Plembfin uses it for | Inbound events |
 | --- | --- | --- |
-| Plex | Library state, playback, watch history, and artwork context | Built-in WebSocket notification channel and scheduled checks |
-| Emby | Library state, playback, watch history, and resume progress | Webhooks plus polling |
-| Jellyfin | Library state, playback, watch history, and resume progress | Webhooks plugin plus polling |
+| Plex | Library state, playback, watch history, artwork context, and playlists | Built-in WebSocket notification channel and scheduled checks |
+| Emby | Library state, playback, watch history, resume progress, and playlists | Webhooks plus polling |
+| Jellyfin | Library state, playback, watch history, resume progress, and playlists | Webhooks plugin plus polling |
 
 The server running Plembfin must reach each configured URL.
+
+[Playlists](/docs/playlists/) can sync two ways with any of the three servers, chosen per
+playlist. Automatic playlists are sent one way, from Plembfin to the apps.
+
+The Plex, Jellyfin, and Trakt account connection flows also work when Plembfin is opened by a
+plain HTTP address on your local network.
 
 Shows or films that share a title are kept apart by their TMDB, TVDB, and IMDb ids. When two
 Plex shows share a title, Plembfin uses the one whose ids match, including a show Plex titles

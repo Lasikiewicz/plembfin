@@ -4,6 +4,66 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.3.0 - 28 September 2026
+
+This update adds the Modern style, two-way playlist sync with Plex, Emby, and Jellyfin, automatic playlists, and stacked watched runs, fixes large backups and restores, and makes loading faster throughout.
+
+[Visit the Plembfin website](https://plembfin.com)
+
+### New Features
+
+#### Appearance
+
+- A Classic/Modern switch in the sidebar, above the Light/Dark toggle, adds a Modern style for dark and light mode: rounded gradient cards with an accent hover, provider-coloured app names, and the title's backdrop artwork behind dashboard cards and the dashboard background
+- The Modern look extends to History, Discover, Watchlist, Ratings, Playlists, Movies and TV, movie and show pages, and Settings, with backdrops that load as cards scroll into view and are retried when a lookup fails
+- In the Modern style, the featured Up Next card spans the top panel while nothing is playing, playing sessions share the backdrop layout side by side, and phones get a compact Up Next card with the poster beside the details
+- Episodes of a show watched in a row fold into one stacked run card showing the episode range and count on the dashboard and in History, and a button beside each Recently watched row folds its cards into posters, remembered per row
+- With Posters only on, clicking a poster opens its card in place on Library, Discover, History, Watchlist, Ratings, and Playlists
+
+#### Playlists
+
+- Custom Lists are now Playlists, listed above Ratings and synced two ways with Plex, Emby, and Jellyfin, with the apps chosen per playlist, drag and drop reordering, a Recently deleted pop-up, and moves made in an app read back
+- Playlists can be Movies, TV, or Mixed; TV playlists hold single episodes chosen with an episode picker, and playlists made in Plex, Emby, or Jellyfin can be imported, merged into a same-name playlist or kept separate
+- Automatic playlists fill themselves from a rule (Top rated, Popular, Trending this week, or New releases, plus genres, language, years, watched state, and recently added) from your libraries or the TMDB catalogue, refresh hourly, and are sent one way to the apps
+- Automatic TV playlists hold the next episode to watch of each show, and the new Remove items once watched setting drops watched movies and episodes from a playlist
+
+#### Backups
+
+- Full Plembfin backups of any size restore on the server from the backup list or an uploaded file, with progress, a full check of the file before anything changes, and downloads of large backups
+
+### Bug Fixes
+
+#### Reported issues
+
+- Connecting Trakt, Plex, or Jellyfin (including Jellyfin Quick Connect) no longer gets stuck on Waiting for confirmation with Same-origin request required when Plembfin is opened by a plain HTTP LAN address (#39)
+- Watched state sent from Plex now reaches episodes on Jellyfin and Jellyfin-compatible servers whose normal episode search returns only the season, which failed with No matching item in Jellyfin library (#38)
+
+#### Up Next & playback
+
+- Up Next shows each show once and hides the episode playing right now until playback stops, and the Now Playing card no longer stays on screen after playback ends
+
+#### Backups
+
+- Nightly backups are written to disk in small pieces instead of in memory, where a 490 MB backup needed about 3 GB and got the server killed; a failed day is retried at most three times an hour apart, and Backblaze uploads are sent from disk without a 60 second cutoff
+- Backups made by the server can be restored from the Restore page, which always said the passphrase was wrong
+
+#### Sync & scheduling
+
+- Plex no longer ignores some playlist moves
+- A scheduled step that outlasts its time slot, such as a large nightly backup, is logged as still running and then finished instead of as a false timed-out failure, and the Manual Watch review notice stays in the sidebar when a new item is flagged
+
+### Tweaks
+
+#### Speed
+
+- Faster loading: a show's seasons open in milliseconds instead of about 7 seconds on a large library, Up Next rebuilds are about twice as fast, the dashboard history preview is less than half its old size, sign-in checks no longer block the server, and the TV Shows page keeps its cards on screen while loading more
+- Fewer wasted requests: Movies and TV posters that fail to load are looked up together in one request, the dashboard asks for Up Next once, and Settings makes no status requests before you sign in
+
+#### Layout
+
+- Tablet and phone layouts are tidier: dashboard cards keep a fixed-width poster, the featured Up Next cards sit side by side, card text and Watch Now links fit the card, playlist posters open without being cut off, and long Movies titles stay inside their card
+- Movies and TV cards show the title's summary, Watchlist, Ratings, Playlists, and Discover show the release date without a dash, History drops the sync status and size slider, and the poster, card, and compact view icons are redesigned
+
 ## v1.2.2 - 24 September 2026
 
 This update keeps shows that share a title apart, makes Up Next sync with Plex, Emby and Jellyfin more reliable, syncs rating changes made on any service, and adds a Watch-State Aliases repair card.

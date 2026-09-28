@@ -1,11 +1,16 @@
 ---
 title: Appearance
-description: Configure the theme and optional sections on movie and TV detail pages.
+description: Choose the Classic or Modern style, the colour mode, and optional sections on movie and TV detail pages.
 category: Media and discovery
 order: 7
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/index.html
+  - public/theme-boot.js
+  - public/styles-modern.css
+  - public/modules/appearance.js
+  - public/modules/card-art.js
+  - public/modules/dashboard-modern.js
   - public/modules/tools-backups.js
   - public/modules/media-detail-movie.js
   - public/modules/media-detail-show.js
@@ -23,6 +28,23 @@ The **Appearance** menu is available in the app sidebar footer when a movie or T
 page is open. It controls presentation only; it does not remove watch records, metadata,
 or artwork.
 
+
+## Style
+
+Choose **Classic** or **Modern** with the style switch in the sidebar footer, directly above
+the Light/Dark switch. On phones, open the navigation drawer to reach it.
+
+- **Classic** is the default and keeps the original look.
+- **Modern** keeps every page, control, and action in the same place, and changes how they
+  look: rounded surfaces, and cards on the Dashboard, History, the libraries, Discover,
+  Watchlist, Ratings, and Playlists drawn over the title's backdrop artwork. On the
+  Dashboard, a folded run of episodes from one show is drawn as a stack with the older
+  posters peeking out behind it. See [Dashboard](/docs/dashboard/) for the rows and cards
+  involved.
+
+The style is saved in the current browser and applied before the page first draws, so the app
+opens in the chosen style without a flash of the other one. Style and theme are independent:
+both styles work in Light and Dark. Changing the style never changes data or sync behavior.
 
 ## Theme
 

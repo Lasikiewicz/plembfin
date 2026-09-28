@@ -24,7 +24,7 @@
 
 ---
 
-> **v1.2.2.** Plembfin writes watched state and playback progress to connected media
+> **v1.3.0.** Plembfin writes watched state and playback progress to connected media
 > servers, so **back up first** (Settings → Backup → Local). Report
 > issues on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
@@ -212,6 +212,15 @@ rebuild an image.
    ```
 3. Start it: `docker compose up -d`
 4. Open `http://localhost:5055` and log in.
+
+> [!IMPORTANT]
+> On **Docker Desktop for macOS or Windows**, keep `/data` on a named volume, not a
+> folder bind mount such as `./data:/data`. The file sharing layer that bind mounts use
+> there can corrupt the SQLite database under heavy writes (for example a first Trakt
+> sync), which shows up as `database disk image is malformed`. Use
+> `- plembfin-data:/data` under `volumes:` and add a top-level `volumes: { plembfin-data: {} }`.
+> Never open `plembfin.db` from the host while the container is running. Linux hosts
+> are not affected.
 
 This base example is intended for a local or trusted network. For a remotely reachable
 tester instance, use the secure overlay below behind an HTTPS reverse proxy or VPN, and

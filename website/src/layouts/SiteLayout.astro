@@ -57,6 +57,15 @@ const traksEnabled = Boolean(traksSiteKey);
         document.documentElement.classList.toggle("light-mode", useLightMode);
         document.documentElement.dataset.theme = useLightMode ? "light" : "dark";
         document.querySelector("[data-theme-color]")?.setAttribute("content", useLightMode ? "#ffffff" : "#05080c");
+
+        // Screenshot style: Modern unless the visitor picked Classic.
+        let savedStyle = null;
+        try {
+          savedStyle = window.localStorage.getItem("plembfin:style");
+        } catch {
+          // Continue with Modern when storage is unavailable.
+        }
+        document.documentElement.dataset.style = savedStyle === "classic" ? "classic" : "modern";
       })();
     </script>
   </head>

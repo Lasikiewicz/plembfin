@@ -3,7 +3,7 @@ title: Manual Watch review
 description: Resolve uncertain watch events, correct provider state, and recheck stale reviews.
 category: Sync and maintain
 order: 6.5
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/index.html
   - public/modules/manual-watch-review.js
@@ -33,7 +33,8 @@ When Plex, Emby, or Jellyfin reports a provider-side watched flag without enough
 information, Plembfin keeps the event pending and shows **Manual Watch review** in the
 sidebar. This includes an item that Plembfin currently considers unwatched: the provider
 event is held for a decision instead of being silently rejected or sent on to the other
-media servers. The link is shown while there are decisions to make.
+media servers. The link is shown while there are decisions to make, including when a new
+item is flagged after you already decided an earlier review.
 
 <ScreenshotFigure
   darkSrc="/assets/app-captures/manual-watch-review-dark.png"

@@ -110,7 +110,10 @@ const assets = walkFiles(assetsRoot)
       bytes: buffer.length,
       sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
       dimensions,
-      referencedBy: assetReferences.get(relativePath) || [],
+      // A Modern capture is shown wherever its Classic partner is referenced.
+      referencedBy: assetReferences.get(relativePath)
+        || assetReferences.get(relativePath.replace(/-modern-(dark|light)(\.[a-z]+)$/i, "-$1$2"))
+        || [],
     };
   });
 

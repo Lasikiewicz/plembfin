@@ -103,6 +103,17 @@ Only `/media/posters/` and `/media/backdrops/` URLs are treated as "cached"
 - In Docker, confirm the volume is mounted: `docker exec plembfin ls /data`.
 - `data/config.json` must be writable for credential/secret persistence.
 
+## "database disk image is malformed"
+
+- Plembfin only writes through better-sqlite3, so this means the file was damaged
+  underneath SQLite, not by a Plembfin query. The first large burst of writes (often the
+  first Trakt sync on a fresh database) is where it surfaces, not what causes it.
+- Docker Desktop on macOS or Windows with `/data` on a folder bind mount is the known
+  cause (#38). Move `/data` to a named volume (`plembfin-data:/data`) and restore a backup
+  into it. Linux hosts are not affected.
+- Never open `plembfin.db` from the host (a `sqlite3` shell, a DB browser) while the
+  container is running.
+
 ## "A media account connection fails or becomes invalid"
 
 - Account setup is enabled by default. If it is missing, remove

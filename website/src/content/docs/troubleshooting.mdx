@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Start with the symptom, confirm the source of truth, and take the smallest safe action.
 category: Fix a problem
 order: 7
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - docs/troubleshooting.md
   - docs/webhooks.md
@@ -530,6 +530,19 @@ A temporary delay is different from a worker that never records a heartbeat.
 
 Use [Backups and operations](/docs/operations/#routine-maintenance) for the host-level
 checks.
+
+## The database disk image is malformed
+
+This error means the database file was damaged underneath SQLite. It usually appears
+during the first large burst of writes, such as a first Trakt sync, but that is not what
+causes it.
+
+1. On Docker Desktop for macOS or Windows, move `/data` from a folder bind mount to a
+   named volume. See [Docker Desktop on macOS or Windows](/docs/getting-started/#docker-desktop-on-macos-or-windows).
+2. Restore your latest backup into the new volume.
+3. Never open `plembfin.db` from the host while the container is running.
+
+Linux hosts are not affected.
 
 ## When to stop and restore
 

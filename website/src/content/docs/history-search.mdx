@@ -3,9 +3,12 @@ title: History
 description: Review the durable watch archive and its sync context.
 category: Use the app
 order: 5
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/modules/history.js
+  - public/modules/explorer.js
+  - public/modules/history-poster-overlay.js
+  - public/modules/page-card-open.js
   - docs/history-search.md
 screenshots:
   - /assets/app-captures/history-dark.png
@@ -32,11 +35,16 @@ History supports:
 - **All**, **Movies**, and **TV Shows** filters;
 - search by title and available history fields;
 - grid, list, and card layouts;
-- adjustable poster size;
+- a **Posters only** switch that folds every item to its poster;
 - links to media details;
-- sync-status indicators;
 - poster three-dot actions; and
 - the watch-date editor and history debug view where available.
+
+With **Posters only** on, each poster shows the episode name (for TV), the watched date, and
+the app that reported it along its bottom edge. Selecting a folded poster opens that item in
+place instead of leaving the page, closing whichever was open; a further click opens the
+title as normal. The open item stays open until another poster opens, the page changes, or
+the switch is turned off.
 
 Same-event delivery echoes are collapsed so propagation does not count as several views.
 Genuine later rewatches remain separate watch dates. For cleanup tools, see

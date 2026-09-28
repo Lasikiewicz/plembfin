@@ -3,11 +3,12 @@ title: Dashboard
 description: Read live playback, the mixed Up Next queue, and durable watch history from one screen.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "1.2.2"
+sourceVersion: "1.3.0"
 sourcePaths:
   - public/index.html
   - public/modules/dashboard.js
   - public/modules/up-next.js
+  - public/modules/dashboard-modern.js
   - public/modules/sync.js
   - public/modules/media-card.js
   - public/modules/app-events.js
@@ -68,7 +69,10 @@ The sidebar opens the main pages.
 
 The Dashboard content is arranged in this order:
 
-1. **Now Playing** for active media-server sessions.
+1. **Now Playing** for active media-server sessions. While nothing is playing, this top
+   panel features the first two Up Next cards instead and its heading reads **Up Next**;
+   when playback starts, the heading reads **Now Playing** again, the live sessions take the
+   panel side by side, and the featured cards return to the Up Next rail.
 2. **Up Next** for movie and TV continuation items, including saved resume progress and
    released episodes selected from tracked shows.
 3. **TV Shows – Recently watched** for recent completed TV watches.
@@ -78,7 +82,8 @@ If there is no saved resume progress or next-up item, Up Next is omitted. The si
 **Sync** indicator is a shortcut to [Sync Activity](/docs/sync-tools/).
 
 Dashboard history uses **Card View** by default. The Dashboard has no separate Appearance
-layout control.
+layout control. In the Modern style (see [Appearance](/docs/appearance/#style)) the cards are
+drawn over each title's backdrop artwork, and the page takes the backdrop of the top item.
 
 ## Global Search
 
@@ -101,8 +106,9 @@ while watch-state corrections stay on the selected local title's actions.
 
 Now Playing is session information, not completed watch history.
 
-It can show the title, season and episode, source service, current position, duration, and
-a progress bar for active sessions reported by Plex, Emby, or Jellyfin.
+It can show the title, the episode title with its season and episode, source service,
+current position, duration, and a progress bar for active sessions reported by Plex, Emby,
+or Jellyfin.
 
 <ScreenshotFigure
   darkSrc="/assets/app-captures/now-playing-dark.png"
@@ -145,6 +151,11 @@ Up Next is the dashboard's mixed continuation rail. It combines actionable resum
 for movies and episodes with released **next up** episodes from tracked shows. Resume cards
 are ordered by their latest progress update; next-up cards follow with deterministic show,
 season, and episode ordering.
+
+Each show appears once. A part-watched episode with a known position replaces that show's
+next-up card, and when several episodes of a show are part-watched, the most recently updated
+one is kept. The episode or movie that is playing right now is hidden from Up Next while it
+shows in Now Playing, and returns when playback stops.
 
 Each card can show its real episode name, season and episode code, air-date context, resume
 state, and the media servers where it is available. **Watch Now** links open a matching
@@ -219,7 +230,10 @@ They are not a list of active files on a media server.
 
 A title appears after Plembfin has recorded a watch event.
 
-- The **TV Shows** row groups recent episode activity by show.
+- The **TV Shows** row folds consecutive watches of one show into a single card that shows
+  the episode range and an "N episodes" count. Select it to expand the run into one card per
+  episode, in place; expanding another run folds the first one back. In the Modern style the
+  folded card is drawn as a stack, with the older episodes' posters peeking out behind it.
 - The **Movies** row lists recent movie watch activity.
 - A rewatch remains a separate event in History while the library card remains one title.
 - Selecting a poster opens the media detail page.
@@ -245,6 +259,11 @@ a previous watch.
 
 Dashboard TV and movie history rows always use Card View. Each card combines the poster,
 title, watch information, and state in a compact layout.
+
+The **Posters only** button beside each "Recently watched" title folds every card in that row
+to its poster. Select a folded poster to open that card (closing whichever was open); a
+further click opens the title as normal. Selecting a folded run opens the whole run. The
+choice is remembered per row in the current browser, in both styles.
 
 The Dashboard view is fixed; use the [Movies media page](/docs/movies/media-page/) or
 [TV Shows media page](/docs/tv-shows/media-page/) for library-specific poster, list, and

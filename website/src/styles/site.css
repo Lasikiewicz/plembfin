@@ -183,7 +183,7 @@ img {
 .site-header-inner {
   min-height: 3.75rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
 }
@@ -215,8 +215,10 @@ img {
 .site-nav {
   grid-column: 2;
   display: flex;
+  justify-self: center;
   align-items: center;
   gap: 0.1rem;
+  min-width: 0;
 }
 
 .site-nav-primary {
@@ -225,10 +227,26 @@ img {
   gap: 0.1rem;
 }
 
+/* Opened by the search icon (or the drawer's Search item) as a panel below the header. */
+.site-search-panel {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: max(1.5rem, calc((100% - 78rem) / 2));
+  display: none;
+  width: min(24rem, 100% - 3rem);
+  padding: var(--space-2);
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.search-open .site-search-panel {
+  display: block;
+}
+
 .site-global-search {
   display: flex;
-  width: min(14rem, 22vw);
-  margin-left: var(--space-3);
 }
 
 .site-global-search-control {
@@ -336,8 +354,42 @@ img {
   border-color: transparent;
 }
 
-.site-nav .nav-github-mobile {
+.site-nav .nav-github-mobile,
+.site-nav .nav-support-text,
+.nav-search-text {
   display: none;
+}
+
+.nav-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+.nav-icon-link:hover,
+.nav-icon-link:focus-visible,
+.nav-icon-link.active,
+.search-open .nav-search-icon {
+  color: var(--text);
+  background: var(--surface-soft);
+  border-color: var(--line-soft);
+}
+
+/* GitHub Sponsors heart colour. */
+.nav-support-icon,
+.nav-support-icon:hover,
+.nav-support-icon:focus-visible,
+.nav-support-icon.active {
+  color: #db61a2;
 }
 
 .theme-toggle {
@@ -412,6 +464,33 @@ html.light-mode .theme-toggle-label--light {
 
 html.light-mode .theme-toggle-label--dark {
   color: var(--muted);
+}
+
+/* Classic/Modern screenshot switch: same track as the theme toggle, but the thumb
+   follows the chosen style (Modern on the right) instead of the colour mode. */
+.style-toggle {
+  width: 7.2rem;
+}
+
+html .style-toggle .theme-toggle-thumb {
+  transform: translateX(100%);
+}
+
+html[data-style="classic"] .style-toggle .theme-toggle-thumb {
+  transform: translateX(0);
+}
+
+.style-toggle-label--modern,
+html[data-style="classic"] .style-toggle-label--classic {
+  color: var(--text);
+}
+
+html[data-style="classic"] .style-toggle-label--modern {
+  color: var(--muted);
+}
+
+.site-nav .style-toggle-mobile {
+  display: none;
 }
 
 .back-to-top {
@@ -2636,11 +2715,73 @@ html.light-mode .docs-page-outline-link.active {
   }
 }
 
-@media (max-width: 980px) {
-  .site-global-search {
-    width: 8rem;
+/* The full header bar (links, icons, both switches) needs about 1025px,
+   so narrower screens use the menu drawer. */
+@media (max-width: 1040px) {
+  .site-header-inner {
+    display: flex;
+    justify-content: space-between;
   }
 
+  .site-brand {
+    grid-column: auto;
+  }
+
+  .site-header-right {
+    grid-column: auto;
+  }
+
+  .style-toggle-desktop {
+    display: none;
+  }
+
+  .site-nav .style-toggle-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 0.55rem 0.75rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .nav-toggle {
+    display: block;
+  }
+
+  .site-nav {
+    position: absolute;
+    top: calc(100% + 1px);
+    right: 1.5rem;
+    width: min(22rem, 100% - 3rem);
+    grid-column: auto;
+    justify-self: auto;
+    display: none;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--space-2);
+    background: var(--panel-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .nav-open .site-nav {
+    display: grid;
+  }
+
+  .site-nav-primary {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .site-nav a {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 980px) {
   .hero {
     grid-template-columns: minmax(0, 0.92fr) minmax(19rem, 1.08fr);
     gap: var(--space-7);
@@ -2671,64 +2812,47 @@ html.light-mode .docs-page-outline-link.active {
     width: min(100% - 2rem, 44rem);
   }
 
-  .site-header-inner {
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .site-brand {
-    grid-column: auto;
-  }
-
-  .site-header-right {
-    grid-column: auto;
-  }
-
-  .nav-toggle {
-    display: block;
-  }
-
   .site-nav {
-    position: absolute;
-    top: calc(100% + 1px);
     right: 1rem;
     left: 1rem;
-    grid-column: auto;
-    display: none;
-    align-items: stretch;
-    gap: 0;
-    padding: var(--space-2);
-    background: var(--panel-3);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-  }
-
-  .nav-open .site-nav {
-    display: grid;
-  }
-
-  .site-nav-primary {
-    display: grid;
-    gap: 0.15rem;
-  }
-
-  .site-global-search {
     width: auto;
-    margin: var(--space-2) 0 0;
   }
 
-  .site-nav a {
-    justify-content: space-between;
-  }
-
-  .nav-github-desktop {
+  .nav-icon-link {
     display: none;
   }
 
-  .site-nav .nav-github-mobile {
+  .site-nav .nav-github-mobile,
+  .site-nav .nav-support-text {
     display: inline-flex;
     margin-left: 0;
+  }
+
+  .nav-search-text {
+    display: flex;
+    min-height: 2.1rem;
+    padding: 0.35rem 0.6rem;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    cursor: pointer;
+  }
+
+  .nav-search-text:hover,
+  .nav-search-text:focus-visible {
+    color: var(--text);
+    background: var(--surface-soft);
+    border-color: var(--line-soft);
+  }
+
+  .site-search-panel {
+    right: 1rem;
+    width: calc(100% - 2rem);
   }
 
   .hero,
@@ -4907,6 +5031,7 @@ html.light-mode .docs-page-outline-link.active {
 
 .simple-home-preview,
 .simple-home-up-next,
+.simple-home-playlists,
 .simple-home-flow,
 .simple-home-app,
 .simple-features-index,
@@ -5011,7 +5136,8 @@ html.light-mode .docs-page-outline-link.active {
   margin-top: 1.5rem;
 }
 
-.simple-home-up-next .screenshot-figure {
+.simple-home-up-next .screenshot-figure,
+.simple-home-playlists .screenshot-figure {
   margin-top: 1.5rem;
 }
 
