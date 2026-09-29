@@ -130,6 +130,12 @@ baseline, review changes after it, start the local app and website preview, audi
 images, check privacy, run the inventory and website checks, and report the local visual
 findings. The website gate is mandatory for every main release.
 
+The automated checks below cannot see a stale caption or a screenshot that was never
+retaken; they pass as long as each needed guide changed. So when a plan tracks the release's
+website work, every unticked item in it must be done, or explicitly accepted by the user in
+chat as shipping without it, before the gate passes. Accepted leftovers are listed again at
+the release go-ahead.
+
 ### Content-impact check (automated, fail-closed)
 
 The website is only updated for application changes during **Force to main**, once the

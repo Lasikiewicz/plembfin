@@ -224,8 +224,8 @@ If none remain, the title becomes unwatched.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/fix-match-focus-dark.png"
   lightSrc="/assets/app-captures/fix-match-focus-light.png"
-  alt="Plembfin Fix Match dialog showing a TheTVDB search, matching results, and YouTube fallback"
-  caption="Fix Match searches TheTVDB for the correct series and also provides a YouTube fallback for unmatched video content."
+  alt="Plembfin Fix Match dialog showing a search across all sources, result cards with their source, and YouTube fallback"
+  caption="Fix Match searches your library, TMDB, and (for TV) TheTVDB at once, and also provides a YouTube fallback for unmatched video content."
 />
 
 **Fix Match** changes the provider identity of the local record.
@@ -241,9 +241,10 @@ used by the archive and future syncs.
 
 1. Open the movie detail page, or open the movie card's three-dot menu.
 2. Choose **Fix Match**.
-3. Search by title, year, or a distinctive part of the title.
+3. Search by title, year, or a distinctive part of the title. **Search all sources** checks
+   your library and TMDB together.
 4. Compare the result's year and metadata with the local movie.
-5. Select the correct TMDB result.
+5. Select the correct result.
 6. Confirm the change.
 7. Reopen the detail page and check its provider details, poster, and Sync Activity.
 
@@ -258,7 +259,8 @@ permanently under the old one.
    series identity is corrected for the whole show.
 2. Choose **Fix Match**.
 3. Search for the series and compare title, year, network, and season information.
-4. Select the correct TheTVDB series.
+4. Select the correct series. Each result card names the sources it came from; the show is
+   rematched by its TheTVDB series.
 5. Confirm the change.
 6. Wait for the background metadata and progress refresh.
 7. Confirm the intended seasons and episodes, then check Sync Activity before retrying a

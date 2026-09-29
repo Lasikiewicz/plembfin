@@ -88,6 +88,15 @@ a listed guide is still accurate, record that instead of making a cosmetic edit,
 The entries only count while `publishedVersion` matches `origin/main`, so a previous
 release's review never excuses the next one. Re-run the check until it passes.
 
+**Open website items stop the release.** The automated checks only prove each needed guide
+changed or was reviewed; they cannot see a stale caption or a screenshot that was never
+retaken (v1.3.0 shipped a stale Fix Match caption and an old Sync Activity capture that way).
+If a plan tracks this release's website work (a `plan/` summary for the release website),
+list every unticked box in it. Each one is either done now, or the user explicitly agrees in
+chat to ship without it. Do not tick the Force to main step, or continue past step 0, with an
+open website item the user has not agreed to. Carry any agreed leftovers into the step 4
+report (item 2) so they are visible at the go-ahead.
+
 **Commit any website change it produces on `develop` before continuing.** Updating the
 website is part of this release, not a reason to abandon it: step 1a takes `develop`'s
 reviewed `website/` tree into the release commit, so there is no need to run "Force to
@@ -252,6 +261,7 @@ Report all four of these together:
 2. **What the documentation now says.** State which `website/` pages changed in this
    release and that their `sourceVersion` markers are stamped to the new version, so the
    user knows the published documentation describes this release and not the previous one.
+   List any website items the user agreed in step 0 to ship without (or say there are none).
 3. **The application, running this exact commit**, at `http://localhost:5055`. Name the
    version it reports so the user can confirm it matches the release.
 4. **The website, running this exact commit**, at `http://localhost:4321`, and point at
