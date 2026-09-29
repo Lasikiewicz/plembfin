@@ -1,7 +1,7 @@
 name: Publish Main Release
 
 # Builds and publishes the release image and the formatted GitHub Release notes
-# on every push to main, tagged :latest and :<version>. changelog.json,
+# on every push to main, tagged :latest and :<version> on GHCR and Docker Hub. changelog.json,
 # CHANGELOG.md, package.json, and package-lock.json are all computed locally
 # (scripts/promote-alpha-to-main.js), as part of "Force to main", before the
 # force-push - this job checks README consistency, runs the full build gate against
@@ -22,6 +22,7 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  DOCKERHUB_IMAGE: docker.io/plembfin/plembfin
 
 jobs:
   update:
@@ -59,6 +60,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Main releases are mirrored to Docker Hub (docker.io/plembfin/plembfin);
+      # develop and alpha stay on GHCR only, where ghcr-cleanup.yml prunes them.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
         with:
@@ -75,7 +84,9 @@ jobs:
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.DOCKERHUB_IMAGE }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.release.outputs.version }}

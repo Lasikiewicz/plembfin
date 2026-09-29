@@ -338,7 +338,9 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
 runs on the push to `main` - in practice this means every "Force to main" run, not every
 individual commit - reads the version already committed, checks README consistency, runs
 the full build gate again in CI, builds and pushes a multi-architecture Docker image to
-GHCR tagged `latest` + the version, creates
+GHCR and to Docker Hub (`docker.io/plembfin/plembfin`, logged in with the
+`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets) tagged `latest` + the
+version, creates
 or updates the matching GitHub Release with the formatted body from
 `scripts/generate-release-notes.js`, then posts the `changelog.json` entry to Discord via
 `scripts/notify-discord-release.js main` (see "Discord release notifications" below).

@@ -169,6 +169,10 @@ include the current release version and cycle number (for example, `0.16.0 Build
 [`CHANGELOG.md`](CHANGELOG.md) for numbered releases, and
 [`docs/development.md`](docs/development.md) for how the three channels relate.
 
+Tagged releases are also on Docker Hub as `plembfin/plembfin:latest` (and
+`plembfin/plembfin:<version>`), the same image as the GHCR `:latest`. The `alpha` and
+`develop` channels are published to GHCR only.
+
 To run a different channel, swap the `image:` tag in the Docker Compose example below -
 everything else about setup is identical.
 
