@@ -1,21 +1,32 @@
 {
-  "version": "1.3.0.0.1",
-  "build": 1,
+  "version": "1.3.0.0.2",
+  "build": 2,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-29T12:44:04.909Z",
+  "updatedAt": "2026-09-29T15:03:33.389Z",
   "entries": [
     {
-      "build": 1,
-      "date": "2026-09-29T12:44:04.909Z",
-      "commit": "d054badd6ebb20d1997463e0a514a00390019e74",
-      "message": "Performance - Improve page loading and server recovery",
+      "build": 2,
+      "date": "2026-09-29T15:03:33.389Z",
+      "commit": "e325cf80e58961820ec3cc18198580965c64490a",
+      "message": "This update includes improve page loading and server recovery and dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle.",
       "author": "Lasikiewicz",
       "details": [
         "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
         "Page caches warm in the background after startup and when changes settle, so first requests wait less.",
         "History shows its first 48 cards right away and appends the rest during idle time.",
         "Cache rebuilds yield between short batches so pages, webhooks, and sync requests stay responsive.",
-        "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover."
+        "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover.",
+        "Recently watched TV runs fold into one poster with an episode count badge only in posters-only mode; full cards show every episode",
+        "Opening a poster in posters-only mode keeps it where it is instead of jumping as other cards close",
+        "Episode cards use the episode's own still as their backdrop, falling back to the show backdrop",
+        "Dashboard cards show Season/Ep directly under the episode name and Last Played directly above the app used",
+        "Up next cards no longer show the Available line, and a card with progress shows its progress bar above the Watch now apps",
+        "Recently watched cards no longer show the Watched Twice / Watched N Times line",
+        "The Movies and TV Shows libraries remember their Posters only setting separately"
+      ],
+      "messageFragments": [
+        "Performance - Improve page loading and server recovery",
+        "Feature - Dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle"
       ]
     }
   ]

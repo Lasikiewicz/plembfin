@@ -1,21 +1,21 @@
-import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.3.0.0.1";
-import { state } from "./state.js?v=1.3.0.0.1";
-import { artKey, requestArtKey } from "./card-art.js?v=1.3.0.0.1";
-import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.1";
+import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.3.0.0.2";
+import { state } from "./state.js?v=1.3.0.0.2";
+import { artKey, requestArtKey } from "./card-art.js?v=1.3.0.0.2";
+import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.2";
 // The same folded-poster behaviour on the Library and History pages.
-import "./page-card-open.js?v=1.3.0.0.1";
+import "./page-card-open.js?v=1.3.0.0.2";
 
 // Dashboard behaviour added with the Modern theme style (plan/archive/theme-styles/plan.md).
 // Compact rows, collapsed TV runs and the featured Up Next cards apply under
-// both styles; backdrop artwork and run stack peeks are Modern-only.
+// both styles; backdrop artwork is Modern-only.
 
 // --- Compact rows (both styles) --------------------------------------------
 // The toggle beside each "Recently watched" title folds every card in that
 // row into its poster (the details slide closed behind it). Clicking a
-// folded poster opens that card, closing whichever was open; a further click
-// behaves as normal. Clicking a folded stack (a collapsed run) expands the
-// run with every card in it open, and it folds back into a stack when
-// another card opens. The toggle is remembered per browser, per row.
+// folded poster opens that card in place, closing whichever was open; a
+// further click behaves as normal. Clicking a folded stack (a collapsed run)
+// expands the run with every card in it open, and it folds back into a stack
+// when another card opens. The toggle is remembered per browser, per row.
 
 const COMPACT_KEY_PREFIX = "plembfin:dashboard-compact:";
 const COMPACT_ROW_IDS = { tv: "tvHistoryRow", movie: "movieHistoryRow" };
@@ -43,9 +43,36 @@ function closeCompactCards() {
   if (runs.length) rerenderRuns();
 }
 
+let holdToken = 0;
+
+// Keeps the clicked poster where it is on screen while other cards fold and it
+// opens: on every frame of the width transition the row is scrolled by however
+// far the poster's left edge moved. Layout offsets, not bounding boxes, so the
+// entrance motion of new cards does not count as movement.
+function holdInPlace(row, findAnchor, left) {
+  const token = ++holdToken;
+  const until = performance.now() + 340;
+  const step = () => {
+    if (token !== holdToken) return;
+    const anchor = findAnchor();
+    if (anchor?.isConnected) {
+      const delta = anchor.offsetLeft - row.scrollLeft - left;
+      if (Math.abs(delta) >= 0.5) row.scrollLeft += delta;
+    }
+    if (performance.now() < until) requestAnimationFrame(step);
+  };
+  step();
+}
+
 function openCompactCard(card) {
   const runKey = card.dataset.collapsedRunKey;
   const key = compactCardKey(card);
+  const row = card.parentElement;
+  const left = card.offsetLeft - row.scrollLeft;
+  // An expanded run's first card takes the place of the stack it came from.
+  const findAnchor = () => runKey
+    ? [...row.querySelectorAll("[data-run-key]")].find((item) => item.dataset.runKey === runKey)
+    : compactRowCards().find((item) => compactCardKey(item) === key);
   closeCompactCards();
   if (runKey) {
     openCompactCards.add(runKey);
@@ -55,6 +82,7 @@ function openCompactCard(card) {
     openCompactCards.add(key);
   }
   syncCompactOpenCards();
+  holdInPlace(row, findAnchor, left);
 }
 
 function compactRowCards() {
@@ -92,6 +120,8 @@ export function setDashboardRowCompact(kind, compact) {
     else localStorage.removeItem(COMPACT_KEY_PREFIX + kind);
   } catch { /* storage unavailable: the choice lasts for this page only */ }
   syncCompactControls();
+  // Runs collapse only while the TV row is posters-only.
+  if (kind === "tv") rerenderRuns();
   syncCompactOpenCards();
 }
 
@@ -106,12 +136,12 @@ function syncCompactControls() {
 }
 
 // --- Collapsed runs in the TV history row ---------------------------------
-// Consecutive watches of the same show collapse into one card for the newest
-// episode, drawn as a stack with the older cards peeking out to its right.
-// Clicking it expands the run back into one card per episode, in place.
-// One run is open at a time: expanding another folds it back, and so does a
-// compact row when another card opens; otherwise it lasts until a reload. The History page's cards mode uses the same runs
-// (modules/explorer.js).
+// While the TV row is posters-only, consecutive watches of the same show
+// collapse into one poster for the newest episode, carrying an episode counter.
+// Clicking it expands the run back into one card per episode, in place. With
+// full cards on, every episode keeps its own card and nothing collapses.
+// One run is open at a time: expanding another folds it back, and so does
+// another card opening; otherwise it lasts until a reload.
 
 const expandedRunKeys = new Set();
 const runRerenders = new Set();
@@ -130,9 +160,9 @@ function runShowKey(entry = {}) {
 
 // Returns the row as units, newest first. A collapsed run is one unit with a
 // `key`; an expanded run gives one unit per entry, each carrying the run's
-// key as `runKey`. Runs form under both styles; only the stacked peeks
-// behind a collapsed run are Modern's (styles-modern.css).
+// key as `runKey`. Runs form under both styles, in posters-only mode only.
 export function dashboardTvRowUnits(items = []) {
+  if (!isDashboardRowCompact("tv")) return items.map((entry) => ({ entries: [entry] }));
   const runs = [];
   for (const entry of items) {
     const show = runShowKey(entry);
@@ -170,17 +200,10 @@ function renderedCard(html) {
   return template.content.firstElementChild;
 }
 
-// The poster of an older episode, drawn on the card that peeks out for it.
-function runPeekHtml(entry, depth, renderCard) {
-  const src = renderedCard(renderCard(entry))?.querySelector(".history-card-poster-wrapper img")?.getAttribute("src") || "";
-  const art = src ? `<img src="${escapeAttribute(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />` : "";
-  return `<span class="dashboard-run-peek" data-run-peek="${depth}" aria-hidden="true">${art}</span>`;
-}
-
 // renderCard renders one entry as the usual dashboard history card. A run
 // reuses the newest entry's card, swapping its link wrapper for an expand
 // control and showing the episode range and count.
-export function renderDashboardTvRowUnit(unit, renderCard, { stack = true } = {}) {
+export function renderDashboardTvRowUnit(unit, renderCard) {
   const html = renderCard(unit.entries[0]);
   if (!unit.key && !unit.expanded) return html;
   const source = renderedCard(html);
@@ -199,9 +222,6 @@ export function renderDashboardTvRowUnit(unit, renderCard, { stack = true } = {}
   card.className = `${source.className} dashboard-collapsed-run-card`;
   if (source.dataset.art) card.dataset.art = source.dataset.art;
   card.dataset.collapsedRunKey = unit.key;
-  // The dashboard uses poster peeks; History keeps its run as a single card.
-  const depth = stack ? (count > 2 ? 2 : 1) : 0;
-  if (depth) card.dataset.runStack = String(depth);
   card.setAttribute("role", "button");
   card.setAttribute("tabindex", "0");
   card.setAttribute("aria-expanded", "false");
@@ -212,10 +232,9 @@ export function renderDashboardTvRowUnit(unit, renderCard, { stack = true } = {}
   if (range) range.textContent = `${episodeCode(oldest.season, oldest.episode)} - ${episodeCode(newest.season, newest.episode)}`;
   card.querySelector(".history-card-header")
     ?.insertAdjacentHTML("beforeend", `<span class="dashboard-run-count">${escapeHtml(`${count} episodes`)}</span>`);
-  // The next-older episode peeks out first, right behind the newest.
-  if (depth) {
-    card.insertAdjacentHTML("beforeend", unit.entries.slice(1, depth + 1).map((entry, index) => runPeekHtml(entry, index + 1, renderCard)).join(""));
-  }
+  // A counter on the poster, so a folded (posters-only) card still shows it.
+  card.querySelector(".history-card-poster-wrapper")
+    ?.insertAdjacentHTML("beforeend", `<span class="dashboard-run-badge" aria-hidden="true">${count} eps</span>`);
   return card.outerHTML;
 }
 

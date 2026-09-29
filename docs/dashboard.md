@@ -236,11 +236,13 @@ reload; the `X-Now-Playing-Refresh` header from the now-playing poll signals whe
 re-fetch.
 
 Each card shows poster, platform badge, sync-status pill, and links into the media
-detail page ([media-detail.md](media-detail.md)). When an item has more than one
-recorded watch, a second line below "Last Played" reads "Watched Twice" (or "Watched N
-Times" for more) - `actualWatchLabel` in `dashboard.js`, driven by the same watch-count
-figure (`watch_count`, falling back to `playHistory.length`) as the movie detail page's
-rewatch history.
+detail page ([media-detail.md](media-detail.md)). On episode cards the Season/Ep line sits
+directly under the episode name, and "Last Played" sits directly above the app used. Up next
+cards show no availability line; a resume card's progress bar sits above its Watch now apps.
+The Explorer's cards (Movies and TV Shows pages, built by the same renderer) keep "Watched
+Twice" / "Watched N Times" under "Last Played" (`actualWatchLabel` in `dashboard.js`, driven by
+`watch_count`, falling back to `playHistory.length`, as on the movie detail page's rewatch
+history) and keep Season/Ep in the meta block.
 
 Episode cards always prefer the episode *name* stored on the watch record
 (backfilled to a real name at ingest when a media server only reported a coordinate). When a

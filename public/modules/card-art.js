@@ -1,7 +1,7 @@
-import { escapeAttribute, showName } from "./utils.js?v=1.3.0.0.1";
-import { tmdbImage } from "./images.js?v=1.3.0.0.1";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.3.0.0.1";
-import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.1";
+import { escapeAttribute, showName } from "./utils.js?v=1.3.0.0.2";
+import { tmdbImage } from "./images.js?v=1.3.0.0.2";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.3.0.0.2";
+import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.2";
 
 // --- Modern backdrop artwork behind cards -----------------------------------
 // Cards on every page (Dashboard, History, the library, Discover, Watchlist,
@@ -22,10 +22,18 @@ export function artKey(type, { tmdb = "", tvdb = "", imdb = "", title = "" } = {
   return [type, ...parts, name].join("|");
 }
 
-// An episode takes its show's backdrop; a show or a movie its own.
+// An episode takes its own still, falling back to its show's backdrop (the
+// name part of an episode key is "<season>x<episode> <show title>"); a show or
+// a movie takes its own backdrop.
 export function mediaArtKey(entry = {}) {
   const type = String(entry.media_type || entry.mediaType || entry.type || "").toLowerCase();
   if (type === "episode") {
+    const season = Number(entry.season);
+    const episode = Number(entry.episode);
+    const showTitle = entry.show_title || showName(entry.title);
+    if (Number.isInteger(season) && Number.isInteger(episode) && entry.season != null && entry.episode != null) {
+      return artKey("episode", { tmdb: entry.show_tmdb_id, tvdb: entry.show_tvdb_id, imdb: entry.show_imdb_id, title: `${season}x${episode} ${showTitle}` });
+    }
     return artKey("tv", { tmdb: entry.show_tmdb_id, tvdb: entry.show_tvdb_id, imdb: entry.show_imdb_id, title: entry.show_title || showName(entry.title) });
   }
   const kind = ["tv", "show", "series"].includes(type) ? "tv" : "movie";
@@ -50,6 +58,14 @@ let artSheet = null;
 async function resolveBackdrop(key) {
   const [type, tmdb, tvdb, imdb, ...title] = key.split("|");
   try {
+    if (type === "episode") {
+      const [, season, episode, showTitle] = /^(\d+)x(\d+) (.*)$/s.exec(title.join("|")) || [];
+      const showId = tmdb || (tvdb ? `tvdb:${tvdb}` : "");
+      const seasonData = showId ? await fetchTmdbSeasonDetails(showId, Number(season)) : null;
+      const still = seasonData?.episodes?.find((item) => Number(item.episode_number) === Number(episode))?.still_path;
+      if (still) return tmdbImage(still, "w780");
+      return resolveBackdrop(["tv", tmdb, tvdb, imdb, showTitle || ""].join("|"));
+    }
     const details = await fetchTmdbDetails(type, tmdb, title.join("|"), { tvdbId: tvdb, imdbId: imdb }, { light: true });
     if (!details) return null;
     return details.cached_backdrop_url || tmdbImage(details.backdrop_path, "w780") || "";

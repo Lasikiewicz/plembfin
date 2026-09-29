@@ -126,7 +126,9 @@ Rules that keep this correct:
   have no hooks for it.
 - The Posters only switch on Library, Discover, History, Watchlist, Ratings, and Playlists
   (`data-card-mode-toggle`, wired in `app-events.js`, which puts `.page-card-mode-compact` on
-  the page panel) folds every item to its poster in every view. `modules/page-card-open.js`
+  the page panel) folds every item to its poster in every view. The Library switch is
+  remembered separately for Movies and TV Shows (`explorerCardModeKey` in `state.js`, re-synced
+  by `renderExplorer` on a switch). `modules/page-card-open.js`
   (imported by `media-card.js` and `dashboard-modern.js`) gives those posters the Dashboard
   compact rows' behaviour: a capture-phase click on a folded poster adds `.page-card-open`
   to it instead of following its link, closing the one that was open; a click on the open
@@ -623,7 +625,7 @@ The size limits and grandfathered files that constrain these modules are in `CLA
 | Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
 | Sync Activity page (`/sync-activity`), including its route-scoped action/event handlers | `modules/sync-activity.js` |
 | Dashboard rendering | `modules/dashboard.js` |
-| Modern-style-only dashboard behaviour (collapsed runs, Now Playing feature layout) and the compact Recently watched rows | `modules/dashboard-modern.js` |
+| Modern-style-only dashboard behaviour (TV runs collapsed only in posters-only mode, Now Playing feature layout) and the compact Recently watched rows | `modules/dashboard-modern.js` |
 | Modern backdrop artwork behind cards on every page | `modules/card-art.js` |
 | Posters only on the library and media pages: a clicked poster opens its card in place | `modules/page-card-open.js` |
 | History, Posters only: episode, date and app overlaid on each poster | `modules/history-poster-overlay.js` |

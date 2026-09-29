@@ -1,12 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.1";
-import { state, elements } from "./state.js?v=1.3.0.0.1";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.0.0.1";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.0.0.1";
-import { ifLoaded } from "./route-modules.js?v=1.3.0.0.1";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.0.0.1";
-import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.1";
-import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.0.0.1";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.2";
+import { state, elements } from "./state.js?v=1.3.0.0.2";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.0.0.2";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.0.0.2";
+import { ifLoaded } from "./route-modules.js?v=1.3.0.0.2";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.0.0.2";
+import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.2";
+import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.0.0.2";
+import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.2";
 
 // The setup wizard loads only when setup is unfinished or its checklist has
 // items (see the deferred check in app.js); until then there is nothing to show.
@@ -317,16 +317,6 @@ function hasActualResumeProgress(entry = {}) {
     || Number(entry.progress ?? 0) > 0;
 }
 
-function upNextAvailabilityLabel(entry = {}) {
-  if (String(entry.queue_kind || "") === "resume" && !upNextPlaybackPositionKnown(entry)) return "Continue watching";
-  const airDate = entry.air_date || entry.airDate || "";
-  if (!airDate) return "Ready to watch";
-  const airDateKey = String(airDate).trim().slice(0, 10);
-  return airDateKey > new Date().toISOString().slice(0, 10)
-    ? `Airs ${formatTmdbDate(airDate)}`
-    : `Ready since ${formatTmdbDate(airDate)}`;
-}
-
 function dashboardUpNextEpisodeTitle(entry, showTitle) {
   const storedTitle = String(entry.episode_title || entry.episodeTitle || "").trim();
   const generatedTitle = episodeTitle(entry.title || "", entry.episode);
@@ -485,6 +475,42 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
         </div>
       `;
 
+  // Dashboard cards show Season/Ep right under the episode name and drop the
+  // "Available" row and the watch-count pill; Explorer cards keep the old meta.
+  const seasonEpisodeBelowName = isEpisode && !options.explorer;
+  const seasonEpisodeRow = `
+          <div class="history-card-meta-row">
+            <span class="meta-label">Season/Ep:</span>
+            <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
+          </div>`;
+  const metaRows = [
+    isEpisode && !seasonEpisodeBelowName ? seasonEpisodeRow : "",
+    !isUpNext ? `
+          <div class="history-card-meta-row">
+            <span class="meta-label">Last Played:</span>
+            <span class="meta-value ${isPartWatched ? "part-watched-last-played-value" : ""}">${formatDate(watchedAt)}</span>
+          </div>` : "",
+    !isPartWatched && !isUpNext && options.explorer && actualWatchLabel(entry) ? `
+          <div class="history-card-meta-row">
+            <span class="meta-value history-card-watch-count">${escapeHtml(actualWatchLabel(entry))}</span>
+          </div>` : "",
+  ].filter(Boolean);
+  const metaHtml = metaRows.length ? `<div class="history-card-meta">${metaRows.join("")}
+        </div>` : "";
+
+  // Up next cards show the progress bar above the "Watch now" apps.
+  const progressHtml = showProgress ? `
+          <div class="part-watched-progress-container${isUpNext ? " up-next-progress-container" : ""}">
+            <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
+            ${isUpNext
+              ? `<div class="up-next-progress-row">
+                  <span class="part-watched-progress-text">${partProgress}% watched</span>
+                  <button class="icon-button up-next-clear-button" type="button" aria-label="Clear progress" title="Clear progress" data-up-next-clear="${escapeAttribute(cardId)}">Clear</button>
+                </div>`
+              : `<span class="part-watched-progress-text">${partProgress}% watched</span>`}
+          </div>
+        ` : "";
+
   return `
     ${cardOpen}
       <div class="history-card-poster-wrapper">
@@ -495,43 +521,12 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
         <div class="history-card-header">
           ${titleHtml}
           ${options.explorerSummary !== undefined ? `<p class="history-card-summary" data-overview-text>${escapeHtml(options.explorerSummary)}</p>` : isEpisode ? `<span class="history-card-episode"${!isUpNext ? ` data-episode-title-key="${escapeAttribute(dashboardEpisodeTitleKey(entry))}"` : ""} title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
+          ${seasonEpisodeBelowName ? seasonEpisodeRow : ""}
         </div>
-        <div class="history-card-meta">
-          ${isEpisode ? `
-            <div class="history-card-meta-row">
-              <span class="meta-label">Season/Ep:</span>
-              <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
-            </div>
-          ` : ""}
-          ${isUpNext ? `
-            <div class="history-card-meta-row">
-              <span class="meta-label">Available:</span>
-              <span class="meta-value">${escapeHtml(isSaving ? "Saving…" : upNextAvailabilityLabel(entry))}</span>
-            </div>
-          ` : `
-            <div class="history-card-meta-row">
-              <span class="meta-label">Last Played:</span>
-              <span class="meta-value ${isPartWatched ? "part-watched-last-played-value" : ""}">${formatDate(watchedAt)}</span>
-            </div>
-          `}
-          ${!isPartWatched && !isUpNext && actualWatchLabel(entry) ? `
-            <div class="history-card-meta-row">
-              <span class="meta-value history-card-watch-count">${escapeHtml(actualWatchLabel(entry))}</span>
-            </div>
-          ` : ""}
-        </div>
+        ${metaHtml}
+        ${isUpNext ? progressHtml : ""}
         ${watchNowFooter}
-        ${showProgress ? `
-          <div class="part-watched-progress-container${isUpNext ? " up-next-progress-container" : ""}">
-            <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
-            ${isUpNext
-              ? `<div class="up-next-progress-row">
-                  <span class="part-watched-progress-text">${partProgress}% watched</span>
-                  <button class="icon-button up-next-clear-button" type="button" aria-label="Clear progress" title="Clear progress" data-up-next-clear="${escapeAttribute(cardId)}">Clear</button>
-                </div>`
-              : `<span class="part-watched-progress-text">${partProgress}% watched</span>`}
-          </div>
-        ` : ""}
+        ${isUpNext ? "" : progressHtml}
         ${partActions}
       </div>
     ${cardClose}

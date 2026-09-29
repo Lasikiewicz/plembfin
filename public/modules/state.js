@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.3.0.0.1";
-import { readStoredDebugLogs } from "./logs.js?v=1.3.0.0.1";
-import { isDemoMode } from "./utils.js?v=1.3.0.0.1";
+import { readStoredAdminToken } from "./auth.js?v=1.3.0.0.2";
+import { readStoredDebugLogs } from "./logs.js?v=1.3.0.0.2";
+import { isDemoMode } from "./utils.js?v=1.3.0.0.2";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -12,6 +12,8 @@ export const EXPLORER_SORT_KEY_MOVIES = "plembfin:explorerSort:movies";
 export const EXPLORER_SORT_KEY_SHOWS = "plembfin:explorerSort:shows";
 export const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
 export const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
+// Posters-only toggle of the Movies and TV Shows libraries, remembered separately.
+export const explorerCardModeKey = (mode) => `plembfin:card-mode:explorer-${mode === "shows" ? "shows" : "movies"}`;
 export const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 export const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 export const HIDE_EPISODE_SPOILERS_KEY = "plembfin:hideEpisodeSpoilers";
