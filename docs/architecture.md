@@ -239,6 +239,7 @@ before reversing something that looks unnecessarily cautious.
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
 | `diagnosticLogger.js` | Wraps `console.log/warn/error` and writes captured lines (secrets redacted) to the `diagnostic_log` table for Settings → Logs (`/api/diagnostic-logs`). Batches writes, caps the table at 20,000 rows, and prunes the `data/logs` JSONL archive on boot. |
 | `logVerbose.js` | `LOG_VERBOSE` flag plus `traceLog()`, used to keep per-request tracing (Plex GUID lookups, search fallbacks) out of the log unless explicitly enabled. |
+| `cacheWarmup.js` | Background warm-up of the history-derived page caches after startup and after data changes settle (5 s quiet, 60 s ceiling); started by `server/server.js` in the web-serving process only. See "Data layer". |
 | `cacheTelemetry.js` | Derived-cache rebuild counters: per cache, how many rebuilds, total/max/mean milliseconds, and which labelled generation change each was for. `timeCacheRebuild`/`timeCacheRebuildAsync` wrap the rebuild itself, so a cache hit costs nothing. Logs per rebuild under `PLEMBFIN_DEBUG_CACHE_REBUILDS`; `cacheRebuildTelemetry()` returns the snapshot. |
 | `posterCache.js` | Artwork fetch-resize-store pipeline: downloads a remote image (Plex token moved to a header), resizes with sharp to webp (poster 340w / backdrop 1600w / profile 780w / logo 800w), writes to `data/media/<variant>s/`, records metadata in `poster_cache` with negative caching for missing/failed. See [posters-artwork.md](posters-artwork.md). |
 | `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data - see [metadata.md](metadata.md). Also caches what an IMDb/TVDB id is to TMDB `find` (series, episode with show and coordinate, or nothing) for the playstate alias repair. |
@@ -739,6 +740,23 @@ history-derived result sets after invalidation. That is acceptable for current l
 install sizes, but large datasets should move hot paths to indexed SQL with
 `LIMIT`/`OFFSET` before adding more full-table caches. `PLEMBFIN_DEBUG_CACHE_REBUILDS=1`
 reports what each rebuild actually costs and which caller's invalidation caused it.
+
+**Background warm-up** (`server/src/utils/cacheWarmup.js`): so a page request does not pay
+those rebuilds, the process that serves the UI polls the history version once a second and,
+after startup and once changes have been quiet for 5 seconds (at least every 60 seconds
+while they keep arriving), calls the same getters the main pages use: full history, the
+dashboard preview, the History page artwork index, TV Shows, Movies, Stats, and the
+scheduled-show list behind Upcoming. It is single-flight, yields between caches, abandons
+the run if the version moves, and never calls a provider. Before each cache it waits while
+API requests are still arriving (any request other than `/api/ping` in the last 50 ms, for
+at most 1 second), so page loads go first. The builds themselves also yield: the per-show
+grouping pass (`groupShowRowsYielding()` in `dataRepo.js`, used by the show caches, the
+dashboard preview, and the artwork index) runs in 25 ms slices, and the tvdb-to-TMDB
+lookup in `mediaArtwork.js` reads tvdb ids with SQLite `json_extract` and parses a show's
+cached details only when that show is looked up. No single step blocks the server for more
+than about 150 ms on a 9,000-row library (it was about 550 ms). Each run logs one
+`[cache-warmup]` line with the version, per-cache milliseconds, and whether it was
+abandoned. It changes only when caches are built, never what they contain.
 
 Scale behavior: `getCachedHistory()` is uncapped, and the dashboard preview, Stats, and TV
 Shows library therefore describe the full history. `MAX_HISTORY_LIMIT` remains an API

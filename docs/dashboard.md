@@ -231,7 +231,7 @@ isolated and immediate when a user opens a media page.
 to two rows of whatever the viewport holds (`getRowFitLimit`,
 `updateDashboardSplitState` re-fits on resize). Same-day duplicate rows are collapsed
 (`dedupeMediaRecords`) so webhook echoes don't crowd the rail. The rendered payload is
-cached in localStorage (`plembfin:dashboardHistory:v1`, 24h TTL) for instant paint on
+cached in localStorage (`plembfin:dashboardHistory:v1`, 14 day TTL, revalidated on every load) for instant paint on
 reload; the `X-Now-Playing-Refresh` header from the now-playing poll signals when to
 re-fetch.
 

@@ -557,3 +557,41 @@ export function versionDisplayLabel(version, channel, alphaBuild, developBuild) 
   }
   return formatBuildVersion(version) || "";
 }
+
+// Hands the rest of a long list to `append` a chunk at a time in idle time, so
+// a page can paint its first screen without building every row first. The
+// caller does the DOM writes; `append` returns false when its list has gone,
+// which stops the run. A newer run for the same key cancels the older one
+// (including a run with nothing left to append), so a re-render never gets
+// stale rows added to it. `onComplete` runs once every chunk is in.
+const chunkRuns = new Map();
+function scheduleIdleChunk(step) {
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(step, { timeout: 200 });
+  } else {
+    setTimeout(step, 0);
+  }
+}
+export function appendRestInChunks(key, rest, { append, onComplete, chunkSize = 60, schedule = scheduleIdleChunk } = {}) {
+  const run = {};
+  chunkRuns.set(key, run);
+  let index = 0;
+  const step = () => {
+    if (chunkRuns.get(key) !== run) return;
+    if (index < rest.length) {
+      if (append(rest.slice(index, index + chunkSize)) === false) {
+        chunkRuns.delete(key);
+        return;
+      }
+      index += chunkSize;
+      if (index < rest.length) {
+        schedule(step);
+        return;
+      }
+    }
+    chunkRuns.delete(key);
+    onComplete?.();
+  };
+  if (rest.length) schedule(step);
+  else step();
+}

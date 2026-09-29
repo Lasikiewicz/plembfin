@@ -45,6 +45,11 @@ let historyCache = { version: null, rows: [] };
 let historyArtworkCache = { version: null, byId: null, byMediaKey: null, byCoordinate: null };
 const historyArtworkBuilds = new Map();
 let showCache = { version: null, shows: [] };
+let historyPreviewCache = { version: null, rows: new Map() };
+const historyPreviewBuilds = new Map();
+// Longest synchronous run a background-capable cache build does before
+// letting other requests in (see groupShowRowsYielding).
+const REBUILD_SLICE_MS = 25;
 // The includeScheduledLibraryHistory variant returns a different show set, so it
 // needs its own slot. Without one it was recomputed from the full watch history
 // on every call - the Upcoming calendar asks for it once per month requested.
@@ -1010,7 +1015,7 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       // instead of disappearing entirely.
       const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
         && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedEpisodeRow(r)));
-      const groups = groupShowRows(dedupeHistory(episodeRows));
+      const groups = await groupShowRowsYielding(dedupeHistory(episodeRows));
       // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
       // at library scale that's enough synchronous work in one pass to block the
       // event loop for a second or more. Yield frequently, and share this whole
@@ -3573,6 +3578,36 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   // though the result was never consumed, making the dashboard's first
   // /api/history request block the event loop behind a full show projection.
   const all = await getCachedHistory();
+  // Regrouping every episode is the whole cost of this endpoint (~1 s on a real
+  // library), and its inputs are fixed for a data generation, so reuse the
+  // result until the version moves.
+  const previewVersion = getDataVersion();
+  if (historyPreviewCache.version === previewVersion && historyPreviewCache.rows.has(safeLimit)) {
+    return historyPreviewCache.rows.get(safeLimit);
+  }
+  // The build yields part-way, so share one build between concurrent callers
+  // (the background warm-up and a dashboard request) instead of running two.
+  const buildKey = `${previewVersion}|${safeLimit}`;
+  let pending = historyPreviewBuilds.get(buildKey);
+  if (!pending) {
+    pending = buildHistoryPreview(all, safeLimit);
+    historyPreviewBuilds.set(buildKey, pending);
+  }
+  try {
+    const combined = await pending;
+    // A write can land while the build is yielding: still answer this request
+    // from the generation it started on, but never cache that under a newer one.
+    if (getDataVersion() === previewVersion) {
+      if (historyPreviewCache.version !== previewVersion) historyPreviewCache = { version: previewVersion, rows: new Map() };
+      historyPreviewCache.rows.set(safeLimit, combined);
+    }
+    return combined;
+  } finally {
+    if (historyPreviewBuilds.get(buildKey) === pending) historyPreviewBuilds.delete(buildKey);
+  }
+}
+
+async function buildHistoryPreview(all, safeLimit) {
   // Same-title series must be enriched from the provider-aware episode group,
   // not a title map whose last entry wins. The resulting show_* fields let
   // dashboard history links use the same unambiguous route as the TV Shows
@@ -3580,7 +3615,7 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   const showByEpisodeId = new Map();
   const showByAliasCoordinate = new Map();
   const previewShowRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row));
-  for (const group of groupShowRows(dedupeHistory(previewShowRows))) {
+  for (const group of await groupShowRowsYielding(dedupeHistory(previewShowRows))) {
     const hasProviderIdentity = Boolean(group.tvdb_id || group.tmdb_id || group.imdb_id);
     for (const episode of group.episodes || []) {
       if (episode.id && hasProviderIdentity) showByEpisodeId.set(String(episode.id), group);
@@ -6027,7 +6062,31 @@ function mostRecentShowFirst(shows = []) {
   });
 }
 
-function groupShowRows(rows = []) {
+export function groupShowRows(rows = []) {
+  return [...collectShowGroups(rows).values()].map(finishShowGroup);
+}
+
+// The same result as groupShowRows, for cache builds that can run in the
+// background. The per-show pass reads and parses cached metadata for every
+// show (about 0.5 s on a real library), so it runs in short slices with the
+// event loop free between them instead of stalling every other request.
+export async function groupShowRowsYielding(rows = []) {
+  await yieldToEventLoop();
+  const groups = [...collectShowGroups(rows).values()];
+  await yieldToEventLoop();
+  const finished = [];
+  let sliceStart = performance.now();
+  for (const group of groups) {
+    if (performance.now() - sliceStart >= REBUILD_SLICE_MS) {
+      await yieldToEventLoop();
+      sliceStart = performance.now();
+    }
+    finished.push(finishShowGroup(group));
+  }
+  return finished;
+}
+
+function collectShowGroups(rows = []) {
   const groupKeys = showGroupKeys(rows);
   const groups = new Map();
   rows.forEach((row) => {
@@ -6101,62 +6160,64 @@ function groupShowRows(rows = []) {
     }
     groups.set(key, group);
   });
-  return [...groups.values()].map((group) => {
-    const watchedEpisodes = group.episodes.filter(isWatchedAction);
-    const totalWatches = watchedEpisodes.reduce((total, episode) => (
-      total + (Array.isArray(episode.playHistory) && episode.playHistory.length ? episode.playHistory.length : 1)
-    ), 0);
-    const rewatchedEpisodeCount = watchedEpisodes.filter((episode) => (
-      Array.isArray(episode.playHistory) && episode.playHistory.length > 1
-    )).length;
-    const topTmdbId = [...group.tmdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-    const topImdbId = [...group.imdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-    // A lone same-title row can be folded into an established cluster (see
-    // showGroupKeys). Its tvdb id belongs to its own TMDB show, so taking it
-    // gave the group a mixed identity: the 2026 Scrubs reboot's TMDB/IMDb ids
-    // plus the 2001 show's TVDB id, which Up Next then matched to both shows.
-    // Only rows with no TMDB id or the group's TMDB id may supply the tvdb id.
-    const tvdbCandidates = topTmdbId
-      ? [...(group.tvdbIdsByTmdb.get(topTmdbId) || []), ...(group.tvdbIdsByTmdb.get("") || [])]
-      : [...group.tvdbIdCandidates];
-    const topTvdbId = cachedShowTvdbId(...tvdbCandidates) || null;
-    const canonicalPosterUrl = getCanonicalPosterUrl({
-      media_type: "tv",
-      title: group.title,
-      tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || "",
-      // Keep an unverified candidate available for artwork lookup. The
-      // media-artwork resolver only accepts it when a cached TVDB/TMDB record
-      // proves it is a series id, so episode-level ids remain harmless.
-      tvdb_id: topTvdbId || tvdbCandidates[0] || "",
-      imdb_id: topImdbId || group.representative_episode?.imdb_id || "",
-    });
-    return {
-      ...group,
-      season_count: group.seasons.size,
-      seasons: undefined,
-      total_watches: totalWatches,
-      rewatched_episode_count: rewatchedEpisodeCount,
-      // This is the show-level poster. Episode objects below retain their own
-      // poster_url so episode-specific artwork is never replaced by the show
-      // override.
-      poster_url: canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || null,
-      show_poster_url: canonicalPosterUrl || null,
-      canonical_poster_url: canonicalPosterUrl || null,
-      logo_url: group.logo_url || group.representative_episode?.logo_url || null,
-      backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
-      tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || null,
-      imdb_id: topImdbId || group.representative_episode?.imdb_id || null,
-      tvdb_id: topTvdbId,
-      tvdbIdCandidates: undefined,
-      tvdbIdsByTmdb: undefined,
-      tmdbIdCounts: undefined,
-      imdbIdCounts: undefined,
-      representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
-      episodes: group.episodes
-        .map((episode) => ({ ...episode, show_title: group.title }))
-        .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
-    };
+  return groups;
+}
+
+function finishShowGroup(group) {
+  const watchedEpisodes = group.episodes.filter(isWatchedAction);
+  const totalWatches = watchedEpisodes.reduce((total, episode) => (
+    total + (Array.isArray(episode.playHistory) && episode.playHistory.length ? episode.playHistory.length : 1)
+  ), 0);
+  const rewatchedEpisodeCount = watchedEpisodes.filter((episode) => (
+    Array.isArray(episode.playHistory) && episode.playHistory.length > 1
+  )).length;
+  const topTmdbId = [...group.tmdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const topImdbId = [...group.imdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  // A lone same-title row can be folded into an established cluster (see
+  // showGroupKeys). Its tvdb id belongs to its own TMDB show, so taking it
+  // gave the group a mixed identity: the 2026 Scrubs reboot's TMDB/IMDb ids
+  // plus the 2001 show's TVDB id, which Up Next then matched to both shows.
+  // Only rows with no TMDB id or the group's TMDB id may supply the tvdb id.
+  const tvdbCandidates = topTmdbId
+    ? [...(group.tvdbIdsByTmdb.get(topTmdbId) || []), ...(group.tvdbIdsByTmdb.get("") || [])]
+    : [...group.tvdbIdCandidates];
+  const topTvdbId = cachedShowTvdbId(...tvdbCandidates) || null;
+  const canonicalPosterUrl = getCanonicalPosterUrl({
+    media_type: "tv",
+    title: group.title,
+    tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || "",
+    // Keep an unverified candidate available for artwork lookup. The
+    // media-artwork resolver only accepts it when a cached TVDB/TMDB record
+    // proves it is a series id, so episode-level ids remain harmless.
+    tvdb_id: topTvdbId || tvdbCandidates[0] || "",
+    imdb_id: topImdbId || group.representative_episode?.imdb_id || "",
   });
+  return {
+    ...group,
+    season_count: group.seasons.size,
+    seasons: undefined,
+    total_watches: totalWatches,
+    rewatched_episode_count: rewatchedEpisodeCount,
+    // This is the show-level poster. Episode objects below retain their own
+    // poster_url so episode-specific artwork is never replaced by the show
+    // override.
+    poster_url: canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || null,
+    show_poster_url: canonicalPosterUrl || null,
+    canonical_poster_url: canonicalPosterUrl || null,
+    logo_url: group.logo_url || group.representative_episode?.logo_url || null,
+    backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
+    tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || null,
+    imdb_id: topImdbId || group.representative_episode?.imdb_id || null,
+    tvdb_id: topTvdbId,
+    tvdbIdCandidates: undefined,
+    tvdbIdsByTmdb: undefined,
+    tmdbIdCounts: undefined,
+    imdbIdCounts: undefined,
+    representative_episode: group.representative_episode ? { ...group.representative_episode, show_title: group.title } : null,
+    episodes: group.episodes
+      .map((episode) => ({ ...episode, show_title: group.title }))
+      .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
+  };
 }
 
 async function getCachedHistoryArtworkIndex() {
@@ -6170,7 +6231,7 @@ async function getCachedHistoryArtworkIndex() {
         const allEpisodeRows = (await getCachedHistory()).filter((row) => (
           row?.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)
         ));
-        const groups = groupShowRows(dedupeHistory(allEpisodeRows));
+        const groups = await groupShowRowsYielding(dedupeHistory(allEpisodeRows));
         const byId = new Map();
         const byMediaKey = new Map();
         const byCoordinate = new Map();

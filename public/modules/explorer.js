@@ -10,7 +10,7 @@ import {
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
-  computeProgress, sanitizeTitle, episodeTitle, episodeCode,
+  computeProgress, sanitizeTitle, episodeTitle, episodeCode, appendRestInChunks,
 } from "./utils.js?v=1.3.0.0.0";
 import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.3.0.0.0";
 import {
@@ -203,6 +203,7 @@ function resolveEpisodeTitleFromTmdb(entry, el) {
 // Constants
 // ---------------------------------------------------------------------------
 const EXPLORER_PAGE_SIZE = 240;
+const HISTORY_FIRST_PAINT_COUNT = 48; // more than a large screen shows at once
 export const FILMOGRAPHY_PAGE_SIZE = 40;
 // ---------------------------------------------------------------------------
 // Module-level mutable state
@@ -1573,16 +1574,16 @@ function renderHistoryPageCard(entry) {
     </a>
   `;
 }
-export function renderHistoryItems() {
+function historyItemLayout() {
+  if (state.historyViewMode === "list") return { listClass: "history-table-view", head: renderHistoryListHeader(), renderItem: renderHistoryListRow };
+  if (state.historyViewMode === "cards") return { listClass: "history-list", head: "", renderItem: renderHistoryPageCard };
+  return { listClass: "history-grid-view", head: "", renderItem: renderHistoryGridCard };
+}
+export function renderHistoryItems(items = state.historyViewRaw) {
   if (!state.historyViewRaw.length) return emptyExplorer("No watch history items found");
   const sentinel = `<div class="explorer-scroll-sentinel" data-history-sentinel aria-live="polite"><span>${state.historyViewLoading ? "Loading..." : ""}</span></div>`;
-  if (state.historyViewMode === "list") {
-    return `<div class="history-table-view">${renderHistoryListHeader()}${state.historyViewRaw.map(renderHistoryListRow).join("")}</div>${sentinel}`;
-  }
-  if (state.historyViewMode === "cards") {
-    return `<div class="history-list">${state.historyViewRaw.map(renderHistoryPageCard).join("")}</div>${sentinel}`;
-  }
-  return `<div class="history-grid-view">${state.historyViewRaw.map(renderHistoryGridCard).join("")}</div>${sentinel}`;
+  const { listClass, head, renderItem } = historyItemLayout();
+  return `<div class="${listClass}">${head}${items.map(renderItem).join("")}</div>${sentinel}`;
 }
 export function renderHistoryView() {
   if (state.activeView !== "history" || state.mediaDetailInline) return;
@@ -1608,10 +1609,22 @@ export function renderHistoryView() {
     button.classList.toggle("active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
   }
-  elements.historyPanel.innerHTML = renderHistoryItems();
-  hydratePosters(elements.historyPanel);
-  observeHistorySentinel();
-  observeExplorerTmdbPrefetch(elements.historyPanel);
+  // Scrolled to the start, only the first cards are on screen: draw those now and
+  // the rest in idle time. Scrolled into the list (paging, in-place refresh), draw
+  // it whole so the scroll position holds. The sentinel waits for the last chunk.
+  const panel = elements.historyPanel;
+  const atStart = panel.getBoundingClientRect().top >= 0 && !panel.querySelector(".history-list")?.scrollLeft;
+  const firstCount = atStart ? HISTORY_FIRST_PAINT_COUNT : Infinity, { listClass, renderItem } = historyItemLayout();
+  panel.innerHTML = renderHistoryItems(state.historyViewRaw.slice(0, firstCount));
+  hydratePosters(panel);
+  appendRestInChunks(panel, state.historyViewRaw.slice(firstCount), {
+    append: (items) => {
+      const list = panel.querySelector(`.${listClass}`);
+      list?.insertAdjacentHTML("beforeend", items.map(renderItem).join(""));
+      return Boolean(list);
+    },
+    onComplete: () => { observeHistorySentinel(); observeExplorerTmdbPrefetch(panel); },
+  });
 }
 export async function loadHistoryView() {
   if (state.historyViewLoading || !state.historyViewHasMore) return;

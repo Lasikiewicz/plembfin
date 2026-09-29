@@ -379,6 +379,14 @@ of a premature "no episodes" message.
   (`clearEmptyAppLinksCache()` drops it when the media configuration changes, since
   connecting a server changes what can be found); a populated result is never
   cached server-side, so a link can never go stale.
+  A media server whose lookup could not connect or timed out is skipped by this
+  lookup for 60 seconds, then tried again, so a stopped server no longer makes every
+  detail page wait on it. Only a server that did not answer at all counts; "not
+  found" and HTTP errors do not. While a server is skipped or its lookup failed, the
+  answer carries `partial: true`: the server does not remember it as an empty
+  result, the browser refreshes it after 60 seconds instead of 5 minutes, and that
+  server's pill is simply absent (the same look as not found). This state is
+  private to app links and never affects sync or health reporting.
   The pills render (`mediaAppLinksHtml` in `media-detail-shared.js`) as their own
   "Watch Now" row inside the Media facts panel, the last row on the page.
 - **One show lookup per page.** A detail page resolves its show through several

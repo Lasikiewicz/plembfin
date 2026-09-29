@@ -272,6 +272,10 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   pages) for vertical views; the mobile History card rail loads its next page when
   the user reaches the right edge so horizontal layout does not eagerly fetch the
   complete log.
+- History draws a fresh page (scrolled to its start) as its first 48 cards, then appends
+  the rest of the page in idle-time chunks (`appendRestInChunks()` in `utils.js`); its
+  paging sentinel is observed only after the last chunk. Re-renders while scrolled into
+  the list (paging, in-place refresh) draw the whole list at once so scroll holds.
 - Poster hydration is observer-gated and cached - see
   [posters-artwork.md](posters-artwork.md).
 - Now Playing polls only while the dashboard is visible - see

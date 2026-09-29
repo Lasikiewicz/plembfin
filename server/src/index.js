@@ -25,6 +25,7 @@ import { handlePlaystateAliases } from "./routes/playstateAliases.js";
 import { isDemoMode } from "./utils/demoMode.js";
 import { handleTautulli } from "./routes/tautulli.js";
 import { handlePlembfinRestore, handlePlembfinRestoreUpload } from "./routes/plembfinRestore.js";
+import { noteRequestActivity } from "./utils/cacheWarmup.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -99,6 +100,8 @@ function demoMutationResponse(path, res) {
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
+    // Health checks poll constantly and cost nothing; only real requests hold off the warm-up.
+    if (path !== "ping") noteRequestActivity();
     if (isDemoMode()) {
       if (demoRouteDisabled(path)) {
         return sendJson(res, {

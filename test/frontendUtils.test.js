@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  appendRestInChunks,
   escapeHtml,
   escapeAttribute,
   formatDuration,
@@ -72,4 +73,54 @@ test("formatSeasonTitle preserves season numbers even when custom season titles 
   assert.equal(formatSeasonTitle(0, "Specials"), "Specials");
   assert.equal(formatSeasonTitle(0, "Trailers & Extras"), "Specials - Trailers & Extras");
   assert.equal(formatSeasonTitle(3, "Season 3: The Unsleeping City"), "Season 3 - The Unsleeping City");
+});
+
+function manualScheduler() {
+  const queue = [];
+  return { schedule: (step) => queue.push(step), runNext: () => queue.shift()?.(), pending: () => queue.length };
+}
+
+test("appendRestInChunks appends the rest in order, one chunk per idle step, then completes once", () => {
+  const scheduler = manualScheduler();
+  const appended = [];
+  let completed = 0;
+  appendRestInChunks("list", [1, 2, 3, 4, 5], {
+    chunkSize: 2,
+    schedule: scheduler.schedule,
+    append: (items) => { appended.push(items); },
+    onComplete: () => { completed += 1; },
+  });
+  assert.deepEqual(appended, [], "nothing is appended in the same task as the first paint");
+  while (scheduler.pending()) scheduler.runNext();
+  assert.deepEqual(appended, [[1, 2], [3, 4], [5]]);
+  assert.equal(completed, 1);
+});
+
+test("appendRestInChunks completes immediately when nothing is left", () => {
+  let completed = 0;
+  appendRestInChunks("empty", [], { append: () => assert.fail("no append"), onComplete: () => { completed += 1; } });
+  assert.equal(completed, 1);
+});
+
+test("appendRestInChunks: a newer run for the same key cancels the older one", () => {
+  const scheduler = manualScheduler();
+  const appended = [];
+  let completed = 0;
+  const options = { chunkSize: 1, schedule: scheduler.schedule, append: (items) => { appended.push(...items); }, onComplete: () => { completed += 1; } };
+  appendRestInChunks("panel", ["old-1", "old-2"], options);
+  scheduler.runNext();
+  appendRestInChunks("panel", [], options);
+  while (scheduler.pending()) scheduler.runNext();
+  assert.deepEqual(appended, ["old-1"], "the stale run adds nothing after the re-render");
+  assert.equal(completed, 1, "only the newer run completes");
+});
+
+test("appendRestInChunks stops without completing when the list has gone", () => {
+  const scheduler = manualScheduler();
+  let calls = 0;
+  let completed = 0;
+  appendRestInChunks("gone", [1, 2, 3], { chunkSize: 1, schedule: scheduler.schedule, append: () => { calls += 1; return false; }, onComplete: () => { completed += 1; } });
+  while (scheduler.pending()) scheduler.runNext();
+  assert.equal(calls, 1);
+  assert.equal(completed, 0);
 });

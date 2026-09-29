@@ -33,6 +33,10 @@ const SEERR_STATUS_CACHE_KEY = "plembfin:seerrStatusCache:v1";
 const APP_LINKS_CACHE_KEY = "plembfin:appLinksCache:v1";
 const AVAILABILITY_CACHE_LIMIT = 150;
 const APP_LINKS_REFRESH_TTL_MS = 5 * 60 * 1000;
+// A partial answer (a media server was down and skipped) is refreshed after
+// the server's one-minute retry window, so that server's link returns soon
+// after it is back up instead of up to five minutes later.
+const APP_LINKS_PARTIAL_REFRESH_TTL_MS = 60 * 1000;
 // Lookup key → when it was last refreshed over the network this session, so
 // the repeated re-renders of one detail page don't each refetch app links.
 const appLinksRefreshedAt = new Map();
@@ -88,10 +92,10 @@ function readAppLinksCache() {
   }
 }
 
-function writeAppLinksCacheEntry(cacheKey, links) {
+function writeAppLinksCacheEntry(cacheKey, links, partial = false) {
   try {
     const cache = readAppLinksCache();
-    cache[cacheKey] = { links, ts: Date.now() };
+    cache[cacheKey] = partial ? { links, ts: Date.now(), partial: true } : { links, ts: Date.now() };
     const byRecency = Object.keys(cache).sort((a, b) => (cache[b]?.ts || 0) - (cache[a]?.ts || 0));
     for (const staleKey of byRecency.slice(AVAILABILITY_CACHE_LIMIT)) delete cache[staleKey];
     localStorage.setItem(APP_LINKS_CACHE_KEY, JSON.stringify(cache));
@@ -901,7 +905,8 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
     // other provider work. The links are rendered from cache either way, so
     // this only changes how often the background refresh runs.
     const lastRefreshedAt = Math.max(appLinksRefreshedAt.get(cacheKey) || 0, Number(cachedEntry?.ts) || 0);
-    if (cachedLinks && Date.now() - lastRefreshedAt < APP_LINKS_REFRESH_TTL_MS) return;
+    const refreshTtl = cachedEntry?.partial ? APP_LINKS_PARTIAL_REFRESH_TTL_MS : APP_LINKS_REFRESH_TTL_MS;
+    if (cachedLinks && Date.now() - lastRefreshedAt < refreshTtl) return;
 
     try {
       // Share one request per lookup key across concurrent re-renders. Without
@@ -923,7 +928,7 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       // links last *differed* - so a stable title re-ran this whole 3-provider
       // lookup on every single page load.
       const linksUnchanged = JSON.stringify(body.links) === JSON.stringify(cachedLinks);
-      writeAppLinksCacheEntry(cacheKey, body.links);
+      writeAppLinksCacheEntry(cacheKey, body.links, body.partial === true);
       if (linksUnchanged) return;
       const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle, targetList });
       if (freshRowHtml) {

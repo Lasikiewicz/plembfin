@@ -410,7 +410,9 @@ const NOW_PLAYING_POLL_MS = 10000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
 const DASHBOARD_HISTORY_CACHE_KEY = "plembfin:dashboardHistory:v1";
-const DASHBOARD_HISTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// The snapshot is only a first paint; loadHistory() revalidates it at once, so a
+// long TTL is safe and stops a next-day visit from opening on a blank dashboard.
+const DASHBOARD_HISTORY_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
 const EXPLORER_PAGE_SIZE = 240;

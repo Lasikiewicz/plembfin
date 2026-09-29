@@ -690,31 +690,73 @@ function appIconUrl(config = {}, target = "") {
   return "";
 }
 
-async function fetchConfiguredAppLinks(config = {}, media = {}, requestedTargets = null) {
+async function lookupAppLink(target, config = {}, media = {}) {
+  if (target === "plex") {
+    const item = await findPlexItem(config.plex, media);
+    const url = await plexWebUrl(config.plex, item);
+    return url ? { target, label: "Plex", url, iconUrl: appIconUrl(config.plex, target) } : null;
+  }
+  if (target === "emby") {
+    const items = await findEmbyItems(config.emby, media);
+    const url = await embyWebUrl(config.emby, items?.[0], media);
+    return url ? { target, label: "Emby", url, iconUrl: appIconUrl(config.emby, target) } : null;
+  }
+  if (target === "jellyfin") {
+    const items = await findJellyfinItems(config.jellyfin, media);
+    const url = jellyfinWebUrl(config.jellyfin, items?.[0]);
+    return url ? { target, label: "Jellyfin", url, iconUrl: appIconUrl(config.jellyfin, target) } : null;
+  }
+  return null;
+}
+
+// A stopped media server made every detail page's link lookup wait on it
+// (1.1s for a movie, 3s for a show with Emby and Jellyfin down), and nothing
+// remembered the failure, so the next page paid it again. A server whose
+// lookup could not connect or timed out is skipped here for a minute, then
+// tried again so its links come back on their own. "Not found" and HTTP
+// errors never count: only a server that did not answer at all. This state is
+// private to app links and never feeds sync or health reporting.
+const APP_LINK_DOWN_WINDOW_MS = 60_000;
+const appLinkProviderDownAt = new Map();
+
+function appLinkProviderKey(target, config = {}) {
+  return `${target}|${trimTrailingSlash(config[target]?.baseUrl || "")}`;
+}
+
+function isProviderConnectionFailure(error) {
+  return error?.code === "UPSTREAM_TIMEOUT" || error?.code === "UPSTREAM_REQUEST_FAILED";
+}
+
+export function __resetAppLinkProviderDown() {
+  appLinkProviderDownAt.clear();
+}
+
+// `partial` is true when a server was skipped or failed, so the answer may be
+// missing links that exist; callers must not treat it as a final result.
+export async function fetchConfiguredAppLinks(config = {}, media = {}, requestedTargets = null, { lookup = lookupAppLink, now = Date.now } = {}) {
   const targets = activeMediaTargets(config, requestedTargets);
+  let partial = false;
   const jobs = targets.map(async (target) => {
+    const key = appLinkProviderKey(target, config);
+    const downAt = appLinkProviderDownAt.get(key);
+    if (downAt !== undefined) {
+      if (now() - downAt < APP_LINK_DOWN_WINDOW_MS) {
+        partial = true;
+        return null;
+      }
+      appLinkProviderDownAt.delete(key);
+    }
     try {
-      if (target === "plex") {
-        const item = await findPlexItem(config.plex, media);
-        const url = await plexWebUrl(config.plex, item);
-        return url ? { target, label: "Plex", url, iconUrl: appIconUrl(config.plex, target) } : null;
-      }
-      if (target === "emby") {
-        const items = await findEmbyItems(config.emby, media);
-        const url = await embyWebUrl(config.emby, items?.[0], media);
-        return url ? { target, label: "Emby", url, iconUrl: appIconUrl(config.emby, target) } : null;
-      }
-      if (target === "jellyfin") {
-        const items = await findJellyfinItems(config.jellyfin, media);
-        const url = jellyfinWebUrl(config.jellyfin, items?.[0]);
-        return url ? { target, label: "Jellyfin", url, iconUrl: appIconUrl(config.jellyfin, target) } : null;
-      }
+      return await lookup(target, config, media);
     } catch (error) {
+      partial = true;
+      if (isProviderConnectionFailure(error)) appLinkProviderDownAt.set(key, now());
       console.warn(`App link lookup failed for ${target}: ${error.message || error}`);
     }
     return null;
   });
-  return (await Promise.all(jobs)).filter(Boolean);
+  const links = (await Promise.all(jobs)).filter(Boolean);
+  return { links, partial };
 }
 
 // A title that is in none of the connected libraries still costs a full search
@@ -767,7 +809,12 @@ export async function handleMediaAppLinks(req, res) {
   }
 
   const config = await loadMediaConfig();
-  const links = await fetchConfiguredAppLinks(config, media, requestedAppLinkTargets(req.query.targets));
+  const { links, partial } = await fetchConfiguredAppLinks(config, media, requestedAppLinkTargets(req.query.targets));
+  if (partial) {
+    // A skipped or failed server may hold this title, so the empty answer is
+    // not final; the client also refreshes a partial answer sooner.
+    return sendJson(res, { ok: true, links, partial: true }, 200, { "Cache-Control": "no-store" });
+  }
   if (!links.length) {
     // Bound the map so a long browsing session cannot grow it without limit.
     if (emptyAppLinksCache.size >= 500) {

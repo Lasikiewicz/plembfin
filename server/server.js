@@ -59,6 +59,7 @@ const { recoverInterruptedBackgroundImports } = await import("./src/utils/onboar
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
+const { startCacheWarmup, stopCacheWarmup } = await import("./src/utils/cacheWarmup.js");
 
 ensureDataDirs();
 if (!DEMO_MODE) enableTmdbMetadataWarmup();
@@ -465,6 +466,9 @@ server?.on("listening", async () => {
     });
     return;
   }
+  // Only the process that serves pages warms the page caches; a ROLE=worker
+  // process has no readers for them.
+  startCacheWarmup();
   await coordinator?.start().catch((error) => console.error("Failed to start worker coordinator", error));
 });
 
@@ -487,6 +491,7 @@ async function shutdown(signal) {
     process.exit(1);
   }, 5000);
   timer.unref();
+  await stopCacheWarmup().catch(() => null);
   await coordinator?.stop().catch((error) => console.error("Worker shutdown failed", error));
   const finish = () => {
     // Persist buffered diagnostics while the database is still open.
