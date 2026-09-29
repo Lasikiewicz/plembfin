@@ -1,7 +1,22 @@
 {
-  "version": "1.3.0.0.0",
-  "build": 0,
+  "version": "1.3.0.0.1",
+  "build": 1,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-28T08:17:03.263Z",
-  "entries": []
+  "updatedAt": "2026-09-29T12:44:04.909Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-29T12:44:04.909Z",
+      "commit": "d054badd6ebb20d1997463e0a514a00390019e74",
+      "message": "Performance - Improve page loading and server recovery",
+      "author": "Lasikiewicz",
+      "details": [
+        "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
+        "Page caches warm in the background after startup and when changes settle, so first requests wait less.",
+        "History shows its first 48 cards right away and appends the rest during idle time.",
+        "Cache rebuilds yield between short batches so pages, webhooks, and sync requests stay responsive.",
+        "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover."
+      ]
+    }
+  ]
 }
