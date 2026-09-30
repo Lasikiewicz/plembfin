@@ -50,7 +50,8 @@ Database Repairs contains confirmed tools for repairing derived or duplicate dat
 - **Restore Missing Episode Names** checks episode records and fills a missing name when
   provider metadata supplies one.
 - **Watch-State Aliases** lists episode watch states the automatic repair could not tie to
-  their show, with the reason for each. See [Watch-State Aliases](#watch-state-aliases).
+  their show, including title-only entries and newer entries that conflict with a show's
+  watch state. See [Watch-State Aliases](#watch-state-aliases).
 
 The episode-name audit distinguishes resolved rows, retryable metadata failures, and episodes
 verified by the metadata source as **No title provided**. Repairs can change the rows used by
@@ -60,10 +61,14 @@ History, TV progress, and Stats. Check those views and destination telemetry aft
 
 Duplicate episode watch states are matched to their show automatically through TMDB, TVDB, and
 the show's own IMDb or TVDB id. Select **Check Watch-State Aliases** to list the ones no lookup
-could place, grouped by show with the reason for each:
+could place, grouped by show with the reason for each. The list can also include entries stored
+by title alone and a newer entry whose watched/unwatched state conflicts with the show's row.
+Review the reason and available show identity before choosing an action:
 
-- **Belongs to this show** moves the entries into the show, keeping the newest watch state.
-- **Different show** leaves them alone and stops them being listed or moved again.
+- **Belongs to this show** moves the entries into the selected show, keeping the newest watch
+  state.
+- **Different show** leaves the entries unchanged and stops them being listed or moved again.
+  They appear in **Dismissed**; choose **Restore for review** to return them to the active list.
 
 Only Plembfin's own watch state changes; nothing is sent to connected platforms.
 

@@ -1,7 +1,18 @@
 {
-  "version": "1.3.0.2.0",
-  "build": 0,
+  "version": "1.3.0.2.1",
+  "build": 1,
   "resetCommit": "96ca2cb330de0660efc54bd755fcf937446bfdf9",
-  "updatedAt": "2026-09-30T16:51:09.921Z",
-  "entries": []
+  "updatedAt": "2026-09-30T18:01:21.484Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-30T18:01:21.484Z",
+      "commit": "395e9ac686feaa91780fd0ced8845414b035f13b",
+      "message": "Fix - Use cached season posters on episode cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Episode cards use their season's cached poster when available; TV show cards keep the shared series poster."
+      ]
+    }
+  ]
 }

@@ -92,7 +92,7 @@ Create `docker-compose.yml`:
 ```yaml
 services:
   plembfin:
-    image: ghcr.io/lasikiewicz/plembfin:latest
+    image: plembfin/plembfin:latest
     container_name: plembfin
     ports:
       - "5055:5055"
@@ -103,6 +103,11 @@ services:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env before starting}"
     restart: unless-stopped
 ```
+
+Stable release images are available as `plembfin/plembfin:latest` on Docker Hub and as
+`ghcr.io/lasikiewicz/plembfin:latest` on GitHub Container Registry. You can pin a stable
+version, such as `plembfin/plembfin:1.3.0`. Alpha and develop images are published on GHCR
+only.
 
 Start the container and open `http://localhost:5055`:
 

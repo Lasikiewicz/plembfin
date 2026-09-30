@@ -80,6 +80,10 @@ These states describe delivery, not just the local write.
 A successfully recorded event can therefore have one successful destination and one skipped
 destination at the same time.
 
+Ratings and tiny progress updates do not count as completed watches. Completed playback and
+valid replays on a later day remain watch events. When a Jellyfin event is processed, Plembfin
+keeps its native item ID available for the corresponding provider update.
+
 Personal ratings and Watchlist changes do not enter this watched-state event path. Rating sync
 uses a separate queue for Plex, Emby, Jellyfin, and Trakt. Watchlist sync uses Plex's
 account-level Watchlist as its only provider and keeps the local movie/show list canonical.
@@ -131,6 +135,10 @@ Duplicate delivery of the same event is collapsed instead of creating noisy hist
 
 Retrying a network request is therefore safe, while a new play at a later time remains
 visible in History and Stats.
+
+When a Trakt write has a temporary failure, Plembfin retries it. Before retrying a watched
+play, it checks Trakt history near that play's recorded time; if Trakt already accepted the
+first attempt, Plembfin treats the destination as delivered instead of adding another play.
 
 ## Webhooks, polling, and scheduled work
 
