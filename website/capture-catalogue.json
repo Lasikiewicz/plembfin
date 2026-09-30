@@ -258,7 +258,7 @@
         "modern-light"
       ],
       "route": "/",
-      "state": "Open Dismissed Up Next from the Up Next rail controls so the dialog with Add back and Add all back shows. Needs at least one dismissed item (the script dismisses one first and adds it back afterwards). Never press Add all back.",
+      "state": "Open Dismissed Up Next from the Up Next rail controls so the dialog with Add back and Add all back shows. Opened by #upNextDismissedButton; needs at least one dismissed item (20 were dismissed on 30 September 2026; only if none exist, the script dismisses one first and adds it back afterwards). Never press Add all back.",
       "framing": {
         "type": "viewport"
       },
@@ -1855,11 +1855,11 @@
         "modern-light"
       ],
       "route": "/movie/a-quiet-place",
-      "state": "Movie detail; the Tools menu open (Force Sync, Info, Edit Images, Fix Match, Delete). Press nothing in it.",
+      "state": "Movie detail; the Options menu open (Mark unwatched, Force Sync, Info, Edit Images, Fix Match, Delete). Press nothing in it.",
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-tools-menu",
+          "css": ".actions-tools-dropdown[open] .actions-tools-panel",
           "padding": 8
         },
         "padding": 0
@@ -1903,7 +1903,7 @@
         "modern-light"
       ],
       "route": "/movie/a-quiet-place",
-      "state": "Movie detail; the Info panel open with watch status, latest watched date, sync results and audit details.",
+      "state": "Movie detail; Options, Info: the Info panel open with watch status, latest watched date, sync results and audit details.",
       "framing": {
         "type": "element",
         "target": {
@@ -2363,7 +2363,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".season-accordion[open]"
+          "css": ".season-accordion.is-open"
         },
         "padding": 0
       },
@@ -2404,7 +2404,7 @@
         "modern-light"
       ],
       "route": "/tvshow/the-war-between-the-land-and-the-sea",
-      "state": "The War Between the Land and the Sea detail; the Info panel open with watched episodes, destination results and audit events.",
+      "state": "The War Between the Land and the Sea detail; Options, Info: the Info panel open with watched episodes, destination results and audit events.",
       "framing": {
         "type": "element",
         "target": {
@@ -2456,7 +2456,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".season-accordion[open]"
+          "css": ".season-accordion.is-open"
         },
         "padding": 0
       },
@@ -2503,7 +2503,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".season-accordion[open]"
+          "css": ".season-accordion.is-open"
         },
         "padding": 0
       },
@@ -3743,7 +3743,7 @@
         "type": "crop",
         "source": "settings-restore",
         "target": {
-          "subPanel": "restore-local"
+          "css": "#restore-local"
         },
         "legacyRect": {
           "top": 65,
@@ -3789,12 +3789,12 @@
         "modern-light"
       ],
       "route": "/settings/restore",
-      "state": "Restore page with a watch-history source chosen so the restore scope and merge or replace controls show. Restore nothing.",
+      "state": "Restore page with the Local Watch History Restore accordion (details#local-watch-history-restore) open, so the backup rows and the Merge or Replace choice show. Change and restore nothing.",
       "framing": {
         "type": "crop",
         "source": "settings-restore",
         "target": {
-          "subPanel": "restore-local"
+          "css": "#restore-local"
         },
         "legacyRect": {
           "top": 65,
