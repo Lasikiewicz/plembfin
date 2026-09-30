@@ -181,8 +181,9 @@ Run it at the start of the Force to main website gate, and re-run it until it pa
 npm run check:website-impact
 ```
 
-It also runs inside `node scripts/promote-alpha-to-main.js --preview` and `--confirm`, so it
-cannot be skipped. **Resolving a failure:** update the guide (or record it as reviewed) on
+It also runs inside `node scripts/promote-alpha-to-main.js`: `--preview` lists the guides
+still outstanding without stopping, so the changelog can be approved before any website work,
+and `--confirm` refuses while any remain, so it cannot be skipped. **Resolving a failure:** update the guide (or record it as reviewed) on
 `develop`, commit, re-take the website into the release checkout (skill step 1a), and retry.
 No Force to alpha rerun is needed.
 
