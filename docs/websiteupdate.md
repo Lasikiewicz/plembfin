@@ -124,11 +124,31 @@ When a website update is requested, carry out the following workflow:
 
 ## Force-to-main website gate
 
-When a user requests **Force to main**, complete this file end to end before checking out
-branches, previewing the release, staging, or force-pushing: discover the verification
-baseline, review changes after it, start the local app and website preview, audit content and
-images, check privacy, run the inventory and website checks, and report the local visual
-findings. The website gate is mandatory for every main release.
+Run this gate only after the release-candidate phase of **Force to main** has finished.
+First pin `origin/alpha`, preview the release changelog, start that pinned build, and get
+the user's approval of both the changelog and running app. Record the approved source hash,
+served version, server PID, and approval in the per-release summary. If the candidate changes,
+repeat its approval before starting phase A. The website gate is mandatory for every main
+release.
+
+The gate has three phases, all checked against the same approved release build:
+
+1. **A — review and prepare:** Resolve the current `origin/main` documentation baseline,
+   read the release's website-impact targets, review affected guides in the local website
+   preview, make any edits on local `develop`, and write a standalone `captures.md` list.
+   The application being documented is the pinned alpha candidate running on port 5055,
+   not the `develop` app. Stop after writing the capture list and hand it to phase B.
+2. **B — capture only:** Give a cheaper agent the one-line handoff naming `captures.md`.
+   It reads that file alone, uses the still-running approved app, and saves only into its
+   staging folder. It does not edit `website/` or commit. Failed images remain failed.
+3. **C — place and check:** Review every staged image and its composition/privacy, place
+   accepted images and captions, update the privacy manifest, run the website checks, and
+   commit the completed website work on local `develop`. Only after phase C does the release
+   procedure carry that website tree into the pinned alpha checkout.
+
+Run the automated content-impact check in phase A to establish the guide list, then run it
+again in the alpha checkout after the reviewed website is carried into the release. Finish
+the website checks before promotion can continue.
 
 The automated checks below cannot see a stale caption or a screenshot that was never
 retaken; they pass as long as each needed guide changed. So when a plan tracks the release's
@@ -162,11 +182,11 @@ enforces it:
   or `docs/` paths that no guide covers are printed for review. They do not fail the check.
 
 A needed guide passes when its content differs from the live `origin/main` website in the
-tree being released. That tree includes uncommitted and staged changes, so `develop`'s
-website staged by skill step 1a counts. A `sourceVersion` restamp alone does not count,
-because `promote-alpha-to-main.js` stamps every page. When the review finds a needed guide
-is still accurate, record that in `website/src/data/release-review.json` rather than making
-a cosmetic edit:
+tree being released. Phase C commits the reviewed website on local `develop`; the release
+procedure carries that website into the pinned alpha checkout and runs the definitive gate
+there. A `sourceVersion` restamp alone does not count, because `promote-alpha-to-main.js`
+stamps every page. When the review finds a needed guide is still accurate, record that in
+`website/src/data/release-review.json` rather than making a cosmetic edit:
 
 ```json
 { "publishedVersion": "1.2.1", "unchanged": { "stats": "only the asset restamp touched it" } }
@@ -175,7 +195,8 @@ a cosmetic edit:
 Entries only count while `publishedVersion` is the version live on `origin/main`, so one
 release's review never excuses the next.
 
-Run it at the start of the Force to main website gate, and re-run it until it passes:
+Run it in phase A to guide review, then re-run it in the release checkout after phase C
+until it passes:
 
 ```bash
 npm run check:website-impact
@@ -183,9 +204,9 @@ npm run check:website-impact
 
 It also runs inside `node scripts/promote-alpha-to-main.js`: `--preview` lists the guides
 still outstanding without stopping, so the changelog can be approved before any website work,
-and `--confirm` refuses while any remain, so it cannot be skipped. **Resolving a failure:** update the guide (or record it as reviewed) on
-`develop`, commit, re-take the website into the release checkout (skill step 1a), and retry.
-No Force to alpha rerun is needed.
+and `--confirm` refuses while any remain, so it cannot be skipped. **Resolving a failure:**
+update the guide (or record it as reviewed) during phase A/C on `develop`, commit, carry the
+website into the pinned release checkout again, and retry. No Force to alpha rerun is needed.
 
 Release-bookkeeping commits (changelog rebuilds, alpha/main promotions, build-counter resets)
 are excluded from the walk entirely, since they mechanically restamp most of `public/`

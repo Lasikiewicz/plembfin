@@ -23,6 +23,17 @@ backups/
 # Local editor/agent tooling and instructions.
 CLAUDE.md
 .claude/
+# Keep the tracked release skill's reusable templates with the skill itself.
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/force-to-main/
+.claude/skills/force-to-main/*
+!.claude/skills/force-to-main/SKILL.md
+!.claude/skills/force-to-main/assets/
+.claude/skills/force-to-main/assets/*
+!.claude/skills/force-to-main/assets/*.template.md
 .reasonix/
 .Jules/
 reasonix.toml

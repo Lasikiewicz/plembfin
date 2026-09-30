@@ -149,11 +149,10 @@ Rules that hold regardless of which skill is running:
   manifests or the human website gate.
 - Before Push to git, Force to alpha, or Force to main, check GHCR Cleanup is not mid-run
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this first.
-- "Force to alpha" and "Force to main" force-push shared branches. Show what will land, get
-  explicit chat approval of the previewed changelog before staging, then stop every local server
-  and start the build being published for the user to check before the push. "Force to main"
-  also runs the mandatory website update gate and stops if it produces a website change (that
-  change must travel through "Force to alpha" first).
+- "Force to alpha" and "Force to main" force-push shared branches; follow each skill's
+  changelog and running-build approval gates before pushing. "Force to main" approves the
+  pinned alpha changelog and running build before website phases A/B/C, carries the reviewed
+  website into that release, then stops for a final review of the exact commit before push.
 - Neither force command pushes `develop`. If a procedure tells you to, it is out of date.
 
 ## Documentation and backlog sync
