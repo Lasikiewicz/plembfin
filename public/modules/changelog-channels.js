@@ -374,7 +374,11 @@ export async function renderChangelog(force = false) {
     };
 
     const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
-      const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
+      // Build numbers restart every cycle, so an earlier cycle's build 1 must not
+      // be tagged Current just because the running build is also build 1.
+      const entryBase = baseVersionOf(entry.version);
+      const sameCycle = !entryBase || entryBase === baseVersionOf(data.alphaBuild?.baseVersion);
+      const isCurrent = !pending && sameCycle && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";

@@ -260,7 +260,22 @@ test("the release lock refuses a concurrent session but not an abandoned one", (
 // changelog.alpha.json but never touches the alpha branch, so right after every
 // release a running alpha build legitimately sits on a newer base than the
 // branch does.
-const { describePendingAlphaBuild } = await import("../server/src/routes/maintenance.js");
+const { describePendingAlphaBuild, mergeAlphaEntries } = await import("../server/src/routes/maintenance.js");
+
+test("a new cycle's build 1 is not swallowed by the previous cycle's build 1", () => {
+  const merged = mergeAlphaEntries(
+    [{ build: 1, version: "1.3.0.1.0", details: ["a"] }],
+    [{ build: 1, version: "1.2.2.1.0", details: ["a", "b", "c"] }],
+  );
+  assert.deepEqual(merged.map((e) => e.version).sort(), ["1.2.2.1.0", "1.3.0.1.0"]);
+
+  const sameEntry = mergeAlphaEntries(
+    [{ build: 1, version: "1.3.0.1.0", details: ["a"] }],
+    [{ build: 1, version: "1.3.0.1.0", details: ["a", "b"] }],
+  );
+  assert.equal(sameEntry.length, 1);
+  assert.equal(sameEntry[0].details.length, 2, "the richer copy of the same build survives");
+});
 
 test("an alpha branch behind the running build is never an update", () => {
   const result = describePendingAlphaBuild(
