@@ -3,7 +3,7 @@ title: Dashboard
 description: Read live playback, the mixed Up Next queue, and durable watch history from one screen.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "1.3.0"
+sourceVersion: "1.3.1"
 sourcePaths:
   - public/index.html
   - public/modules/dashboard.js
@@ -37,6 +37,8 @@ screenshots:
   - /assets/app-captures/global-search-light.png
   - /assets/app-captures/now-playing-dark.png
   - /assets/app-captures/now-playing-light.png
+  - /assets/app-captures/now-playing-options-modern-dark.png
+  - /assets/app-captures/now-playing-options-modern-light.png
 ---
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
@@ -115,8 +117,8 @@ or Jellyfin.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/now-playing-dark.png"
   lightSrc="/assets/app-captures/now-playing-light.png"
-  alt="Plembfin Now Playing section showing active playback sessions and progress"
-  caption="Each session identifies its source and current playback position."
+  alt="Plembfin Now Playing panel showing live sessions with their source and playback position"
+  caption="Each live session identifies its source and current position; with nothing playing, the panel is headed Up Next and features part watched and Up Next items."
 />
 
 To use it:
@@ -141,6 +143,13 @@ so stale cards do not linger after playback stops.
 
 In the Modern style, the cog beside the panel heading opens its options. Every change saves at
 once and applies to the whole server:
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/now-playing-options-modern-dark.png"
+  lightSrc="/assets/app-captures/now-playing-options-modern-light.png"
+  alt="Plembfin Now Playing panel with its options open, showing two allow checkboxes and an item count"
+  caption="The cog beside the panel heading sets which items can fill Now Playing and how many it holds."
+/>
 
 - **Allow part watched items here** and **Allow Up Next items here** are both on by default.
   Part watched items fill the free slots first, then the other Up Next items.

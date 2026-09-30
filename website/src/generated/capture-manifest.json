@@ -3,7 +3,14 @@
   "generatedBy": "website/scripts/capture-inventory.mjs",
   "changes": {
     "added": [],
-    "changed": [],
+    "changed": [
+      "public/assets/app-captures/dashboard-home-modern-dark.png",
+      "public/assets/app-captures/dashboard-home-modern-light.png",
+      "public/assets/app-captures/dashboard-modern-dark.png",
+      "public/assets/app-captures/dashboard-modern-light.png",
+      "public/assets/app-captures/now-playing-modern-dark.png",
+      "public/assets/app-captures/now-playing-modern-light.png"
+    ],
     "removed": [],
     "unreferenced": [
       "public/assets/app-captures/dashboard-home-dark.png",
@@ -106,7 +113,9 @@
         "public/assets/app-captures/global-search-dark.png",
         "public/assets/app-captures/global-search-light.png",
         "public/assets/app-captures/now-playing-dark.png",
-        "public/assets/app-captures/now-playing-light.png"
+        "public/assets/app-captures/now-playing-light.png",
+        "public/assets/app-captures/now-playing-options-modern-dark.png",
+        "public/assets/app-captures/now-playing-options-modern-light.png"
       ]
     },
     {
@@ -689,8 +698,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-dark.png",
-      "bytes": 546180,
-      "sha256": "6ab7f889c8e77fcf70d159f7fe6e514cc40284a171d9ac5c100b1bfec4093713",
+      "bytes": 799571,
+      "sha256": "cb1c72b87b70e98a9164a4b59c0161c62d2bffd687583d54bab36d213f4432d1",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -706,8 +715,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-movies-dark.png",
-      "bytes": 161067,
-      "sha256": "c5ee566a4228257fa77d070834943d4c4aea3e891af02d9df06ad79861ab9dc1",
+      "bytes": 186570,
+      "sha256": "6c74eb64796bfa76a4152d5a29690e95f83f9d7b4547210f8024361be3e95c51",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -718,8 +727,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-movies-light.png",
-      "bytes": 160629,
-      "sha256": "3f77f55adf2829229711a7dd97d6b48547714faa9023f91a78f180890610d097",
+      "bytes": 187388,
+      "sha256": "016f608e42b5a0d71ad58bf0bea59ad2b25a38680c075e3fe80fc296cc9755bd",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -730,8 +739,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-movies-modern-dark.png",
-      "bytes": 411230,
-      "sha256": "76d3814d41d32e359497e32d018a6680a18f74de8ec1700b5756f51b60c61e48",
+      "bytes": 316918,
+      "sha256": "0971bddec8194084692dd858b5966fab7da3822f438f0c17928388257f72fb89",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -742,8 +751,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-movies-modern-light.png",
-      "bytes": 405032,
-      "sha256": "db60b1ec90f3fd12aafe501e2e89ca9ae1627196451a6a4476817818343c28fa",
+      "bytes": 325061,
+      "sha256": "e25f11a4325bd62aa776f42b67405e58906cd37d5574cf06ac8d8ae964230f81",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -754,8 +763,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-tv-dark.png",
-      "bytes": 159643,
-      "sha256": "73cfbe3d4cc4b663f40c462fa58300babd7df3ab36d8538b646ca61ca53c27f8",
+      "bytes": 207146,
+      "sha256": "5b111c151ead55e0bf5deecec0d11fcf79e3b78ded7331cec188af71a4a52db1",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -766,8 +775,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-tv-light.png",
-      "bytes": 158327,
-      "sha256": "59f6ba493f56c484cb64cd35739043151d04fd13c2e204e500929a055b2dfaf2",
+      "bytes": 196229,
+      "sha256": "a566dc74f3fefa8c153a9baf0a3179126aebc838fb6d7d53ece1be607a6d65e2",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -778,8 +787,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-tv-modern-dark.png",
-      "bytes": 390415,
-      "sha256": "2d7de5b2aa292d0a323bb115e958fe2463e36db64c34acbfa2fc87ba17dbc8fc",
+      "bytes": 306569,
+      "sha256": "b32d88f75455812baadfe0ff5f4e17ef656506f2da560cc68341a450f228e494",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -790,8 +799,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-history-tv-modern-light.png",
-      "bytes": 396682,
-      "sha256": "5e61aa137fe55cb584a76b5e02b487b71f2cbaeb579d733da8e19a23bf0e2851",
+      "bytes": 300616,
+      "sha256": "b9e22ff57323e19f3541fec2c878bd5dc1d9c0ac0eb22b84e3a7ca537419b9b4",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -802,48 +811,48 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-home-dark.png",
-      "bytes": 504929,
-      "sha256": "9125466ac65692d40b58693266d781174f7bde2c7c5b2463735df197a9648e81",
+      "bytes": 799571,
+      "sha256": "cb1c72b87b70e98a9164a4b59c0161c62d2bffd687583d54bab36d213f4432d1",
       "dimensions": {
         "width": 1440,
-        "height": 700
+        "height": 683
       },
       "referencedBy": []
     },
     {
       "path": "public/assets/app-captures/dashboard-home-light.png",
-      "bytes": 503376,
-      "sha256": "09d2a77d85b7a7a410f834975a40c2fa81fa67cc2d54c03bbed35bb08e508272",
+      "bytes": 782010,
+      "sha256": "d17c8e5fe60967090919084f2c80ebc20a22efd8b372a394567e45d5ea2dac28",
       "dimensions": {
         "width": 1440,
-        "height": 700
+        "height": 683
       },
       "referencedBy": []
     },
     {
       "path": "public/assets/app-captures/dashboard-home-modern-dark.png",
-      "bytes": 1123486,
-      "sha256": "77d59291c952b189e8352deb350961025ea6247508d1ba6af0e60ea174c87576",
+      "bytes": 2009921,
+      "sha256": "af445c7e58f3ed43e29f857dee81d590136c86eae20ca3b0158807751cc5eb1f",
       "dimensions": {
-        "width": 1440,
-        "height": 700
+        "width": 1794,
+        "height": 857
       },
       "referencedBy": []
     },
     {
       "path": "public/assets/app-captures/dashboard-home-modern-light.png",
-      "bytes": 1066062,
-      "sha256": "cddc9b617d93294646ba4db1121c1e9647127f0ec47accf904dd2147e3970f33",
+      "bytes": 2097770,
+      "sha256": "6f9d4fa6391ead1e65eff714c3479c77a3fff0ef763c8387ce52976dcaa214b8",
       "dimensions": {
-        "width": 1440,
-        "height": 700
+        "width": 1794,
+        "height": 857
       },
       "referencedBy": []
     },
     {
       "path": "public/assets/app-captures/dashboard-light.png",
-      "bytes": 542999,
-      "sha256": "037bb2184954a940e9ec04a02457b74f0a38d96159169c42cb7afd7c251d7d84",
+      "bytes": 782010,
+      "sha256": "d17c8e5fe60967090919084f2c80ebc20a22efd8b372a394567e45d5ea2dac28",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -859,11 +868,11 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-modern-dark.png",
-      "bytes": 1327528,
-      "sha256": "23a8e922ada574007c7aff9dd807c08eeefb37408a53373f195c8ac0a9e7f710",
+      "bytes": 2009921,
+      "sha256": "af445c7e58f3ed43e29f857dee81d590136c86eae20ca3b0158807751cc5eb1f",
       "dimensions": {
-        "width": 1440,
-        "height": 683
+        "width": 1794,
+        "height": 857
       },
       "referencedBy": [
         "dashboard",
@@ -876,11 +885,11 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-modern-light.png",
-      "bytes": 1268832,
-      "sha256": "223c33a3303db0bb6934d922ac7ef2c0b630bf2228d2f15231016bab6beb4c9d",
+      "bytes": 2097770,
+      "sha256": "6f9d4fa6391ead1e65eff714c3479c77a3fff0ef763c8387ce52976dcaa214b8",
       "dimensions": {
-        "width": 1440,
-        "height": 683
+        "width": 1794,
+        "height": 857
       },
       "referencedBy": [
         "dashboard",
@@ -893,8 +902,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dark.png",
-      "bytes": 150580,
-      "sha256": "cea4aec65afee91dfafc5b8e32734f509f63dbf1f6b1d8ad2f3a212ec6fb0508",
+      "bytes": 194147,
+      "sha256": "406e98c9072caff757a2e3dc2b848d802cf9cbb1631664daa2c33ace99ca1172",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -906,8 +915,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dismissed-dark.png",
-      "bytes": 470596,
-      "sha256": "9ea4b164bb4ad9db6d0f58c2f5aefb09b7661e23e0695006d20c4108593928ca",
+      "bytes": 588520,
+      "sha256": "012c93c76d234bdc2f85d6f9888b069dddf2c7781f69b1e42e8dd2e9bccc0f9a",
       "dimensions": {
         "width": 1200,
         "height": 683
@@ -918,8 +927,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dismissed-light.png",
-      "bytes": 479580,
-      "sha256": "f8bd67f24cd0aa5090b3edd7957010549846d100583355074b57ebc45cb57511",
+      "bytes": 560961,
+      "sha256": "8e3ca502a6432b11095ac0e227d681b3fffa5bd98dd4b9c2efea6494c9185dcf",
       "dimensions": {
         "width": 1200,
         "height": 683
@@ -930,8 +939,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dismissed-modern-dark.png",
-      "bytes": 433103,
-      "sha256": "156f6b3998fa9f2ca0ba98a78bf3f2ad85678f6d5271634fa57209df6fdac555",
+      "bytes": 589414,
+      "sha256": "b2999f4f7f41badbe7fba4eed0deedb59df8e96d4b3c45bcf7ee66b53cb07f78",
       "dimensions": {
         "width": 1200,
         "height": 683
@@ -942,8 +951,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dismissed-modern-light.png",
-      "bytes": 405783,
-      "sha256": "b18e0ab9a396e9dcaf487db0f04baaa65da00865a4d7974dbe49236e80d91e79",
+      "bytes": 565878,
+      "sha256": "12bacee994b0963dd08326d012783292ef3c10a6edc1341965e880eccfdd460a",
       "dimensions": {
         "width": 1200,
         "height": 683
@@ -954,8 +963,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-light.png",
-      "bytes": 149319,
-      "sha256": "b57a2f315f0b2c6f193ccbf29cfbc0009851074286ee22ded063198d2ee5bfbe",
+      "bytes": 193845,
+      "sha256": "1c2aa61b7f1a674aad4f508203478530e5bca81c2f3ac21c9eca89051effbeb1",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -967,8 +976,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-modern-dark.png",
-      "bytes": 407965,
-      "sha256": "f360dbaa1e5cce10c5be438aec27826c6a77a5e1c5033c66a6673b7af2e38e90",
+      "bytes": 310232,
+      "sha256": "36b1ce2957f5c204b4a8867e47748d6043302d8938ca4bb37c39e83e1fe46c6e",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -980,8 +989,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-modern-light.png",
-      "bytes": 408000,
-      "sha256": "4121d4919b0b50731322ee8cc9e1ecef8dec0cd55cd4e44e288f359bb77308a1",
+      "bytes": 316060,
+      "sha256": "d756cb93a709735ad460ea78a89b72f36e1dc772de3c7799254502823662e757",
       "dimensions": {
         "width": 1232,
         "height": 167
@@ -1197,8 +1206,8 @@
     },
     {
       "path": "public/assets/app-captures/history-dark.png",
-      "bytes": 637883,
-      "sha256": "11693d800ed8342f0e3265fea6cf826d78ea4289daa56e9e2d5629f5fe783d5d",
+      "bytes": 1104318,
+      "sha256": "56b744229ec323defdb899f896aebaa1e50f05e3de3c83baf0464869a8816ad0",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -1210,8 +1219,8 @@
     },
     {
       "path": "public/assets/app-captures/history-light.png",
-      "bytes": 634265,
-      "sha256": "59b872fe39c8419ed79ad107bc674e3a4cbaeec8175c6bad1de9c9f8e9582b37",
+      "bytes": 1101282,
+      "sha256": "aeaef9b8092fc65dec031b88382c2f39488a7cd4b08f5d5aad5d2a627f39ee95",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -1223,8 +1232,8 @@
     },
     {
       "path": "public/assets/app-captures/history-modern-dark.png",
-      "bytes": 1182127,
-      "sha256": "2d502daa3ad1d029098e947d3c301933771c9e8c3962a76d6aa0910be9206925",
+      "bytes": 1644168,
+      "sha256": "5dd9083002d29df67502860a098e9742b9e9081fb450ec025a177ac8a0edaa7e",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -1236,8 +1245,8 @@
     },
     {
       "path": "public/assets/app-captures/history-modern-light.png",
-      "bytes": 1149840,
-      "sha256": "e8ed7921b526bc976b077066cb0cbdb8b0da3560cb8b3b9a4b5f719a6c16d66c",
+      "bytes": 1664557,
+      "sha256": "1bd642bdc005ed4428ccc3ff0abf07e3bf533173ec24daea3284144d6f69e05c",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -2451,11 +2460,11 @@
     },
     {
       "path": "public/assets/app-captures/now-playing-dark.png",
-      "bytes": 149757,
-      "sha256": "efa84cac32a3278d7fb22f2250dbb2674a739f0b00b9c86017aeea28d65278ad",
+      "bytes": 134113,
+      "sha256": "183a9514535d9ea3202dca4e9db41e95bc5039f67ad362815e01fc691c08f60a",
       "dimensions": {
-        "width": 1440,
-        "height": 213
+        "width": 1256,
+        "height": 165
       },
       "referencedBy": [
         "dashboard",
@@ -2464,11 +2473,11 @@
     },
     {
       "path": "public/assets/app-captures/now-playing-light.png",
-      "bytes": 148000,
-      "sha256": "9e5e0798af69864cabbd9d4c90d7170aa46ec670243357f13798826289d12e1b",
+      "bytes": 131198,
+      "sha256": "5458c56fa186997c38c98ff62b0785c9acf053e59243e3f8477af619002744a5",
       "dimensions": {
-        "width": 1440,
-        "height": 213
+        "width": 1256,
+        "height": 165
       },
       "referencedBy": [
         "dashboard",
@@ -2477,11 +2486,11 @@
     },
     {
       "path": "public/assets/app-captures/now-playing-modern-dark.png",
-      "bytes": 491090,
-      "sha256": "0364df3e7332b85d5ea024141ef930cb3639040bd9a9b41ca3a925f849eeee82",
+      "bytes": 368012,
+      "sha256": "c92bd2b824d2f1589a93bba2166441f0d98764d8ed3c2c8b451a03940ffb12c5",
       "dimensions": {
-        "width": 1440,
-        "height": 213
+        "width": 1614,
+        "height": 206
       },
       "referencedBy": [
         "dashboard",
@@ -2490,15 +2499,39 @@
     },
     {
       "path": "public/assets/app-captures/now-playing-modern-light.png",
-      "bytes": 466580,
-      "sha256": "0056617c4a7b810f6cf5cb404deae92d089ad9e7b863eced380724bfad62195a",
+      "bytes": 403725,
+      "sha256": "cdfc036bc1b946c9e894a7cbcb46334c14ebf5a228144b103df3708ec5011909",
       "dimensions": {
-        "width": 1440,
-        "height": 213
+        "width": 1614,
+        "height": 206
       },
       "referencedBy": [
         "dashboard",
         "troubleshooting"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/now-playing-options-modern-dark.png",
+      "bytes": 261072,
+      "sha256": "03f6ee72a33b989616bb2ba62fe1da0759db1b10f1505b8f0fff967597a74f09",
+      "dimensions": {
+        "width": 1256,
+        "height": 173
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/now-playing-options-modern-light.png",
+      "bytes": 285806,
+      "sha256": "418b4b71a5d4513f32b876c75f0aaf78f098437d116b5e2cb8819fdca6df7643",
+      "dimensions": {
+        "width": 1256,
+        "height": 173
+      },
+      "referencedBy": [
+        "dashboard"
       ]
     },
     {
@@ -5257,8 +5290,8 @@
     },
     {
       "path": "public/assets/app-captures/tvshows-dark.png",
-      "bytes": 728601,
-      "sha256": "ba3f9030294c07ad365371ed1edc8dec5b0cb438b53f6b765d6f9118688f749e",
+      "bytes": 1273000,
+      "sha256": "1d037f893faa2c1108d2a30c17621d72460ee2e102021c3d83646e713242cfa7",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -5270,8 +5303,8 @@
     },
     {
       "path": "public/assets/app-captures/tvshows-light.png",
-      "bytes": 713647,
-      "sha256": "84aac1bb922c5bb2bb9bcc451e981803eb9d581bf2f27cc19d5952dbe4792d8d",
+      "bytes": 1291766,
+      "sha256": "704b2d581e71b8fb38c8b6d004ba596e5eb8bc8659e921204bdf0a1d9f45f3ec",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -5283,8 +5316,8 @@
     },
     {
       "path": "public/assets/app-captures/tvshows-modern-dark.png",
-      "bytes": 1333222,
-      "sha256": "8bec5b30bca24e6c8fee1f60a89128c84d234113cd0148b65e93305e03d0363c",
+      "bytes": 1628916,
+      "sha256": "929e7ee8e821c7bfea91a9a229a00b971c99298e9662ffe3f00dc7011c04fa80",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -5296,8 +5329,8 @@
     },
     {
       "path": "public/assets/app-captures/tvshows-modern-light.png",
-      "bytes": 1287623,
-      "sha256": "60e5f2ea4d5bbf1897fff9502a4fca791f87b46a3f84fc7d2543c26e160ce10f",
+      "bytes": 1667145,
+      "sha256": "624bb8f4fba5549b131e5722e1146537ef2da95a94c064446b64a71fc85b314f",
       "dimensions": {
         "width": 1440,
         "height": 683
