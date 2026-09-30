@@ -332,16 +332,19 @@ html #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] .h
   display: none;
 }
 
-/* The wrapper is a .dashboard-history-card-row, so the card keeps its normal
-   styles and padding for the hover lift. */
+/* The row wrapper normally adds breathing room around its cards. The featured
+   copies share a row with live cards, so remove that inset and let their card
+   edges align to the same full-height grid bounds. */
 #timeline-view #nowPlayingGrid .modern-idle-feature {
   flex: 1 1 0;
-  min-width: min(24rem, 100%);
+  min-width: 0;
   height: 100%;
+  padding: 0;
 }
 
 #timeline-view #nowPlayingGrid .modern-idle-feature > .dashboard-history-page-card {
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  min-width: 0;
   height: 100%;
 }
 
@@ -578,6 +581,14 @@ html[data-style="modern"].light-mode #history-view .history-list .history-page-c
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(241, 245, 249, 0.92) 100%);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+/* Keep the featured Up Next copies and the rail on one light-theme edge
+   treatment. Their backdrops can leave the standard white card shadow reading
+   as a bright outline against the dashboard artwork. */
+html[data-style="modern"].light-mode #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] {
+  border-color: var(--line);
+  box-shadow: none;
 }
 
 html[data-style="modern"].light-mode #timeline-view .dashboard-history-page-card:hover,
