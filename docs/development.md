@@ -208,7 +208,10 @@ values already committed" - none of them write anything back to their branch.
   For a tooling-only release-process change, `--tooling-only` is an explicit opt-in: it
   requires a current empty develop changelog and changes limited to maintainer/tooling
   paths, records an alpha entry with no product bullets, and excludes that entry from the
-  next stable release. Standard alpha promotions still require a publishable product entry.
+  next stable release. For an urgent single-fix alpha, `--hotfix` accepts only one
+  conventional `fix:` commit with exactly one user-visible Fix detail and no feature or
+  tweak bullets; the remaining changelog checks and both approval gates still apply.
+  Ordinary alpha promotions still require at least three bullets.
 - **"Force to main"** pins `origin/alpha`, writes a concise `releaseMessage`, previews the
   accumulated release entry, and starts that exact alpha build. The user approves both the
   changelog and running candidate before any website work. Website phases A/B/C then review

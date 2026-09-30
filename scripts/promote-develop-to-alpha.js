@@ -36,6 +36,24 @@ const developChangelogPath = path.join(root, "changelog.develop.json");
 const TOOLING_ONLY_ALLOWED_PREFIXES = [".claude/", ".github/", ".githooks/", "docs/", "plan/", "scripts/", "test/"];
 const TOOLING_ONLY_ALLOWED_FILES = new Set([".gitignore", "CLAUDE.md"]);
 
+function assertHotfixEligible({ entries, sections }) {
+  const entry = entries[0];
+  const fragments = Array.isArray(entry?.messageFragments) && entry.messageFragments.length
+    ? entry.messageFragments
+    : [entry?.message].filter(Boolean);
+  const detailCount = Array.isArray(entry?.details) ? entry.details.filter(Boolean).length : 0;
+  const isOneFix = entries.length === 1
+    && fragments.length === 1
+    && /^fix(?:\([^)]*\))?\s*[:-]/i.test(String(fragments[0] || ""))
+    && detailCount === 1
+    && sections.newFeatures.length === 0
+    && sections.majorBugFixes.length === 1
+    && sections.tweaks.length === 0;
+  if (!isOneFix) {
+    throw new Error("Refusing --hotfix: it is only for exactly one conventional fix commit that produces exactly one user-visible Fix bullet, with no features or tweaks. Use the normal alpha path when the entry has more content.");
+  }
+}
+
 function assertToolingOnlyEligible({ develop, commit }) {
   const anchorCommit = String(develop.resetCommit || "").trim();
   if (!anchorCommit) {
@@ -175,7 +193,8 @@ export function simplifyEntries(entries = []) {
   return formatSections(categorizeEntries(entries));
 }
 
-export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "", toolingOnly = false } = {}) {
+export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "", toolingOnly = false, hotfix = false } = {}) {
+  if (toolingOnly && hotfix) throw new Error("Refusing to combine --tooling-only and --hotfix.");
   let mainVersion = "0.0.0";
   try {
     mainVersion = JSON.parse(fs.readFileSync(changelogPath, "utf8")).version || "0.0.0";
@@ -222,7 +241,10 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   const developEntries = filterChangelogEntries(develop.entries);
   const sections = toolingOnly
     ? { newFeatures: [], majorBugFixes: [], tweaks: [] }
-    : categorizeEntries(develop.entries);
+    : hotfix
+      ? { newFeatures: [], majorBugFixes: dedupeChangelogDetails(developEntries.flatMap((entry) => Array.isArray(entry.details) ? entry.details : [])), tweaks: [] }
+      : categorizeEntries(develop.entries);
+  if (hotfix) assertHotfixEligible({ entries: developEntries, sections });
   const simplifiedDetails = toolingOnly ? [] : formatSections(sections);
 
   // A develop entry can already be a synthesized composite of several commits or
@@ -265,7 +287,11 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // dump of every commit since the last promotion. See
   // changelogEntryQualityViolations for why each rule exists.
   if (!toolingOnly) {
-    const quality = changelogEntryQualityViolations(alphaEntry, { maxBullets: CHANGELOG_ALPHA_MAX_BULLETS, boundary: "alpha" });
+    const quality = changelogEntryQualityViolations(alphaEntry, {
+      maxBullets: CHANGELOG_ALPHA_MAX_BULLETS,
+      minBullets: hotfix ? 1 : undefined,
+      boundary: "alpha",
+    });
     if (quality.length > 0) {
       throw new Error(`Refusing to promote develop to alpha: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
     }
@@ -318,9 +344,9 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  const unknownArgs = args.filter((arg) => arg !== "--tooling-only");
-  if (unknownArgs.length || args.filter((arg) => arg === "--tooling-only").length > 1) {
-    console.error("Usage: node scripts/promote-develop-to-alpha.js [--tooling-only]");
+  const unknownArgs = args.filter((arg) => arg !== "--tooling-only" && arg !== "--hotfix");
+  if (unknownArgs.length || args.filter((arg) => arg === "--tooling-only").length > 1 || args.filter((arg) => arg === "--hotfix").length > 1) {
+    console.error("Usage: node scripts/promote-develop-to-alpha.js [--tooling-only | --hotfix]");
     process.exit(1);
   }
   const headCommit = gitHeadCommit(root);
@@ -329,5 +355,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     resetAnchorCommit: headCommit,
     sourceAuthor: gitHeadAuthor(root),
     toolingOnly: args.includes("--tooling-only"),
+    hotfix: args.includes("--hotfix"),
   });
 }

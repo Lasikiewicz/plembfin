@@ -92,6 +92,18 @@ Alpha, but `promote-alpha-to-main.js` excludes it from the stable release. The n
 three-bullet quality gate remains in force for every ordinary alpha promotion. Review and
 approve the tooling-only entry and running build through the same gates below.
 
+For a single, urgent product bug fix with exactly one user-visible detail, use the guarded
+hotfix mode:
+
+```bash
+node scripts/promote-develop-to-alpha.js --hotfix
+```
+
+This accepts only one conventional `fix:` commit, one detail that becomes one Fix bullet,
+and no feature or tweak bullets. All other changelog quality checks still apply, and both
+the changelog and running build require the same explicit approvals. Ordinary promotions
+still require at least three bullets.
+
 Then complete step 3a below and wait for the user's approval. Only after that:
 
 ```bash

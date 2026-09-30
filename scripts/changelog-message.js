@@ -353,12 +353,12 @@ function bulletsOf(entry = {}) {
 // reviewed cycle rather than silently dropping valid changes. The per-push
 // consolidation rule is enforced separately by scripts/check-pending-commits.js,
 // which keeps the rolling entry from growing through sheer commit sprawl.
-export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANGELOG_MAX_BULLETS, boundary = "release" } = {}) {
+export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANGELOG_MAX_BULLETS, minBullets = CHANGELOG_MIN_BULLETS, boundary = "release" } = {}) {
   const violations = [];
   const bullets = bulletsOf(entry);
 
-  if (bullets.length < CHANGELOG_MIN_BULLETS) {
-    violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${CHANGELOG_MIN_BULLETS}`);
+  if (bullets.length < minBullets) {
+    violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${minBullets}`);
   }
   if (Number.isFinite(maxBullets) && bullets.length > maxBullets) {
     violations.push(boundary === "alpha"
