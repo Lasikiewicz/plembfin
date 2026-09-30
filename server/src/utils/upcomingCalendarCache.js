@@ -4,9 +4,10 @@ import { DATA_DIR } from "../paths.js";
 import { getCachedShows } from "./dataRepo.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 import { getTvdbSeasonEpisodes } from "./tvdbGateway.js";
+import { getCanonicalSeasonPosterUrls } from "./mediaArtwork.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_FILE = path.join(DATA_DIR, "upcoming-calendar-cache.json");
 const TEMP_FILE = `${CACHE_FILE}.tmp`;
 const FUTURE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -145,6 +146,12 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
       const details = await getTmdbDetails({ mediaType: "tv", tmdbId: show.tmdb_id, title: show.title, ids: { tvdbId: show.tvdb_id } }).catch(() => null);
       const tvdbId = String(details?.external_ids?.tvdb_id || show.tvdb_id || "");
       if (!tvdbId) continue;
+      const seasonPosterUrls = getCanonicalSeasonPosterUrls({
+        media_type: "tv",
+        title: show.title,
+        tmdb_id: show.tmdb_id || details?.id,
+        tvdb_id: tvdbId,
+      });
       const maxSeason = Math.max(0, ...(details?.seasons || []).map((season) => Number(season.season_number) || 0));
       const seasonNumbers = isHistoricalMonth
         ? [...new Set((details?.seasons || []).map((season) => Number(season.season_number) || 0))].filter((value) => value > 0)
@@ -169,6 +176,7 @@ async function collectMonth(month, { shows: suppliedShows = null, prefilterFutur
             tmdbId: String(show.tmdb_id || details?.id || ""),
             tvdbId,
             posterUrl: show.poster_url || "",
+            seasonPosterUrl: seasonPosterUrls.get(seasonNumber) || "",
             posterRecordId: show.representative_episode?.id || "",
             season: seasonNumber,
             episode: Number(episode.episode_number) || 0,

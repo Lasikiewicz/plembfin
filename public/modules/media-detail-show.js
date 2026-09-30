@@ -1584,7 +1584,7 @@ export function renderShowModalContent(show, {
   const representative = representativeEpisode(seasonsMap);
   const backdropUrl = proxiedArtworkUrl(show.backdrop_url, "backdrop") || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
   const showPosterUrl = show.show_poster_url || show.canonical_poster_url || "";
-  const posterUrl = posterUrlFor({ ...show, poster_url: showPosterUrl, prefer_raw_poster: true })
+  const posterUrl = posterUrlFor({ ...show, poster_url: showPosterUrl, prefer_raw_poster: true, prefer_show_poster: true })
     || proxiedArtworkUrl(tmdbData?.cached_poster_url, "poster")
     || tmdbPoster(tmdbData?.poster_path, tmdbData?.id, "tv")
     || posterUrlFor(representative)

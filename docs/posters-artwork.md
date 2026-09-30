@@ -146,7 +146,9 @@ Media detail pages let the user pick artwork from TMDB/TVDB/Fanart galleries
 Provider aliases and the normalized show title point to the same canonical value,
 so TV-show cards, the library, dashboard fallbacks, and personal show entries use
 the edit everywhere. Episode rows keep their own `watch_history.poster_url`, so
-episode stills are not overwritten by a show-poster edit. Movie artwork remains
+episode stills are not overwritten by a show-poster edit. History and upcoming episode cards
+also carry a separate `season_poster_url` from cached show metadata and prefer it when present;
+show-level library cards and detail headers explicitly keep the shared series poster. Movie artwork remains
 stored on its watch rows and is propagated across repeated plays as before.
 Data-URL uploads are also accepted and persisted through `cacheArtworkFromUrl`.
 

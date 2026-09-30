@@ -258,6 +258,8 @@ Each card shows poster, platform badge, sync-status pill, and links into the med
 detail page ([media-detail.md](media-detail.md)). On episode cards the Season/Ep line sits
 directly under the episode name, and "Last Played" sits directly above the app used. Up next
 cards show no availability line; a resume card's progress bar sits above its Watch now apps.
+When season artwork is cached, episode cards use the poster for their own season. The TV Shows
+library and the show detail header continue to use the shared series poster.
 The Explorer's cards (Movies and TV Shows pages, built by the same renderer) keep "Watched
 Twice" / "Watched N Times" under "Last Played" (`actualWatchLabel` in `dashboard.js`, driven by
 `watch_count`, falling back to `playHistory.length`, as on the movie detail page's rewatch

@@ -2153,16 +2153,23 @@ function showRecordDisplayTitle(show = {}) {
 function showLibraryPosterEntry(show = {}, latestEpisode = {}) {
   const showPoster = show.show_poster_url
     || show.canonical_poster_url
+    || show.poster_url
     || "";
   const entry = { ...show, ...(latestEpisode || {}) };
   if (showPoster) {
     // The card represents the series, even when its representative episode
-    // carries a different still. Keep the episode id/title for the card
-    // identity, but make the shared show artwork the explicit poster source.
+    // carries season artwork. Keep the episode id/title for the card identity,
+    // but make the shared show artwork the explicit poster source.
     entry.poster_url = showPoster;
-    entry.show_poster_url = showPoster;
-    entry.canonical_poster_url = showPoster;
+    entry.show_poster_url = show.show_poster_url || showPoster;
+    entry.canonical_poster_url = show.canonical_poster_url || showPoster;
+    entry.season_poster_url = "";
+    entry.prefer_show_poster = true;
     entry.prefer_raw_poster = true;
+  } else {
+    // Do not let the latest episode's season poster replace the artwork of
+    // this show-level library card when no shared poster has been resolved.
+    entry.season_poster_url = "";
   }
   return entry;
 }
@@ -2239,6 +2246,8 @@ export function renderShowRecord(show = {}) {
     show_imdb_id: show.show_imdb_id || show.imdb_id || latestEpisode?.show_imdb_id || "",
     poster_url: libraryPosterEntry.poster_url || "",
     show_poster_url: libraryPosterEntry.show_poster_url || libraryPosterEntry.poster_url || "",
+    season_poster_url: "",
+    prefer_show_poster: true,
     watched_at: latestWatchedAt,
   };
   const attributes = ` data-alpha-letter="${escapeAttribute(firstAlphaLetter(displayTitle))}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""}`;

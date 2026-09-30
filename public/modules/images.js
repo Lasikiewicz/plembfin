@@ -199,6 +199,9 @@ export function posterUrlFor(item = {}) {
   const idValue = item.id != null ? item.id : item.media_key;
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   const showRaw = item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "";
+  const mediaType = String(item.media_type || item.mediaType || item.type || "").trim().toLowerCase();
+  const isEpisode = mediaType === "episode";
+  const seasonRaw = isEpisode ? (item.season_poster_url || item.seasonPosterUrl || "") : "";
   const cacheOnly = Boolean(item.cache_only_artwork || item.cacheOnlyArtwork);
   if (cacheOnly) {
     // Cache-first surfaces must not turn a stored TMDB path or remote CDN URL
@@ -212,7 +215,7 @@ export function posterUrlFor(item = {}) {
       return isCachedStorageImageUrl(candidate)
         || /^\/api\/(?:poster|tmdb-poster|remote-artwork)(?:[/?]|$)/i.test(candidate);
     };
-    return [raw, showRaw].find(cacheSafeArtwork) || "";
+    return [seasonRaw, raw, showRaw].find(cacheSafeArtwork) || "";
   }
   // A same-origin poster supplied by the API is a deliberate source of truth,
   // not another candidate for an older negative lookup. This is especially
@@ -228,6 +231,12 @@ export function posterUrlFor(item = {}) {
     if (isLocalArtworkUrl(resolvedShow)) return resolvedShow;
     return configuredImageUrl(resolvedShow, item);
   }
+  // Episode cards use the poster for their own season when it is available.
+  // The series poster remains available separately for show-level surfaces.
+  const resolvedSeason = proxiedArtworkUrl(seasonRaw, "poster");
+  if (resolvedSeason) return isLocalArtworkUrl(resolvedSeason)
+    ? resolvedSeason
+    : configuredImageUrl(resolvedSeason, item);
   const preferLocalArtwork = isLocalArtworkUrl(resolvedRaw) || (!resolvedRaw && isLocalArtworkUrl(resolvedShow));
   if (idValue != null) {
     const cached = cachedPosterLookup(String(idValue));
