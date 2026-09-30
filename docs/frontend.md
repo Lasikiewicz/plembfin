@@ -119,13 +119,14 @@ Rules that keep this correct:
   "Recently watched" title (both styles, stored per row under `plembfin:dashboard-compact:tv`
   and `:movie`): every card in the row folds to its poster (the details slide closed behind
   it), clicking a folded poster opens that card, and a further click behaves as normal. The
-  Now Playing heading is hidden; the Up Next items that fill the panel (default 3 in total;
-  all of them when nothing is playing, the slots the live sessions leave otherwise, after the
-  sessions) are featured there in a backdrop layout and hidden from the Up Next rail by CSS
-  (`data-featured-up-next` on `#timeline-view`), and live sessions take the same layout side
-  by side. A cog beside the heading opens the options popup (`modules/now-playing-options.js`):
-  Up Next when idle, Up Next after live sessions, and the item count (1 to 3), saved
-  server-wide in the `nowPlaying` config section. One
+  Now Playing heading is hidden; the panel holds 3 items by default. Live sessions come
+  first, and the slots they leave (all of them when nothing is playing) take the Up Next
+  rail's part watched (resume) cards, then its other Up Next cards. Those are featured there
+  in a backdrop layout and hidden from the rail by CSS (`data-featured-in-panel` on each
+  rail card), and live sessions take the same layout side by side. A cog beside the heading
+  opens the options popup (`modules/now-playing-options.js`): allow part watched, allow Up
+  Next (both on by default), and the item count (1 to 3), saved server-wide in the
+  `nowPlaying` config section. One
   MutationObserver on `#timeline-view` drives all of this, so `sync.js` and `up-next.js`
   have no hooks for it.
 - The Posters only switch on Library, Discover, History, Watchlist, Ratings, and Playlists

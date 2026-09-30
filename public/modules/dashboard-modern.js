@@ -1,10 +1,10 @@
-import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.3.0.0.16";
-import { state } from "./state.js?v=1.3.0.0.16";
-import { artKey, requestArtKey } from "./card-art.js?v=1.3.0.0.16";
-import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.16";
-import { nowPlayingOptions } from "./now-playing-options.js?v=1.3.0.0.16";
+import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.3.0.0.17";
+import { state } from "./state.js?v=1.3.0.0.17";
+import { artKey, requestArtKey } from "./card-art.js?v=1.3.0.0.17";
+import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.17";
+import { nowPlayingOptions } from "./now-playing-options.js?v=1.3.0.0.17";
 // The same folded-poster behaviour on the Library and History pages.
-import "./page-card-open.js?v=1.3.0.0.16";
+import "./page-card-open.js?v=1.3.0.0.17";
 
 // Dashboard behaviour added with the Modern theme style (plan/archive/theme-styles/plan.md).
 // Compact rows, collapsed TV runs and the featured Up Next cards apply under
@@ -335,13 +335,23 @@ const upNextPanel = hasDocument ? document.querySelector?.("#upNextPanel") : nul
 let featuredSourceHtml = "";
 let syncFrame = 0;
 
-// The number of featured cards is written to data-featured-up-next on the
-// dashboard; the :nth-child rules in styles-modern.css (1 to 12) hide that many
-// cards from the rail.
+// Rail cards copied into the panel carry data-featured-in-panel, which
+// styles-modern.css hides in the rail. The attribute is outside the observer's
+// filter, so marking cards does not schedule another pass.
+function markFeaturedSources(sources = []) {
+  const featured = new Set(sources);
+  upNextPanel?.querySelectorAll(":scope > [data-featured-in-panel]").forEach((card) => {
+    if (!featured.has(card)) card.removeAttribute("data-featured-in-panel");
+  });
+  for (const card of featured) {
+    if (!card.hasAttribute("data-featured-in-panel")) card.setAttribute("data-featured-in-panel", "");
+  }
+}
+
 function removeIdleFeature() {
   nowPlayingGrid?.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
   featuredSourceHtml = "";
-  timelineView?.removeAttribute("data-featured-up-next");
+  markFeaturedSources();
 }
 
 // The feature is a copy of the Up Next card itself, in a card-row wrapper so
@@ -372,23 +382,29 @@ function syncIdleFeature() {
 function syncIdleFeatureCard() {
   if (!nowPlayingGrid) return;
   const options = nowPlayingOptions();
-  const idle = nowPlayingGrid.querySelector(":scope > .idle-state");
   const liveCount = nowPlayingGrid.querySelectorAll(":scope > [data-now-playing-card-id]").length;
-  // Idle: Up Next fills every slot. Playing: it takes whatever slots the live
-  // sessions leave, after them. The same cards are hidden from the rail.
-  const enabled = liveCount ? options.showUpNextWhilePlaying : Boolean(idle) && options.showUpNextWhenIdle;
+  // Live sessions come first; the slots they leave take the rail's part
+  // watched (resume) cards, then its Up Next cards, each only when allowed.
+  // The same cards are hidden from the rail.
   const slots = Math.max(0, options.itemCount - liveCount);
-  const sources = enabled ? [...(upNextPanel?.querySelectorAll(":scope > [data-up-next-card-id]") || [])].slice(0, slots) : [];
+  const railCards = [...(upNextPanel?.querySelectorAll(":scope > [data-up-next-card-id]") || [])];
+  const isResume = (card) => card.getAttribute("data-up-next-queue-kind") === "resume";
+  const sources = [
+    ...(options.allowPartWatched ? railCards.filter(isResume) : []),
+    ...(options.allowUpNext ? railCards.filter((card) => !isResume(card)) : []),
+  ].slice(0, slots);
   if (!sources.length) {
     removeIdleFeature();
     return;
   }
-  const sourceHtml = sources.map((source) => source.outerHTML).join("");
-  timelineView?.setAttribute("data-featured-up-next", String(sources.length));
+  markFeaturedSources(sources);
+  // Compare without the marker so marking a card does not rebuild the copies.
+  const sourceHtml = sources.map((source) => source.outerHTML.replace(/ data-featured-in-panel=""/, "")).join("");
   if (nowPlayingGrid.querySelector(".modern-idle-feature") && featuredSourceHtml === sourceHtml) return;
   nowPlayingGrid.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
   featuredSourceHtml = sourceHtml;
   nowPlayingGrid.append(...sources.map(buildIdleFeature));
+  nowPlayingGrid.querySelectorAll(".modern-idle-feature [data-featured-in-panel]").forEach((copy) => copy.removeAttribute("data-featured-in-panel"));
 }
 
 // Live cards are rendered by sync.js in state.activeSessions order.

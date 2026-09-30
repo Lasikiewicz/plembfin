@@ -1,14 +1,14 @@
 {
-  "version": "1.3.0.0.16",
-  "build": 16,
+  "version": "1.3.0.0.17",
+  "build": 17,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-30T12:54:01.677Z",
+  "updatedAt": "2026-09-30T13:34:16.562Z",
   "entries": [
     {
-      "build": 16,
-      "date": "2026-09-30T12:54:01.677Z",
-      "commit": "65d287627eb37a2ed74ca20169c043936067cfe3",
-      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, stop movie pages re-asking TVDB for related shows every hour, and remove the edge around resting Now Playing and Up Next cards.",
+      "build": 17,
+      "date": "2026-09-30T13:34:16.562Z",
+      "commit": "c54bc205e84d8742c2869c33ea6cb33b4ddc6702",
+      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, stop movie pages re-asking TVDB for related shows every hour, remove the edge around resting Now Playing and Up Next cards, let the Now Playing panel feature part watched and Up Next items, and describe the Now Playing panel options.",
       "author": "Lasikiewicz",
       "details": [
         "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
@@ -35,7 +35,12 @@
         "Give Now Playing and featured Up Next cards the same accent outline and lift as Recently watched cards.",
         "Add scrollport inset so hovered cards and shadows remain visible.",
         "The Recommended TV Shows rail on a movie page now remembers for a week when no show matches the film, so reopening a movie no longer waits on a TVDB search",
-        "Now Playing and Up Next cards on the modern dashboard no longer show a thin bright border or light ring at rest, in light or dark mode; the accent edge still appears on hover"
+        "Now Playing and Up Next cards on the modern dashboard no longer show a thin bright border or light ring at rest, in light or dark mode; the accent edge still appears on hover",
+        "The Now Playing panel options are now \"Allow part watched items here\" and \"Allow Up Next items here\", both on by default",
+        "Part watched items fill the panel first, then Up Next items, in the slots left after anything playing",
+        "The panel always features these items when nothing is playing; the old idle and while-playing switches are gone",
+        "Items shown in the panel are hidden from the Up Next rail, so nothing appears twice",
+        "The dashboard guide and README describe the Now Playing panel's part watched and Up Next options and its cog"
       ],
       "messageFragments": [
         "Performance - Improve page loading and server recovery",
@@ -43,7 +48,9 @@
         "Feature - Improve playback sync and dashboard behavior",
         "Fix - Match queue card hover edges to dashboard rails",
         "Fix - Stop movie pages re-asking TVDB for related shows every hour",
-        "Fix - Remove the edge around resting Now Playing and Up Next cards"
+        "Fix - Remove the edge around resting Now Playing and Up Next cards",
+        "Feature - Let the Now Playing panel feature part watched and Up Next items",
+        "Docs - Describe the Now Playing panel options"
       ]
     }
   ]

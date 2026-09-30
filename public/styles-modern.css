@@ -257,20 +257,9 @@ html[data-style="modern"] #nowPlayingGrid {
   display: none;
 }
 
-/* data-featured-up-next is set by dashboard-modern.js to the number of Up Next
-   cards featured in the panel (1 to 3, the Now Playing option maximum). */
-#timeline-view[data-featured-up-next="1"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 1 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="2"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 2 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="3"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 3 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="4"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 4 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="5"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 5 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="6"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 6 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="7"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 7 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="8"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 8 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="9"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 9 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="10"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 10 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="11"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 11 of [data-up-next-card-id]),
-#timeline-view[data-featured-up-next="12"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 12 of [data-up-next-card-id]) {
+/* dashboard-modern.js marks each rail card it copies into the panel, so the
+   rail does not show it twice. */
+#timeline-view #upNextPanel > [data-up-next-card-id][data-featured-in-panel] {
   display: none;
 }
 

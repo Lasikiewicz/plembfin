@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.16";
-import { state } from "./state.js?v=1.3.0.0.16";
-import { showTitleFrom, slug } from "./utils.js?v=1.3.0.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
+import { state } from "./state.js?v=1.3.0.0.17";
+import { showTitleFrom, slug } from "./utils.js?v=1.3.0.0.17";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;

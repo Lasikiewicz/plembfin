@@ -43,7 +43,7 @@ export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
 export const DEFAULT_UP_NEXT_SYNC = Object.freeze({ enabled: true });
 // Dashboard Now Playing / Up Next panel: whether Up Next fills the panel while
 // idle, whether it trails live sessions, and the total number of cards shown.
-export const DEFAULT_NOW_PLAYING = Object.freeze({ showUpNextWhenIdle: true, showUpNextWhilePlaying: true, itemCount: 3 });
+export const DEFAULT_NOW_PLAYING = Object.freeze({ allowPartWatched: true, allowUpNext: true, itemCount: 3 });
 export const NOW_PLAYING_ITEM_COUNT_MAX = 3;
 export const DEFAULT_TAUTULLI = Object.freeze({
   baseUrl: "http://127.0.0.1:8181",
@@ -150,8 +150,8 @@ export function normalizeNowPlayingSection(section = {}) {
   const flag = (value, fallback) => (value === undefined ? fallback : value === true);
   const count = Math.round(Number(raw.itemCount));
   return {
-    showUpNextWhenIdle: flag(raw.showUpNextWhenIdle, DEFAULT_NOW_PLAYING.showUpNextWhenIdle),
-    showUpNextWhilePlaying: flag(raw.showUpNextWhilePlaying, DEFAULT_NOW_PLAYING.showUpNextWhilePlaying),
+    allowPartWatched: flag(raw.allowPartWatched, DEFAULT_NOW_PLAYING.allowPartWatched),
+    allowUpNext: flag(raw.allowUpNext, DEFAULT_NOW_PLAYING.allowUpNext),
     itemCount: Number.isFinite(count) ? Math.min(NOW_PLAYING_ITEM_COUNT_MAX, Math.max(1, count)) : DEFAULT_NOW_PLAYING.itemCount,
   };
 }
@@ -690,7 +690,7 @@ export function validateConfig(config = {}) {
     errors.push("upNextSync.enabled must be boolean");
   }
   if (config.nowPlaying) {
-    for (const key of ["showUpNextWhenIdle", "showUpNextWhilePlaying"]) {
+    for (const key of ["allowPartWatched", "allowUpNext"]) {
       if (config.nowPlaying[key] !== undefined && typeof config.nowPlaying[key] !== "boolean") errors.push(`nowPlaying.${key} must be boolean`);
     }
     const count = config.nowPlaying.itemCount;

@@ -34,6 +34,13 @@ without waiting for either: when the Now Playing session poll (about every 45 se
 cannot reach a server whose feeds last succeeded, that server's feeds are re-read at once
 (at most every two minutes per server), so the status line appears within about a minute.
 
+In the modern style, the Now Playing panel holds three items by default. Live sessions come
+first; the remaining slots (all of them when nothing is playing) feature the Up Next rail's
+part watched items, then its other Up Next items, and a featured item is hidden from the rail
+so nothing shows twice. A cog beside the heading opens the panel options: **Allow part watched
+items here**, **Allow Up Next items here** (both on by default), and the number of items (1 to
+3). Every change saves at once, for the whole server.
+
 ### Up Next
 
 The dashboard's Up Next section is a single mixed queue of movies and TV episodes.

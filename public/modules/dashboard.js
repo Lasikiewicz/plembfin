@@ -1,12 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.16";
-import { state, elements } from "./state.js?v=1.3.0.0.16";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.0.0.16";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.0.0.16";
-import { ifLoaded } from "./route-modules.js?v=1.3.0.0.16";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.0.0.16";
-import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.16";
-import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.0.0.16";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
+import { state, elements } from "./state.js?v=1.3.0.0.17";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.0.0.17";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.0.0.17";
+import { ifLoaded } from "./route-modules.js?v=1.3.0.0.17";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.0.0.17";
+import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.17";
+import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.0.0.17";
+import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.17";
 
 // The setup wizard loads only when setup is unfinished or its checklist has
 // items (see the deferred check in app.js); until then there is nothing to show.
@@ -430,7 +430,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
   const cardOpen = isPartWatched
     ? `<article class="${cardClass}"${cardArtAttribute(entry)} data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
     : isUpNext
-      ? `<article class="${cardClass}"${cardArtAttribute(entry)}${isSaving ? ` aria-busy="true"` : ""} data-up-next-card-id="${escapeAttribute(cardId)}">`
+      ? `<article class="${cardClass}"${cardArtAttribute(entry)}${isSaving ? ` aria-busy="true"` : ""} data-up-next-card-id="${escapeAttribute(cardId)}" data-up-next-queue-kind="${isResume ? "resume" : "next_up"}">`
       : `<a class="${cardClass}"${cardArtAttribute(entry)} data-history-id="${escapeAttribute(cardId)}"${options.explorerAttributes || ""} href="${escapeAttribute(options.explorerHref || href)}">`;
   const cardClose = isInteractive ? "</article>" : "</a>";
   const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;

@@ -1,12 +1,13 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.16";
-import { state } from "./state.js?v=1.3.0.0.16";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
+import { state } from "./state.js?v=1.3.0.0.17";
 
 // The Now Playing / Up Next panel options (cog beside the Dashboard heading).
 // Saved server-wide in the `nowPlaying` config section, so every device shows
 // the same panel. dashboard-modern.js reads them through nowPlayingOptions().
 
 export const NOW_PLAYING_ITEM_COUNT_MAX = 3;
-export const NOW_PLAYING_DEFAULTS = Object.freeze({ showUpNextWhenIdle: true, showUpNextWhilePlaying: true, itemCount: 3 });
+export const NOW_PLAYING_DEFAULTS = Object.freeze({ allowPartWatched: true, allowUpNext: true, itemCount: 3 });
+const NOW_PLAYING_FLAGS = ["allowPartWatched", "allowUpNext"];
 
 const hasDocument = typeof document !== "undefined";
 
@@ -14,8 +15,8 @@ export function nowPlayingOptions(config = state.savedConfig) {
   const saved = config?.nowPlaying || {};
   const count = Math.round(Number(saved.itemCount));
   return {
-    showUpNextWhenIdle: saved.showUpNextWhenIdle === undefined ? NOW_PLAYING_DEFAULTS.showUpNextWhenIdle : saved.showUpNextWhenIdle === true,
-    showUpNextWhilePlaying: saved.showUpNextWhilePlaying === undefined ? NOW_PLAYING_DEFAULTS.showUpNextWhilePlaying : saved.showUpNextWhilePlaying === true,
+    allowPartWatched: saved.allowPartWatched === undefined ? NOW_PLAYING_DEFAULTS.allowPartWatched : saved.allowPartWatched === true,
+    allowUpNext: saved.allowUpNext === undefined ? NOW_PLAYING_DEFAULTS.allowUpNext : saved.allowUpNext === true,
     itemCount: Number.isFinite(count) ? Math.min(NOW_PLAYING_ITEM_COUNT_MAX, Math.max(1, count)) : NOW_PLAYING_DEFAULTS.itemCount,
   };
 }
@@ -49,8 +50,7 @@ if (hasDocument) {
 
     const renderMenu = () => {
       const options = nowPlayingOptions();
-      control("showUpNextWhenIdle").checked = options.showUpNextWhenIdle;
-      control("showUpNextWhilePlaying").checked = options.showUpNextWhilePlaying;
+      for (const key of NOW_PLAYING_FLAGS) control(key).checked = options[key];
       // Do not overwrite a number the user is still typing.
       if (document.activeElement !== control("itemCount")) control("itemCount").value = String(options.itemCount);
     };
@@ -100,7 +100,7 @@ if (hasDocument) {
       button.focus();
     });
 
-    for (const key of ["showUpNextWhenIdle", "showUpNextWhilePlaying"]) {
+    for (const key of NOW_PLAYING_FLAGS) {
       control(key).addEventListener("change", (event) => commit({ [key]: event.target.checked }));
     }
     control("itemCount").addEventListener("change", (event) => {
