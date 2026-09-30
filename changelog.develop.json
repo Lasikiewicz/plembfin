@@ -1,14 +1,14 @@
 {
-  "version": "1.3.0.0.3",
-  "build": 3,
+  "version": "1.3.0.0.14",
+  "build": 14,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-30T10:17:50.976Z",
+  "updatedAt": "2026-09-30T11:56:41.633Z",
   "entries": [
     {
-      "build": 3,
-      "date": "2026-09-30T10:17:50.976Z",
-      "commit": "7d5912aeb4a25aa010360b7d69fa7a4fea792f4b",
-      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, and improve playback sync and dashboard behavior.",
+      "build": 14,
+      "date": "2026-09-30T11:56:41.633Z",
+      "commit": "e07cf0b9f356ed369d3b59bd9c692f4480a328c8",
+      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, and match queue card hover edges to dashboard rails.",
       "author": "Lasikiewicz",
       "details": [
         "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
@@ -31,12 +31,15 @@
         "Refresh open pages and restore their scroll and poster state when returning or choosing the current menu page; reconnect live updates after sleep and keep Now Playing polling responsive",
         "Make TV library cards represent the show and make Stats busiest month follow the selected period",
         "Open the matching Alpha or develop changelog tab on those builds",
-        "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities"
+        "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities",
+        "Give Now Playing and featured Up Next cards the same accent outline and lift as Recently watched cards.",
+        "Add scrollport inset so hovered cards and shadows remain visible."
       ],
       "messageFragments": [
         "Performance - Improve page loading and server recovery",
         "Feature - Dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle",
-        "Feature - Improve playback sync and dashboard behavior"
+        "Feature - Improve playback sync and dashboard behavior",
+        "Fix - Match queue card hover edges to dashboard rails"
       ]
     }
   ]

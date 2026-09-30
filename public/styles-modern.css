@@ -1313,3 +1313,72 @@ html[data-style="modern"]:not(.light-mode) .settings-pane .field-label:not(.chec
 html[data-style="modern"].light-mode .settings-pane .field-label:not(.checkbox-label):not(.backup-enable-row):not(.backup-passphrase-label) {
   color: #64748b;
 }
+
+/* Match the queue card hover treatment to the Recently watched cards. */
+html[data-style="modern"] #timeline-view #upNextDashboardSection .dashboard-history-page-card,
+html[data-style="modern"] #timeline-view #upNextPanel .dashboard-history-page-card,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .dashboard-history-page-card,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .live-now-card {
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+html[data-style="modern"]:not(.light-mode) #timeline-view #upNextDashboardSection .dashboard-history-page-card,
+html[data-style="modern"]:not(.light-mode) #timeline-view #upNextPanel .dashboard-history-page-card,
+html[data-style="modern"]:not(.light-mode) #timeline-view #nowPlayingGrid .dashboard-history-page-card,
+html[data-style="modern"]:not(.light-mode) #timeline-view #nowPlayingGrid .live-now-card {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+html[data-style="modern"].light-mode #timeline-view #upNextDashboardSection .dashboard-history-page-card,
+html[data-style="modern"].light-mode #timeline-view #upNextPanel .dashboard-history-page-card,
+html[data-style="modern"].light-mode #timeline-view #nowPlayingGrid .dashboard-history-page-card,
+html[data-style="modern"].light-mode #timeline-view #nowPlayingGrid .live-now-card {
+  border-color: rgba(15, 23, 42, 0.09);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+html[data-style="modern"] #timeline-view #upNextDashboardSection .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #upNextPanel .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .live-now-card:hover {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+html[data-style="modern"]:not(.light-mode) #timeline-view #upNextDashboardSection .dashboard-history-page-card:hover,
+html[data-style="modern"]:not(.light-mode) #timeline-view #upNextPanel .dashboard-history-page-card:hover,
+html[data-style="modern"]:not(.light-mode) #timeline-view #nowPlayingGrid .dashboard-history-page-card:hover,
+html[data-style="modern"]:not(.light-mode) #timeline-view #nowPlayingGrid .live-now-card:hover {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+html[data-style="modern"].light-mode #timeline-view #upNextDashboardSection .dashboard-history-page-card:hover,
+html[data-style="modern"].light-mode #timeline-view #upNextPanel .dashboard-history-page-card:hover,
+html[data-style="modern"].light-mode #timeline-view #nowPlayingGrid .dashboard-history-page-card:hover,
+html[data-style="modern"].light-mode #timeline-view #nowPlayingGrid .live-now-card:hover {
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.14);
+}
+
+/* The regular Up Next row has a few pixels of inset, like the Recently
+   watched rails, so its cards can lift without clipping. The featured rail
+   touches its scrollport edge, so it keeps the outline and shadow in place. */
+html[data-style="modern"] #timeline-view #upNextDashboardSection .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #upNextPanel .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .dashboard-history-page-card:hover,
+html[data-style="modern"] #timeline-view #nowPlayingGrid .live-now-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Both scrolling rails need the same inset as Recently watched so a lifted
+   card and its shadow remain inside the scrollport. */
+html[data-style="modern"] #timeline-view #nowPlayingGrid {
+  padding: 0.55rem 0.2rem 0.55rem 0;
+}
+
+/* The idle-feature wrapper is a single featured card, not a scrolling rail.
+   Let its hover edge reach the padding on #nowPlayingGrid instead of clipping
+   it at a nested overflow boundary. */
+html[data-style="modern"] #timeline-view #nowPlayingGrid .modern-idle-feature {
+  overflow: visible;
+}
