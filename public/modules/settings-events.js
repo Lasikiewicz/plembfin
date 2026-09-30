@@ -5,11 +5,11 @@
 // parsed when Settings is opened. app-events.js wires this module through
 // onRouteModuleLoaded() with the same callbacks object it received, so each
 // wrapper below reads the app.js implementation at call time.
-import { rotateWebhookSecret } from "./auth.js?v=1.3.0.0.17";
-import { clearDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { loadSyncHistory, loadSyncJobs, triggerCronSync, triggerStopSync } from "./sync.js?v=1.3.0.0.17";
-import { ifLoaded, lazyExport } from "./route-modules.js?v=1.3.0.0.17";
+import { rotateWebhookSecret } from "./auth.js?v=1.3.0.0.18";
+import { clearDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.3.0.0.18";
+import { state, elements } from "./state.js?v=1.3.0.0.18";
+import { loadSyncHistory, loadSyncJobs, triggerCronSync, triggerStopSync } from "./sync.js?v=1.3.0.0.18";
+import { ifLoaded, lazyExport } from "./route-modules.js?v=1.3.0.0.18";
 
 const lazyTools = (name) => lazyExport("tools", name);
 const lazyBackups = (name) => lazyExport("tools-backups", name);

@@ -1,5 +1,5 @@
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.3.0.0.17";
-import { tmdbProfile } from "./images.js?v=1.3.0.0.17";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.3.0.0.18";
+import { tmdbProfile } from "./images.js?v=1.3.0.0.18";
 
 export function renderCastActor(actor = {}) {
   const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";

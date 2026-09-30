@@ -1,14 +1,14 @@
 {
-  "version": "1.3.0.0.17",
-  "build": 17,
+  "version": "1.3.0.0.18",
+  "build": 18,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-30T13:34:42.806Z",
+  "updatedAt": "2026-09-30T14:06:29.101Z",
   "entries": [
     {
-      "build": 17,
-      "date": "2026-09-30T13:34:42.806Z",
-      "commit": "9952dd32a7dc4a5dea74ad3900262f492f08497e",
-      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, stop movie pages re-asking TVDB for related shows every hour, remove the edge around resting Now Playing and Up Next cards, and let the Now Playing panel feature part watched and Up Next items.",
+      "build": 18,
+      "date": "2026-09-30T14:06:29.101Z",
+      "commit": "5148f8a861ced845fdf158d69c88183b3a5da1db",
+      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, stop movie pages re-asking TVDB for related shows every hour, remove the edge around resting Now Playing and Up Next cards, let the Now Playing panel feature part watched and Up Next items, and show a new cycle's first alpha build on the Alpha tab in Settings.",
       "author": "Lasikiewicz",
       "details": [
         "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
@@ -39,7 +39,8 @@
         "The Now Playing panel options are now \"Allow part watched items here\" and \"Allow Up Next items here\", both on by default",
         "Part watched items fill the panel first, then Up Next items, in the slots left after anything playing",
         "The panel always features these items when nothing is playing; the old idle and while-playing switches are gone",
-        "Items shown in the panel are hidden from the Up Next rail, so nothing appears twice"
+        "Items shown in the panel are hidden from the Up Next rail, so nothing appears twice",
+        "The Alpha tab in Settings now lists a new release cycle's first alpha build instead of hiding it behind the previous cycle's build 1, and only the running build is tagged Current"
       ],
       "messageFragments": [
         "Performance - Improve page loading and server recovery",
@@ -48,7 +49,8 @@
         "Fix - Match queue card hover edges to dashboard rails",
         "Fix - Stop movie pages re-asking TVDB for related shows every hour",
         "Fix - Remove the edge around resting Now Playing and Up Next cards",
-        "Feature - Let the Now Playing panel feature part watched and Up Next items"
+        "Feature - Let the Now Playing panel feature part watched and Up Next items",
+        "Fix - Show a new cycle's first alpha build on the Alpha tab in Settings"
       ]
     }
   ]

@@ -1,9 +1,9 @@
-import { state } from "./state.js?v=1.3.0.0.17";
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.3.0.0.17";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.3.0.0.17";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.3.0.0.17";
-import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.3.0.0.17";
+import { state } from "./state.js?v=1.3.0.0.18";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.18";
+import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.3.0.0.18";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.3.0.0.18";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.3.0.0.18";
+import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.3.0.0.18";
 
 let _cb = {};
 let _openConfirmDialog = async () => false;
