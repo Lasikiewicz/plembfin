@@ -80,6 +80,46 @@ the start of this chat and review only this chat's changes. A pre-existing local
 commit ahead of `origin/develop` cannot be omitted from a normal branch push, so
 the scope check must stop before committing when one is present.
 
+### 1b - Check open dependency PRs (Dependabot)
+
+Dependabot opens PRs against `main` (`.github/dependabot.yml`). They are never merged on
+GitHub: merging one would publish a release with no changelog or version bump. They enter
+`develop` only through this step, with the user's agreement, so the change ships in the
+normal push and promotion flow.
+
+```bash
+gh pr list --author "app/dependabot" --state open --json number,title,headRefName,url
+```
+
+If none are open, say so in one line and continue. Otherwise:
+
+1. **Apply each PR locally, one at a time.** Do not apply the PR diff, because several
+   PRs editing `package-lock.json` conflict. Read the PR title for the package and target
+   version, then run `npm install <package>@<version>` for an npm bump (this regenerates
+   the lock file) or edit the `uses:` line by hand for a GitHub Actions bump. Skip this
+   whole step and tell the user when `package.json`, `package-lock.json`, or the workflow
+   file being changed already has uncommitted edits that are not this chat's own, because
+   the bump could not be separated from them.
+2. **Check it.** Run `npm test` and `npm run build` after each bump. For a bump that
+   touches `better-sqlite3` or `sharp`, also confirm the Docker Build Check on the PR is
+   green (`gh pr checks <number>`), because only the Docker build proves the native module
+   loads.
+3. **Judge the risk** from the version jump and the package's release notes:
+   patch or minor with green checks is **safe**; a major version, a native module, or
+   anything the release notes call breaking is **needs review**.
+4. **Warn and ask.** Report one line per PR (package, old to new version, safe or needs
+   review, test and build result) and ask with AskUserQuestion which to include. Revert
+   any bump the user declines (`git checkout -- package.json package-lock.json`, or undo
+   the workflow edit), and leave that PR open.
+5. **Included bumps become part of this push.** Stage them with the rest of the work.
+   Give them a commit-message bullet only when the bump fixes a security advisory or
+   changes something a user of the app sees; otherwise add no bullet, and leave the
+   `site-impact:` note as it is.
+6. **Remember the PR numbers included.** They are closed in step 9, after the push succeeds
+   and never before.
+
+Never run `gh pr merge` on these PRs.
+
 ### 2 - Sync docs and README
 For every selected changed file, check whether the corresponding doc **and** the relevant section of `README.md` need updating:
 
@@ -315,3 +355,16 @@ Only pause and ask the user if the merge actually produces a conflict, or if
 `origin/develop` contains commits that touch source files you don't recognize - that
 would mean unrelated work landed on `develop` and needs a real decision, not an
 automatic merge.
+
+### 9 - Close the included dependency PRs
+
+Only after `git push origin develop` has succeeded, close each PR the user agreed to include
+in step 1b, with the pushed commit in the comment:
+
+```bash
+gh pr close <number> --comment "Applied locally in <short sha> and shipped through develop. Closing here so this bump is not merged on main separately."
+```
+
+GitHub shows these as Closed rather than Merged, because the change arrived in a different
+commit. Do not close a PR when the push failed or the user declined its bump. Then release
+the lock from Step 0.

@@ -175,9 +175,9 @@ TODO. There is no root `TODO.md` (retired 15 September 2026).
 
 Each plan `<name>` has these parts (user-agreed 25 September 2026):
 
-- `plan/<name>.md`, the **summary**, written for the user in plain English: Purpose, "Where we
-  are" (3 to 5 lines), Steps (a ticked checklist linking each step file, with unticked
-  sub-boxes for each outstanding check), and "Waiting on you". It is the only place status
+- `plan/<name>.md`, the **summary**, written for the user in plain English: Purpose, "Waiting on
+  you" (just above the steps), Steps (a ticked checklist linking each step file, with unticked
+  sub-boxes for each outstanding check), and "Where we are" (3 to 5 lines, after the steps). It is the only place status
   lives, and it holds no file names or code.
 - `plan/active/<name>/plan.md`, the **design**: scope, decisions (with the user's answers and
   dates), safety rules, contract, acceptance criteria. No status.
