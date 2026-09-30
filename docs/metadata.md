@@ -81,7 +81,7 @@ caches in SQLite:
 | `tmdb_metadata_cache` | Merged details per item, keyed by `movie_<id>` / `tv_<id>` with TVDB aliases (or `tv_tvdb_<id>` when no TMDB match), stamped with `DETAILS_SCHEMA_VERSION` | 1 day for airing/in-production shows; longer for ended/released |
 | `tmdb_search_cache` | Search responses, including negative results, Discover snapshots keyed by feed type/genre, and per-title recommendation responses | Searches: 15 min (1 day for misses); Discover: 15 min with stale-while-revalidate; recommendations: 6 hours (1 day for misses) |
 | `tmdb_person_cache` | Person details + credits, `PERSON_SCHEMA_VERSION` | 7 days |
-| `tvdb_metadata_cache` | Raw TVDB series/extended responses + title-search results | 14 days active / 180 days archived series; searches 180 days (1 hour for misses) |
+| `tvdb_metadata_cache` | Raw TVDB series/extended responses + title-search results | 14 days active / 180 days archived series; searches 180 days (1 hour for misses; the movie page's Recommended TV Shows lookup, sent with `relatedTvLookup`, reads a miss for 7 days) |
 | `tvdb_season_cache` | TVDB season episode lists, built from the cached series payload's episodes (one TVDB call covers every season, stamped with the series fetch time; a series row older than the season TTL is refetched once first); seasons absent from that payload use `/v4/seasons/{id}/extended` | 2 days upcoming / 7 days active / 180 days archived |
 | `fanart_cache` | Raw fanart.tv responses per item, key `movies/<tmdbId>` / `tv/<tvdbId>`, including "no artwork" 404 misses | 7 days (1 day for misses) |
 | `omdb_cache` | IMDb rating/votes, including HTTP-error negatives (bad key / exhausted quota) | 7 days (6 hours for HTTP errors) |

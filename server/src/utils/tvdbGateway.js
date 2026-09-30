@@ -17,6 +17,11 @@ const API_ROOT = "https://api4.thetvdb.com/v4";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 180 * DAY_MS;
 const SEARCH_MISS_TTL_MS = 60 * 60 * 1000;
+// The movie page's "Recommended TV Shows" rail asks "is there a series named
+// like this film?" on every view, and 9 in 10 answers are no. It reads a miss
+// for a week instead of an hour; the TTL is applied on read, so sync's own
+// title resolution still retries a miss after an hour and refreshes the row.
+export const RELATED_TV_SEARCH_MISS_TTL_MS = 7 * DAY_MS;
 const ACTIVE_SERIES_TTL_MS = 14 * DAY_MS;
 const ARCHIVED_SERIES_TTL_MS = 180 * DAY_MS;
 const UPCOMING_SEASON_TTL_MS = 2 * DAY_MS;
@@ -412,7 +417,7 @@ export async function lookupTvdbEpisodeKind(tvdbEpisodeId, { lane = "enrichment"
   return details;
 }
 
-export async function resolveTvdbSeriesId({ tvdbId = "", title = "", lane = "enrichment" } = {}) {
+export async function resolveTvdbSeriesId({ tvdbId = "", title = "", lane = "enrichment", missTtlMs = SEARCH_MISS_TTL_MS } = {}) {
   const cleanedId = normalizeTvdbId(tvdbId);
   if (cleanedId) return cleanedId;
 
@@ -421,7 +426,7 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "", lane = "enr
 
   const cacheKey = `search_${hash(canonicalTitle(cleanedTitle))}`;
   const cached = seriesGetStmt.get(cacheKey);
-  if (cached && fresh(cached.updated_at_ms, cached.tvdb_id ? SEARCH_TTL_MS : SEARCH_MISS_TTL_MS)) {
+  if (cached && fresh(cached.updated_at_ms, cached.tvdb_id ? SEARCH_TTL_MS : missTtlMs)) {
     const details = parseJson(cached.details);
     if (details?.match_schema_version === SEARCH_MATCH_SCHEMA_VERSION) {
       return details?.tvdb_id ? String(details.tvdb_id) : "";

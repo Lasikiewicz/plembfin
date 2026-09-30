@@ -8,11 +8,11 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=1.3.0.0.14";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.3.0.0.14";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.14";
+} from "./utils.js?v=1.3.0.0.15";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.3.0.0.15";
+import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.15";
 // With Posters only on, a clicked poster opens its card (Discover, Watchlist, Ratings, Playlists).
-import "./page-card-open.js?v=1.3.0.0.14";
+import "./page-card-open.js?v=1.3.0.0.15";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();

@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.14";
-import { state } from "./state.js?v=1.3.0.0.14";
-import { showTitleFrom, slug } from "./utils.js?v=1.3.0.0.14";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.15";
+import { state } from "./state.js?v=1.3.0.0.15";
+import { showTitleFrom, slug } from "./utils.js?v=1.3.0.0.15";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;
@@ -95,7 +95,9 @@ function hasFullTvMetadata(details) {
 // artwork enrichment on cold items. Light results are cached under their own
 // key so a later full request (detail pages) still fetches complete data;
 // full results satisfy light lookups.
-export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false, immediate = false } = {}) {
+// `relatedTvLookup: true` marks the movie page's "is there a series named like
+// this film?" probe, so the server remembers a miss for a week, not an hour.
+export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false, immediate = false, relatedTvLookup = false } = {}) {
   const lookupIds = normalizeTmdbLookupIds(ids);
   const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
   if (state.tmdbDetailsCache.has(baseKey)) {
@@ -114,6 +116,7 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { lig
     imdbId: lookupIds.imdbId || undefined,
     tvdbId: lookupIds.tvdbId || undefined,
     light: light || undefined,
+    relatedTvLookup: relatedTvLookup || undefined,
   };
 
   const promise = immediate ? requestTmdbDetailsNow(request) : new Promise((resolve, reject) => {

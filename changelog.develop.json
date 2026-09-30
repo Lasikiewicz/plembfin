@@ -1,14 +1,14 @@
 {
-  "version": "1.3.0.0.14",
-  "build": 14,
+  "version": "1.3.0.0.15",
+  "build": 15,
   "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-30T11:56:41.633Z",
+  "updatedAt": "2026-09-30T12:31:40.623Z",
   "entries": [
     {
-      "build": 14,
-      "date": "2026-09-30T11:56:41.633Z",
-      "commit": "e07cf0b9f356ed369d3b59bd9c692f4480a328c8",
-      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, and match queue card hover edges to dashboard rails.",
+      "build": 15,
+      "date": "2026-09-30T12:31:40.623Z",
+      "commit": "9dc273cb93f488f9e6baec201c8669db30693b17",
+      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, and stop movie pages re-asking TVDB for related shows every hour.",
       "author": "Lasikiewicz",
       "details": [
         "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
@@ -33,13 +33,15 @@
         "Open the matching Alpha or develop changelog tab on those builds",
         "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities",
         "Give Now Playing and featured Up Next cards the same accent outline and lift as Recently watched cards.",
-        "Add scrollport inset so hovered cards and shadows remain visible."
+        "Add scrollport inset so hovered cards and shadows remain visible.",
+        "The Recommended TV Shows rail on a movie page now remembers for a week when no show matches the film, so reopening a movie no longer waits on a TVDB search"
       ],
       "messageFragments": [
         "Performance - Improve page loading and server recovery",
         "Feature - Dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle",
         "Feature - Improve playback sync and dashboard behavior",
-        "Fix - Match queue card hover edges to dashboard rails"
+        "Fix - Match queue card hover edges to dashboard rails",
+        "Fix - Stop movie pages re-asking TVDB for related shows every hour"
       ]
     }
   ]

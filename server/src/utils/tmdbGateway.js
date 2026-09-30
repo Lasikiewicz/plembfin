@@ -4,7 +4,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
-import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, getCachedTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
+import { RELATED_TV_SEARCH_MISS_TTL_MS, resolveTvdbSeriesId,resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, getCachedTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
 import { isDemoMode } from "./demoMode.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
@@ -638,7 +638,7 @@ async function deriveNextAiring(details, tvdbId, lane = "enrichment") {
 // don't need (collection parts, next-airing derivation, artwork/fanart
 // caching). Light-fetched rows are stamped `details_light` so the next full
 // caller refetches and completes them.
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, lane = "enrichment" }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, relatedTvLookup = false, lane = "enrichment" }) {
   if (isDemoMode()) {
     const cached = getCachedTmdbDetails({ mediaType, tmdbId, title, ids });
     if (cached) return cached;
@@ -647,7 +647,7 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids =
     throw error;
   }
   const type = mediaTypeFor(mediaType);
-  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle, lane });
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle, relatedTvLookup, lane });
   return getMovieDetails({ tmdbId, title, ids, force, light: light && !force, lane });
 }
 
@@ -779,7 +779,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
-async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, lane = "enrichment" }) {
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, relatedTvLookup = false, lane = "enrichment" }) {
   const requestedImdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
   const requestedTvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
@@ -803,7 +803,13 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
   // title search when the provider did not expose a TVDB mapping; resolving by
   // title first can select the wrong same-named series (or reject a perfectly
   // valid TMDB result) before we ever inspect its own external ids.
-  if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title, lane });
+  if (!tvdbId) {
+    tvdbId = await resolveTvdbSeriesId({
+      title,
+      lane,
+      ...(relatedTvLookup ? { missTtlMs: RELATED_TV_SEARCH_MISS_TTL_MS } : {}),
+    });
+  }
   if (!tvdbId) {
     const error = new Error("Could not resolve TVDB ID");
     error.status = 404;

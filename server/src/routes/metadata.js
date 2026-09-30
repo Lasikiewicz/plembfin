@@ -805,6 +805,7 @@ export async function handleTmdbDetailsBatch(req, res) {
           title,
           ids,
           light: item?.light === true,
+          relatedTvLookup: item?.relatedTvLookup === true,
           // Explorer prefetch is intentionally lower priority; a full detail
           // request is user-visible and must jump ahead of it.
           lane: item?.light === true ? "enrichment" : "interactive",
