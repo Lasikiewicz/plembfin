@@ -587,9 +587,14 @@ html[data-style="modern"].light-mode #history-view .history-list .history-page-c
    treatment. Their backdrops can leave the standard white card shadow reading
    as a bright outline against the dashboard artwork. */
 html[data-style="modern"].light-mode #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] {
-  border-color: var(--line);
+  border-color: transparent;
   box-shadow: none;
   outline: none;
+}
+
+html[data-style="modern"].light-mode #timeline-view #nowPlayingGrid .live-now-card {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 html[data-style="modern"].light-mode #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id]:focus-visible {
