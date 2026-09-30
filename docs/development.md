@@ -205,6 +205,10 @@ values already committed" - none of them write anything back to their branch.
   branch and the next ordinary "Push to git" publishes it, which is what keeps a
   promotion to one channel from also publishing a second develop image. See
   `docs/decisions.md` entry 18.
+  For a tooling-only release-process change, `--tooling-only` is an explicit opt-in: it
+  requires a current empty develop changelog and changes limited to maintainer/tooling
+  paths, records an alpha entry with no product bullets, and excludes that entry from the
+  next stable release. Standard alpha promotions still require a publishable product entry.
 - **"Force to main"** pins `origin/alpha`, writes a concise `releaseMessage`, previews the
   accumulated release entry, and starts that exact alpha build. The user approves both the
   changelog and running candidate before any website work. Website phases A/B/C then review

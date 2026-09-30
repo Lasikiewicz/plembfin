@@ -137,6 +137,9 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   const new5DigitVersion = `${newMainVersion}.0.0`;
 
   const publicEntries = filterChangelogEntries(alpha.entries);
+  if (!publicEntries.length) {
+    throw new Error("Refusing to promote alpha to main: there are no user-facing alpha builds to consolidate.");
+  }
 
   // Each alpha build entry already carries its own correctly categorized `sections`
   // (categorizeEntries ran once, in promoteDevelopToAlpha, over that build's own raw

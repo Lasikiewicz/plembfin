@@ -100,7 +100,9 @@ export function filterChangelogEntries(entries = []) {
   if (!Array.isArray(entries)) return [];
 
   return entries
-    .filter((entry) => entry && !isChangelogProcessMessage(entry.message))
+    // Tooling-only alpha builds are useful to current alpha testers but do not
+    // describe product changes and must never enter a stable release entry.
+    .filter((entry) => entry && entry.toolingOnly !== true && !isChangelogProcessMessage(entry.message))
     .map((entry) => ({
       ...entry,
       details: filterChangelogDetails(entry.details),

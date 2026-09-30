@@ -76,6 +76,22 @@ from the documentation that was reviewed.
 node scripts/promote-develop-to-alpha.js
 ```
 
+For a release-tooling-only promotion with no user-facing application changes, use the
+explicit tooling-only mode instead:
+
+```bash
+node scripts/rebuild-develop-changelog.js --check
+node scripts/promote-develop-to-alpha.js --tooling-only
+```
+
+Use this only when the changelog check confirms there are no user-facing develop commits.
+The script also requires `origin/alpha` to be an ancestor, rejects any changed path outside
+the maintainer/tooling allowlist, and refuses a nonempty or stale develop changelog. It
+creates a clearly marked alpha entry with no product bullets. The entry remains visible on
+Alpha, but `promote-alpha-to-main.js` excludes it from the stable release. The normal
+three-bullet quality gate remains in force for every ordinary alpha promotion. Review and
+approve the tooling-only entry and running build through the same gates below.
+
 Then complete step 3a below and wait for the user's approval. Only after that:
 
 ```bash
@@ -103,12 +119,15 @@ build entry that `promote-develop-to-alpha.js` just wrote - its version, headlin
 every bullet under New Features / Major Bug Fixes / Tweaks:
 
 ```bash
-node -e "const a=require('./changelog.alpha.json'); const e=a.entries[0]; console.log(JSON.stringify({version:e.version,build:e.build,message:e.message,sections:e.sections},null,2))"
+node -e "const a=require('./changelog.alpha.json'); const e=a.entries[0]; console.log(JSON.stringify({version:e.version,build:e.build,message:e.message,toolingOnly:e.toolingOnly,sections:e.sections},null,2))"
 ```
 
 Ask the user to approve it or give replacement wording. If they revise it, edit
 `changelog.alpha.json`'s top entry (`message`, and the `sections` bullets if they change
 those), re-run the process-text check, and show it again. Only then stage and commit.
+For a tooling-only entry, show that `toolingOnly` is `true`, state that there are no product
+bullets and that the entry will be excluded from the next stable release, then wait for the
+same explicit approval.
 
 **Check the headline before showing it, and offer to rewrite it.** `synthesizeHeadline`
 joins the subject of every product commit in the cycle, so two or more give a run-on such
