@@ -2,8 +2,8 @@
 // custom-list items that were saved without them, and shares what one
 // collection learned with the others. Split from personal-media.js, which owns
 // loading and rendering those collections.
-import { state } from "./state.js?v=1.3.0.0.18";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.3.0.0.18";
+import { state } from "./state.js?v=1.3.0.1.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.3.0.1.0";
 
 let personalMetadataHydrationPromise = null;
 

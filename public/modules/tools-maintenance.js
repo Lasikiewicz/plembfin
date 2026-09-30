@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.18";
-import { state, elements } from "./state.js?v=1.3.0.0.18";
-import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.3.0.0.18";
-import { categorizeIssues } from "./sync.js?v=1.3.0.0.18";
-import { openFixMatchDialog } from "./edit-dialogs.js?v=1.3.0.0.18";
+import { buildAuthHeaders } from "./auth.js?v=1.3.0.1.0";
+import { state, elements } from "./state.js?v=1.3.0.1.0";
+import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.3.0.1.0";
+import { categorizeIssues } from "./sync.js?v=1.3.0.1.0";
+import { openFixMatchDialog } from "./edit-dialogs.js?v=1.3.0.1.0";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};

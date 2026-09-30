@@ -1,57 +1,7 @@
 {
-  "version": "1.3.0.0.18",
-  "build": 18,
-  "resetCommit": "771d23d79cf9068de8844b93ad18ac9062971427",
-  "updatedAt": "2026-09-30T14:06:29.101Z",
-  "entries": [
-    {
-      "build": 18,
-      "date": "2026-09-30T14:06:29.101Z",
-      "commit": "5148f8a861ced845fdf158d69c88183b3a5da1db",
-      "message": "This update includes improve page loading and server recovery, dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle, improve playback sync and dashboard behavior, match queue card hover edges to dashboard rails, stop movie pages re-asking TVDB for related shows every hour, remove the edge around resting Now Playing and Up Next cards, let the Now Playing panel feature part watched and Up Next items, and show a new cycle's first alpha build on the Alpha tab in Settings.",
-      "author": "Lasikiewicz",
-      "details": [
-        "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, refreshing it on each load.",
-        "Page caches warm in the background after startup and when changes settle, so first requests wait less.",
-        "History shows its first 48 cards right away and appends the rest during idle time.",
-        "Cache rebuilds yield between short batches so pages, webhooks, and sync requests stay responsive.",
-        "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover.",
-        "Recently watched TV runs fold into one poster with an episode count badge only in posters-only mode; full cards show every episode",
-        "Opening a poster in posters-only mode keeps it where it is instead of jumping as other cards close",
-        "Episode cards use the episode's own still as their backdrop, falling back to the show backdrop",
-        "Dashboard cards show Season/Ep directly under the episode name and Last Played directly above the app used",
-        "Up next cards no longer show the Available line, and a card with progress shows its progress bar above the Watch now apps",
-        "Recently watched cards no longer show the Watched Twice / Watched N Times line",
-        "The Movies and TV Shows libraries remember their Posters only setting separately",
-        "Retry temporary Trakt failures and check history before resending, avoiding duplicate plays and unnecessary media server updates",
-        "Treat watch events accurately across providers: ignore ratings and tiny progress, capture completed or later-day replays, and preserve the real Jellyfin item ID",
-        "Keep an older-season rewatch beside a newly arrived Up Next episode, let viewers hide one season or the whole show, and keep provider queues following the rewatch",
-        "Review title-only and conflicting watch-state aliases, with a Dismissed list and a restore action",
-        "Set how Up Next fills Now Playing and choose one to three items; episode cards use the right artwork, show link, layout, spacing, and text colors",
-        "Refresh open pages and restore their scroll and poster state when returning or choosing the current menu page; reconnect live updates after sleep and keep Now Playing polling responsive",
-        "Make TV library cards represent the show and make Stats busiest month follow the selected period",
-        "Open the matching Alpha or develop changelog tab on those builds",
-        "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities",
-        "Give Now Playing and featured Up Next cards the same accent outline and lift as Recently watched cards.",
-        "Add scrollport inset so hovered cards and shadows remain visible.",
-        "The Recommended TV Shows rail on a movie page now remembers for a week when no show matches the film, so reopening a movie no longer waits on a TVDB search",
-        "Now Playing and Up Next cards on the modern dashboard no longer show a thin bright border or light ring at rest, in light or dark mode; the accent edge still appears on hover",
-        "The Now Playing panel options are now \"Allow part watched items here\" and \"Allow Up Next items here\", both on by default",
-        "Part watched items fill the panel first, then Up Next items, in the slots left after anything playing",
-        "The panel always features these items when nothing is playing; the old idle and while-playing switches are gone",
-        "Items shown in the panel are hidden from the Up Next rail, so nothing appears twice",
-        "The Alpha tab in Settings now lists a new release cycle's first alpha build instead of hiding it behind the previous cycle's build 1, and only the running build is tagged Current"
-      ],
-      "messageFragments": [
-        "Performance - Improve page loading and server recovery",
-        "Feature - Dashboard TV runs fold only in posters-only mode, tidier dashboard cards, per-library posters-only toggle",
-        "Feature - Improve playback sync and dashboard behavior",
-        "Fix - Match queue card hover edges to dashboard rails",
-        "Fix - Stop movie pages re-asking TVDB for related shows every hour",
-        "Fix - Remove the edge around resting Now Playing and Up Next cards",
-        "Feature - Let the Now Playing panel feature part watched and Up Next items",
-        "Fix - Show a new cycle's first alpha build on the Alpha tab in Settings"
-      ]
-    }
-  ]
+  "version": "1.3.0.1.0",
+  "build": 0,
+  "resetCommit": "1273c32848475d6358d1e8ee11bee1e2eb1024cc",
+  "updatedAt": "2026-09-30T14:06:43.454Z",
+  "entries": []
 }

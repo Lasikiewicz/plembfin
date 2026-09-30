@@ -1,5 +1,5 @@
-import { state } from "./state.js?v=1.3.0.0.18";
-import { plexHistoricalSyncEnabled } from "./plex-history-policy.js?v=1.3.0.0.18";
+import { state } from "./state.js?v=1.3.0.1.0";
+import { plexHistoricalSyncEnabled } from "./plex-history-policy.js?v=1.3.0.1.0";
 
 let getHeaders = () => ({ "Content-Type": "application/json" });
 let bound = false;
