@@ -589,6 +589,12 @@ html[data-style="modern"].light-mode #history-view .history-list .history-page-c
 html[data-style="modern"].light-mode #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] {
   border-color: var(--line);
   box-shadow: none;
+  outline: none;
+}
+
+html[data-style="modern"].light-mode #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 html[data-style="modern"].light-mode #timeline-view .dashboard-history-page-card:hover,
