@@ -213,7 +213,7 @@ export async function handleConfig(req, res) {
     // are validated, matching the previous per-section semantics.
     const merged = await mergeIncomingConfig(config);
     const toValidate = {};
-    for (const section of ["plex", "emby", "jellyfin", "seerr", "tautulli", "tuning", "pacing", "ratingSync", "watchlistSync", "upNextSync"]) {
+    for (const section of ["plex", "emby", "jellyfin", "seerr", "tautulli", "tuning", "pacing", "ratingSync", "watchlistSync", "upNextSync", "nowPlaying"]) {
       if (config[section]) toValidate[section] = merged[section];
     }
     const errors = validateConfig(toValidate);

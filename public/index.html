@@ -267,10 +267,30 @@
           <h1 class="sr-only">Dashboard</h1>
           <div id="dashboardChecklist" class="hidden"></div>
     <section class="glass-panel p-section live-panel">
-            <div class="section-heading">
-              <div>
+            <div class="section-heading now-playing-section-heading">
+              <div class="up-next-heading-copy">
                 <h2>Now Playing</h2>
+                <button id="nowPlayingOptionsButton" class="icon-button up-next-sync-button now-playing-options-button" type="button" aria-label="Now Playing and Up Next options" title="Now Playing and Up Next options" aria-haspopup="dialog" aria-expanded="false" aria-controls="nowPlayingOptionsMenu">
+                  <svg class="up-next-sync-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.05.31-.08.63-.08.94s.03.63.08.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z" />
+                  </svg>
+                </button>
               </div>
+            </div>
+            <div id="nowPlayingOptionsMenu" class="now-playing-options-menu hidden" role="dialog" aria-label="Now Playing and Up Next options">
+              <label class="now-playing-option">
+                <input type="checkbox" role="switch" data-now-playing-option="showUpNextWhenIdle" />
+                <span>Show Up Next here when nothing is playing</span>
+              </label>
+              <label class="now-playing-option">
+                <input type="checkbox" role="switch" data-now-playing-option="showUpNextWhilePlaying" />
+                <span>Also show Up Next while something is playing</span>
+              </label>
+              <label class="now-playing-option now-playing-option-count">
+                <span>Number of items to show (1 to 3)</span>
+                <input type="number" min="1" max="3" step="1" inputmode="numeric" data-now-playing-option="itemCount" />
+              </label>
+              <p class="now-playing-option-error hidden" role="alert"></p>
             </div>
             <div id="nowPlayingGrid" class="now-playing-grid" aria-live="polite"></div>
           </section>
@@ -1773,7 +1793,7 @@
                             <li><b>Audit Phantom Watches</b><span>Runs a read-only scan for suspicious duplicates or broken imported episode data. Results are marked high-confidence or review-only; nothing is changed.</span></li>
                             <li><b>Remove Duplicate Watches</b><span>Finds repeated movie or episode watches and keeps the oldest date. The other rows are deleted and the correction is pushed to connected platforms after you confirm the exact count. This cannot be undone.</span></li>
                             <li><b>Restore Missing Episode Names</b><span>Finds episode rows with a missing or coordinate-only name and restores the real title using stored rows, cached season metadata, and a metadata lookup when needed. Read-only audit results are kept separate from retryable failures.</span></li>
-                            <li><b>Watch-State Aliases</b><span>Lists episode watch states stored under an episode's own ids that no TMDB or TVDB lookup could tie to the show. Per show, choose Belongs to this show (the newest watch state wins and the entries join the show) or Different show (they are left alone and never listed again). Only Plembfin's local watch state changes; nothing is sent to connected platforms.</span></li>
+                            <li><b>Watch-State Aliases</b><span>Lists unresolved episode watch states stored under episode ids or a title only, including newer conflicting entries. Per show, choose Belongs to this show (the newest watch state wins and the entries join the show) or Different show (they are left alone and hidden until restored from the Dismissed list). Only Plembfin's local watch state changes; nothing is sent to connected platforms.</span></li>
                           </ul>
                         </div>
                       </div>

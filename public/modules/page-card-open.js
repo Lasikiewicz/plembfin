@@ -151,6 +151,10 @@ if (hasDocument) {
     if (event.target.closest?.("[data-card-mode-toggle]")) closeOpenItems();
   });
 
+  // Arriving on a page, including a menu click on the page already open,
+  // folds the open item back.
+  document.addEventListener("plembfin:page-entry", closeOpenItems);
+
   const pageShell = document.querySelector?.(".page-shell");
   if (pageShell && typeof MutationObserver === "function") {
     let frame = 0;

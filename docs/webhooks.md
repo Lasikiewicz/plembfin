@@ -38,7 +38,7 @@ object. The crucial output is `media.phase`, derived per platform by
 | phase | Meaning | What `handleWebhook` does |
 | --- | --- | --- |
 | `active` | Currently playing (play/resume/progress) | `upsertActiveSession()` → writes `active_sessions` row (5-minute TTL by default), bumps `runtimeState.nowPlayingRefresh`. **No history insert.** |
-| `completed` | Watched (scrobble, mark-played, or stop at the watched threshold, 90% by default) | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
+| `completed` | Watched (scrobble, mark-played, a stop at the watched threshold, 90% by default, or an Emby/Jellyfin stop that says `PlayedToCompletion`). Percentage fields are read as 0-100; a Plex rating (`user.playrate`) is ignored | Inserts/updates a `watch_history` record + propagates *watched* to the other platforms. |
 | `ended` | Stopped below the watched threshold | Deletes active session; if resume is actionable, stores/propagates resume progress to `playback_progress`. |
 | `unplayed` | Marked unwatched/unplayed | Deletes the active session, records the unwatched transition as the canonical state, and propagates it to the other eligible destinations. |
 | `added` | New item appeared in a library (`library.new`, `item.added`, `ItemAdded`) | Checks the current canonical state for that media. If it is watched, marks the item watched **on that server only**; writes no history. A current unwatch overrides older watch history. |

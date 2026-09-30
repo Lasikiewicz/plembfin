@@ -240,12 +240,18 @@ Implementation lives in `server/src/scheduled.js`.
    - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
      to the `live_tracking_cache` SQLite table.
-   - Reconciles against cached rows: a **recent, non-paused** cached session that
-     is **no longer playing** and had `last_progress >= 90` is treated as a
-     **completed watch** (`processCompletedSession` → inserts history + propagates).
-     A row older than five minutes or last seen paused is discarded rather than
-     promoted to a watch; sessions that vanish below the threshold are
-     marked/cleared as stale.
+   - Reconciles against cached rows: a **recent** cached session that is **no
+     longer reported** (for two polls) and had `last_progress` at or past the
+     watched threshold (`WATCHED_THRESHOLD_PERCENT`, 90% by default) is treated as
+     a **completed watch** (`processCompletedSession` → inserts history +
+     propagates). Progress is floored to two decimals, so 89.6% stays under 90%.
+     A session last seen paused counts too when it was paused at or past the
+     threshold (paused in the credits, then closed). A row older than five minutes
+     is discarded rather than promoted to a watch; sessions that vanish below the
+     threshold are marked/cleared as stale.
+   - An item already held as watched is recorded again only as a **rewatch**, by the
+     same rule as webhooks: its last watch fell on an earlier UTC day than the
+     session. A second completion on the same day is not recorded.
 2. **Manual dispatch queue** - **runs every minute**:
    - `syncPendingManualDispatches` processes anything queued by the UI or an import
      (manual mark-watched, Trakt history, retries). The `media` object it builds for
@@ -267,6 +273,15 @@ Implementation lives in `server/src/scheduled.js`.
      and only a manual **Retry Sync** (which resets the counters) re-queues it.
      A `sync_history` row is only written when the outcome changes (first
      failure, success, or giving up), not on every identical failed attempt.
+   - **Trakt** is retried the same way, but only while Trakt is connected and only
+     when the row's Trakt line is an error caused by a rate limit (429), a Trakt
+     server error (5xx), a timeout, or a connection failure. "Could not match" and
+     other Trakt errors stay failed until **Retry Sync**. Before re-adding a watched
+     play the retry reads Trakt's history within one minute of the row's
+     `watched_at`; a play already there (a write Trakt accepted before its response
+     was lost) marks the row synced without writing again. A retry for a local
+     server alone never re-sends to Trakt; the row's earlier Trakt line is kept
+     (decision 41).
      Targets that answer "No matching item found" are recorded in the row's
      telemetry. Unidentified items are surfaced in the standalone Sync Activity
      page's Issues view, using the Cross-Platform Match Report data from

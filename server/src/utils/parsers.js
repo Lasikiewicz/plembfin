@@ -4,7 +4,10 @@ import { releaseDateForItem, releaseDateForPlexItem } from "./watchDates.js";
 
 const EMPTY_IDS = { imdb: undefined, tmdb: undefined, tvdb: undefined };
 const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "media.pause"];
-const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
+// user.playrate (a rating) is deliberately absent: rating a title is not
+// evidence that it was played, and counting it recorded a phantom watch dated
+// now that reached every target and Trakt (core-sync-health step 2).
+const PLEX_COMPLETE_EVENTS = ["media.scrobble"];
 const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause", "playback.progress", "playback.pause"];
 const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress", "PlaybackPause"];
 const JELLYFIN_PLAYBACK_SAVE_REASONS = ["playbackstart", "playbackprogress", "playbackfinished"];
@@ -195,14 +198,16 @@ function embyLikePosterInfo(item = {}, type = "unknown") {
 }
 
 function progressPercentFrom(values = {}) {
+  // The stop event's own position comes before UserData, which can still hold
+  // the resume point saved before this play reached the credits.
   const position =
     Number(values.viewOffset) ||
     Number(values.PlaybackPositionTicks) ||
     Number(values.PositionTicks) ||
     Number(values.PlayState?.PositionTicks) ||
-    Number(values.UserData?.PlaybackPositionTicks) ||
     Number(values.PlaybackInfo?.PositionTicks) ||
-    Number(values.PlaybackInfo?.PlayState?.PositionTicks);
+    Number(values.PlaybackInfo?.PlayState?.PositionTicks) ||
+    Number(values.UserData?.PlaybackPositionTicks);
   const duration =
     Number(values.duration) ||
     Number(values.RunTimeTicks) ||
@@ -223,9 +228,21 @@ function progressPercentFrom(values = {}) {
       values.PlaybackProgress ??
       values.PlaybackProgressPercentage,
   );
-  if (Number.isFinite(direct)) return direct > 1 ? direct : direct * 100;
+  // Every named field is a 0-100 percentage. Guessing that a value of 1 or
+  // less was a fraction turned a real 0.8% into 80%, close to a phantom watch.
+  if (Number.isFinite(direct)) return Math.max(0, Math.min(100, direct));
 
   return 0;
+}
+
+// Emby (PlaybackInfo) and Jellyfin (top level) say on the stop event itself
+// whether the player reached the end. That is playback evidence from the same
+// event, unlike a later played flag.
+function playedToCompletion(...values) {
+  return values.some((value) => value && typeof value === "object" && (
+    value.PlayedToCompletion === true
+    || value.PlaybackInfo?.PlayedToCompletion === true
+  ));
 }
 
 function readPlayedState(...values) {
@@ -312,11 +329,11 @@ function positionMillisecondsFrom(values = {}) {
     values.PlaybackPositionTicks ||
       values.PositionTicks ||
       values.PlayState?.PositionTicks ||
+      values.PlaybackInfo?.PositionTicks ||
+      values.PlaybackInfo?.PlayState?.PositionTicks ||
       values.UserData?.PlaybackPositionTicks ||
       values.Item?.UserData?.PlaybackPositionTicks ||
-      values.Item?.PlaybackPositionTicks ||
-      values.PlaybackInfo?.PositionTicks ||
-      values.PlaybackInfo?.PlayState?.PositionTicks,
+      values.Item?.PlaybackPositionTicks,
   );
 }
 
@@ -371,7 +388,7 @@ function phaseFromEmbyEvent(event, json, item) {
   // progress on the next scheduled scan. Explicit mark-unplayed event names
   // above, and zero-position UserData changes, remain real unwatches.
   if (userDataEvent && played === false) return positionMs > 0 ? "ended" : "unplayed";
-  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
+  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() || playedToCompletion(json, item) ? "completed" : "ended";
   if (EMBY_ACTIVE_EVENTS.map((activeEvent) => activeEvent.replace(/[^a-z0-9]/g, "")).includes(compactEventKey)) return "active";
   return "ignored";
 }
@@ -398,7 +415,7 @@ function phaseFromJellyfinEvent(event, json, item) {
   // position. A user unplay arrives as TogglePlayed (or UpdateUserData).
   if (userDataEvent && played === false && JELLYFIN_PLAYBACK_SAVE_REASONS.includes(String(json?.SaveReason || "").toLowerCase())) return "ignored";
   if (userDataEvent && played === false) return "unplayed";
-  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
+  if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() || playedToCompletion(json, item) ? "completed" : "ended";
   if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";
 }
@@ -643,9 +660,17 @@ export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" }
   });
 }
 
+// The Jellyfin webhook plugin sends a flat body where ItemId is the item and a
+// top-level Id is the playback session, so a flat body is read by ItemId.
+function jellyfinFlatSessionId(json = {}) {
+  const flat = pickWebhookItem(json) === json;
+  return flat && json.ItemId && json.Id && json.Id !== json.ItemId ? String(json.Id) : "";
+}
+
 export function parseJellyfinWebhook(json) {
   try {
-    const item = pickWebhookItem(json);
+    const picked = pickWebhookItem(json);
+    const item = picked === json && json?.ItemId ? { ...json, Id: json.ItemId } : picked;
     const event = json?.NotificationType || "unknown";
     const type = embyLikeTypeFrom(item, json);
     const phase = phaseFromJellyfinEvent(event, json, item);
@@ -659,6 +684,7 @@ export function parseJellyfinWebhook(json) {
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
     const client = embyLikeClientFrom(json, item);
+    client.sessionId = client.sessionId || jellyfinFlatSessionId(json);
     const releaseDate = releaseDateForItem(item);
 
     if (phase === "ignored") {

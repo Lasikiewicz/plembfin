@@ -1,5 +1,5 @@
 import { state } from "./state.js?v=1.3.0.0.2";
-import { escapeAttribute, slug } from "./utils.js?v=1.3.0.0.2";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.3.0.0.2";
 
 function identityValues(item = {}, kind = "tmdb") {
   const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
@@ -92,8 +92,59 @@ export function upNextDismissalKeys(item = {}, mediaKey = "") {
   }
   const coordinate = upNextCoordinateDismissalKey(item);
   if (coordinate) keys.add(coordinate);
-  for (const key of upNextShowDismissalKeys(item)) keys.add(key);
+  // A season-scoped removal must not claim the show's other card.
+  if (item.dismissal_scope !== "season") for (const key of upNextShowDismissalKeys(item)) keys.add(key);
   return [...keys].filter(Boolean);
+}
+
+function sameShowCard(left = {}, right = {}) {
+  if (!isEpisode(left) || !isEpisode(right) || provenDifferentShow(left, right)) return false;
+  const keys = new Set(upNextShowDismissalKeys(left));
+  return upNextShowDismissalKeys(right).some((key) => keys.has(key));
+}
+
+// A show being rewatched can hold two cards, the rewatch and a newly arrived
+// episode (loose-ends step 20). Remove on either asks whether to hide that
+// card's season or the whole show; a show with one card keeps the plain
+// confirmation.
+export function upNextHasSiblingCard(item = {}, items = state.upNextItems || []) {
+  return items.some((candidate) => candidate !== item
+    && String(candidate?.id || "") !== String(item.id || "")
+    && sameShowCard(item, candidate));
+}
+
+export function upNextRemovalMatches(removed = {}, item = {}, scope = "show") {
+  if (!sameShowCard(removed, item)) return false;
+  return scope !== "season" || Number(item.season) === Number(removed.season);
+}
+
+export function chooseUpNextRemovalScope(item = {}) {
+  return new Promise((resolve) => {
+    document.querySelectorAll(".confirm-dialog-overlay").forEach((el) => el.remove());
+    const overlay = document.createElement("div");
+    overlay.className = "edit-dialog-overlay confirm-dialog-overlay";
+    const finish = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+    const title = item.show_title || item.showTitle || item.title || "this show";
+    overlay.addEventListener("click", (event) => { if (event.target === overlay) finish(null); });
+    overlay.innerHTML = `
+      <div class="edit-dialog">
+        <h3>Remove from Up Next</h3>
+        <p class="confirm-dialog-body">"${escapeHtml(title)}" has more than one card in Up Next. Hide only Season ${escapeHtml(String(item.season ?? ""))}, or the whole show? Either way it is removed in Plembfin and every connected media app.</p>
+        <div class="edit-dialog-actions">
+          <button class="button-danger confirm-dialog-confirm" type="button" data-scope="season">Hide Season ${escapeHtml(String(item.season ?? ""))}</button>
+          <button class="button-danger" type="button" data-scope="show">Hide show</button>
+          <button class="button-ghost confirm-dialog-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    `;
+    overlay.querySelectorAll("[data-scope]").forEach((button) => button.addEventListener("click", () => finish(button.dataset.scope)));
+    overlay.querySelector(".confirm-dialog-cancel").addEventListener("click", () => finish(null));
+    document.body.appendChild(overlay);
+    overlay.querySelector(".confirm-dialog-confirm").focus();
+  });
 }
 
 // An episode card's plain tmdb/tvdb id is the episode's, so only its show_*

@@ -83,9 +83,9 @@ test("Maintenance card: unproven aliases are listed, folded newest-wins, or dism
   const shows = await review.listUnprovenPlaystateAliases(options);
   assert.deepEqual(shows.map((entry) => entry.title), [showTitle, otherTitle]);
   const [kinlike, reboot] = shows;
-  assert.deepEqual(kinlike.rows.map((row) => row.mediaKey), [newerAlias, olderAlias, orphanAlias],
-    "pending, proven, and id-less title-keyed rows are not listed");
-  assert.deepEqual(kinlike.rows.map((row) => row.reason), ["other-show", "not-found", "not-found"]);
+  assert.deepEqual(kinlike.rows.map((row) => row.mediaKey), [newerAlias, olderAlias, orphanAlias, "episode:1:4:title:kinlike review---s01e04"],
+    "pending and proven episode-id rows are not listed; title-only rows remain reviewable");
+  assert.deepEqual(kinlike.rows.map((row) => row.reason), ["other-show", "not-found", "not-found", "title-only"]);
   assert.deepEqual(kinlike.rows[0].showKeyed, [{ state: "watched", updatedAt: 1000 }]);
   assert.deepEqual(kinlike.rows[2].showKeyed, [null]);
   assert.deepEqual(kinlike.tmdbDisagreement, { findShowId: "7777", profileTmdbIds: ["8001"] });
@@ -93,7 +93,7 @@ test("Maintenance card: unproven aliases are listed, folded newest-wins, or dism
   assert.ok(rowAt(pendingAlias) && rowAt(provenAlias), "listing writes nothing");
 
   const folded = await review.foldPlaystateAliasesIntoShow(kinlike.showKey, 0, options);
-  assert.deepEqual(folded, { deleted: 2, rekeyed: 2 });
+  assert.deepEqual(folded, { deleted: 2, rekeyed: 3 });
   assert.equal(rowAt(newerAlias), undefined);
   assert.equal(rowAt(seriesKey(1)).state, "unwatched", "a newer alias replaces the show-keyed row");
   assert.equal(rowAt(seriesKey(1)).updated_at, 2000);
@@ -113,9 +113,83 @@ test("Maintenance card: unproven aliases are listed, folded newest-wins, or dism
   answers["imdb_id:tt8100011"] = { kind: "episode", showId: "8002", season: 1, episode: 1 };
   const result = await repo.repairPlaystateEpisodeIdAliases({ findCached, tvdbCached, skipKeys: review.dismissedPlaystateAliasKeys() });
   assert.ok(rowAt(seriesIdAlias), "a dismissed alias is never folded");
-  assert.equal(result.rekeyed, 2, "the proven alias of the other show is still repaired");
+  assert.equal(result.rekeyed, 1, "the proven alias of the other show is still repaired");
   assert.equal(rowAt(provenAlias), undefined);
   // Phase 5 step 2: the id-less title-keyed row folds onto the sole profile.
   assert.equal(rowAt("episode:1:4:title:kinlike review---s01e04"), undefined);
   assert.equal(rowAt(seriesKey(4)).imdb_id, show.imdb_id);
+});
+
+function titlePlaystate(showTitle, episode, state, updatedAt) {
+  const title = episodeTitle(showTitle, episode);
+  const key = repo.mediaKeyFor({ media_type: "episode", title, season: 1, episode });
+  insertPlaystateStmt.run({ media_key: key, title, title_lower: title.toLowerCase(), state,
+    imdb_id: null, tmdb_id: null, tvdb_id: null, episode, updated_at: updatedAt });
+  return key;
+}
+
+test("title-only rows without profiles, ambiguous rows, conflicts, and dismissal restore", async () => {
+  db.prepare("DELETE FROM watch_history").run();
+  db.prepare("DELETE FROM playstate").run();
+  db.prepare("DELETE FROM settings WHERE id = 'playstateAliasDismissed'").run();
+  const unprofiled = titlePlaystate("Unknown Show", 1, "watched", 1000);
+  const show = { imdb_id: "tt9000001", tmdb_id: "9001" };
+  history("Conflict Show", 1, show);
+  history("Conflict Show", 2, show);
+  playstate("Conflict Show", 1, show, "unwatched", 1000);
+  const conflict = titlePlaystate("Conflict Show", 1, "watched", 2000);
+  history("Ambiguous Show", 1, show);
+  history("Ambiguous Show", 2, show);
+  history("Ambiguous Show", 4, { imdb_id: "tt9000002", tmdb_id: "9002" });
+  history("Ambiguous Show", 5, { imdb_id: "tt9000002", tmdb_id: "9002" });
+  const ambiguous = titlePlaystate("Ambiguous Show", 3, "watched", 1000);
+  const options = { findCached: () => ({ kind: "none" }), tvdbCached: () => ({ kind: "none" }) };
+  let shows = await review.listUnprovenPlaystateAliases(options);
+  assert.equal(shows.find((s) => s.title === "Unknown Show").rows[0].reason, "no-profile");
+  const unknown = shows.find((s) => s.title === "Unknown Show");
+  await assert.rejects(review.foldPlaystateAliasesIntoShow(unknown.showKey, 0, options), /Unknown show identity/);
+  assert.ok(rowAt(unprofiled));
+  assert.equal(shows.find((s) => s.title === "Conflict Show").rows[0].reason, "newer-conflict");
+  const split = shows.find((s) => s.title === "Ambiguous Show");
+  assert.equal(split.profiles.length, 2);
+  assert.equal(split.rows[0].reason, "ambiguous");
+  await review.dismissPlaystateAliasesForShow(split.showKey, options);
+  assert.equal(review.listDismissedPlaystateAliases()[0].rows[0].mediaKey, ambiguous);
+  await repo.repairPlaystateEpisodeIdAliases({ ...options, skipKeys: review.dismissedPlaystateAliasKeys() });
+  assert.ok(rowAt(ambiguous));
+  assert.deepEqual(review.restoreDismissedPlaystateAliases(split.showKey), { restored: 1 });
+  assert.equal(review.dismissedPlaystateAliasKeys().has(ambiguous), false);
+  assert.deepEqual(review.listDismissedPlaystateAliases(), []);
+  assert.throws(() => review.restoreDismissedPlaystateAliases(split.showKey), /no dismissed/);
+  shows = await review.listUnprovenPlaystateAliases(options);
+  assert.ok(shows.find((s) => s.showKey === split.showKey));
+  const selected = split.profiles.findIndex((ids) => ids.tmdb === "9002");
+  await review.foldPlaystateAliasesIntoShow(split.showKey, selected, options);
+  assert.equal(rowAt(ambiguous), undefined);
+  assert.equal(rowAt(repo.mediaKeyFor({ media_type: "episode", season: 1, episode: 3, tmdb_id: "9002", imdb_id: "tt9000002" })).state, "watched");
+  const conflictShow = shows.find((s) => s.title === "Conflict Show");
+  await review.foldPlaystateAliasesIntoShow(conflictShow.showKey, 0, options);
+  assert.equal(rowAt(conflict), undefined);
+  assert.equal(rowAt(repo.mediaKeyFor({ media_type: "episode", season: 1, episode: 1, ...show })).state, "watched");
+});
+
+
+test("fold preserves a newer canonical row stored under another title spelling", async () => {
+  db.prepare("DELETE FROM watch_history").run();
+  db.prepare("DELETE FROM playstate").run();
+  const show = { imdb_id: "tt9900001", tmdb_id: "9901" };
+  history("Alternate Title", 1, show);
+  history("Alternate Title", 2, show);
+  const canonical = playstate("Original Title", 1, show, "unwatched", 3000);
+  const alias = titlePlaystate("Alternate Title", 1, "watched", 1000);
+  const listed = await review.listUnprovenPlaystateAliases();
+  const entry = listed.find((s) => s.title === "Alternate Title");
+  assert.deepEqual(entry.rows[0].showKeyed, [{ state: "unwatched", updatedAt: 3000 }]);
+  assert.deepEqual(await review.foldPlaystateAliasesIntoShow(entry.showKey, 0), { deleted: 1, rekeyed: 0 });
+  assert.ok(!rowAt(alias));
+  assert.equal(rowAt(canonical).state, "unwatched");
+  const newer = titlePlaystate("Alternate Title", 1, "watched", 4000);
+  assert.deepEqual(await review.foldPlaystateAliasesIntoShow(entry.showKey, 0), { deleted: 1, rekeyed: 1 });
+  assert.ok(!rowAt(newer));
+  assert.equal(rowAt(canonical).state, "watched");
 });

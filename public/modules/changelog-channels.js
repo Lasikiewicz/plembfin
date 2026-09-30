@@ -23,11 +23,19 @@ export function initChangelog(callbacks = {}) {
 }
 
 // Which tab is showing. Held here rather than in state.js because it is purely
-// local view state for one panel and is not persisted.
-let selectedChannel = "main";
+// local view state for one panel and is not persisted. Null until the first
+// render or a tab click, so the panel opens on the tab matching the install.
+let selectedChannel = null;
 
-export function selectedChangelogChannel() {
-  return selectedChannel;
+// Alpha and develop installs open on the Alpha tab, which holds their own
+// build notes; a release install opens on Main. Opening every install on Main
+// showed the previous release's text first on alpha (loose-ends step 14).
+export function defaultChangelogChannel(installChannel) {
+  return installChannel === "alpha" || installChannel === "develop" ? "alpha" : "main";
+}
+
+export function selectedChangelogChannel(installChannel) {
+  return selectedChannel || defaultChangelogChannel(installChannel);
 }
 
 export function setSelectedChangelogChannel(channel) {
@@ -416,7 +424,7 @@ export async function renderChangelog(force = false) {
       ? `<h4 class="changelog-section-heading">Published releases</h4>`
       : "";
 
-    const channel = selectedChangelogChannel();
+    const channel = selectedChangelogChannel(data.channel);
     const mainPanel = releaseHeading +
       visibleEntries.map(renderEntry).join("") + (
         olderCount > 0

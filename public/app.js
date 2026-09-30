@@ -1944,6 +1944,13 @@ function resetPageEntryState(url) {
   }
   resetMobileControlState();
   clearSearchInputs();
+  // Sideways rails start at the beginning again, and modules holding opened
+  // posters or stacks fold them back (page-entry listeners).
+  // Swept generically: the Dashboard rails use their own classes.
+  for (const el of document.querySelectorAll(".page-shell *")) {
+    if (el.scrollLeft && el.scrollWidth > el.clientWidth) el.scrollLeft = 0;
+  }
+  document.dispatchEvent(new CustomEvent("plembfin:page-entry", { detail: { url } }));
 
   window.clearTimeout(state.historyViewSearchTimer);
   state.historyViewSearch = "";
@@ -2007,7 +2014,7 @@ function navigateTo(url) {
   }
 }
 
-function selectView(view) {
+function selectView(view, { fresh = false } = {}) {
   if (isDemoMode() && DEMO_RESTRICTED_VIEWS.has(view)) {
     navigateTo("/");
     return;
@@ -2089,6 +2096,14 @@ function selectView(view) {
     // the current URL afterward.
     navigateTo(url);
   } else {
+    // A sidebar click on the page already open reloads it, exactly as the
+    // browser's refresh does (resetting in place rebuilt Up Next and the rails
+    // several times and flickered). Boot sets manual scroll restoration, so
+    // the reload opens at the top.
+    if (fresh) {
+      window.location.reload();
+      return;
+    }
     // Repair URL/state drift if an async bootstrap callback finished after a
     // route change, and keep same-URL navigation deterministic.
     handleRouting(url);
@@ -2966,6 +2981,16 @@ async function refreshLiveHistoryView({ changes = [], detailChangesAlreadyApplie
     // or added watch date stays on screen until it is re-rendered from the
     // reloaded history above.
     await refreshActiveDetailView().catch((error) => logDebug(`Live detail refresh failed: ${error.message}`));
+    if (state.activeView === "history") {
+      await refreshHistoryViewInPlace().catch((error) => logDebug(`Background History refresh failed: ${error.message}`));
+    }
+    if (state.activeView === "explorer" && !state.mediaDetailInline) {
+      const refreshExplorer = state.explorerMode === "shows" ? refreshShowExplorerInPlace : refreshMovieExplorerInPlace;
+      await refreshExplorer().catch((error) => logDebug(`Background library refresh failed: ${error.message}`));
+    }
+    if (state.activeView === "stats") {
+      await loadStats({ force: true }).catch((error) => logDebug(`Background Stats refresh failed: ${error.message}`));
+    }
     const upNextRefresh = state.activeView === "dashboard"
       ? loadUpNext({ force: true }).catch((error) => {
         logDebug(`Background Up Next refresh failed: ${error.message}`);
@@ -3458,7 +3483,7 @@ function initialize() {
       if (!isDemoMode()) {
         startLiveUpdates({
           authHeaders,
-          onHistoryVersion: (version, { changes = [] } = {}) => {
+          onHistoryVersion: (version, { changes = [], reconnect = false } = {}) => {
             const upNextRelevantChange = changes.length === 0 || changes.some((change) => ["watch_history", "playstate", "playback_progress"].includes(
               String(change.sourceTable || change.source_table || "").toLowerCase(),
             ));
@@ -3470,7 +3495,10 @@ function initialize() {
               // showing a stale rail for the duration of a long sync.
               loadUpNext({ fromSse: true }).catch((error) => logDebug(`Live Up Next history refresh failed: ${error.message}`));
             }
-            queueLiveHistoryRefresh({ changes });
+            // A reconnect (tab shown again, wake from sleep) reports that data
+            // changed while this tab was not listening, without saying what.
+            // Reload every visible list instead of dropping the empty change set.
+            queueLiveHistoryRefresh({ changes, fullRefresh: reconnect });
             if (state.activeView === "syncActivity") queueSyncActivityRefresh();
           },
           onUpNextVersion: (version, { initial = false, pairedWithHistory = false } = {}) => {

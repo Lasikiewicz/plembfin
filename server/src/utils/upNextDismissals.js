@@ -142,10 +142,22 @@ function showAliases(item = {}) {
   return aliases;
 }
 
+// A show beside a rewatch has two cards, and Remove asks whether to hide that
+// card's season or the whole show (loose-ends step 20). Every episode is
+// looked up under both, so a season dismissal stores only its season aliases.
+function seasonAliases(candidate, shows) {
+  const season = number(candidate.season);
+  if (season == null) return [];
+  return shows.map((alias) => `season:${alias.slice("show:".length)}:s${season}`);
+}
+
 export function dismissalAliases(item = {}) {
   const candidate = normalizeUpNextCandidate(item);
   const aliases = new Set(upNextIdentityAliases(candidate));
-  for (const alias of showAliases(candidate)) aliases.add(alias);
+  const shows = showAliases(candidate);
+  const seasonScope = text(item.dismissal_scope).toLowerCase() === "season";
+  for (const alias of seasonScope ? [] : shows) aliases.add(alias);
+  for (const alias of seasonAliases(candidate, shows)) aliases.add(alias);
   for (const key of [item.id, item.media_key, item.mediaKey]) {
     const value = text(key);
     if (value) aliases.add(`key:${value.toLowerCase()}`);

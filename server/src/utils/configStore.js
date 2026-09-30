@@ -41,6 +41,10 @@ export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
 // section is absent from an existing installation. Users can opt out without
 // changing Plembfin's local Up Next view.
 export const DEFAULT_UP_NEXT_SYNC = Object.freeze({ enabled: true });
+// Dashboard Now Playing / Up Next panel: whether Up Next fills the panel while
+// idle, whether it trails live sessions, and the total number of cards shown.
+export const DEFAULT_NOW_PLAYING = Object.freeze({ showUpNextWhenIdle: true, showUpNextWhilePlaying: true, itemCount: 3 });
+export const NOW_PLAYING_ITEM_COUNT_MAX = 3;
 export const DEFAULT_TAUTULLI = Object.freeze({
   baseUrl: "http://127.0.0.1:8181",
   apiKey: "",
@@ -141,6 +145,17 @@ export function normalizeUpNextSyncSection(section = {}) {
   };
 }
 
+export function normalizeNowPlayingSection(section = {}) {
+  const raw = section && typeof section === "object" ? section : {};
+  const flag = (value, fallback) => (value === undefined ? fallback : value === true);
+  const count = Math.round(Number(raw.itemCount));
+  return {
+    showUpNextWhenIdle: flag(raw.showUpNextWhenIdle, DEFAULT_NOW_PLAYING.showUpNextWhenIdle),
+    showUpNextWhilePlaying: flag(raw.showUpNextWhilePlaying, DEFAULT_NOW_PLAYING.showUpNextWhilePlaying),
+    itemCount: Number.isFinite(count) ? Math.min(NOW_PLAYING_ITEM_COUNT_MAX, Math.max(1, count)) : DEFAULT_NOW_PLAYING.itemCount,
+  };
+}
+
 function envMediaConfig() {
   const plexEnabled = envEnabled("PLEX_ENABLED");
   const embyEnabled = envEnabled("EMBY_ENABLED");
@@ -187,6 +202,7 @@ function envMediaConfig() {
     ratingSync: normalizeRatingSyncSection({}),
     watchlistSync: normalizeWatchlistSyncSection({}),
     upNextSync: normalizeUpNextSyncSection({}),
+    nowPlaying: normalizeNowPlayingSection({}),
   });
 }
 
@@ -244,6 +260,7 @@ export function mergeEnvDefaults(stored = {}) {
   merged.ratingSync = normalized.ratingSync;
   merged.watchlistSync = normalized.watchlistSync;
   merged.upNextSync = normalized.upNextSync;
+  merged.nowPlaying = normalized.nowPlaying;
 
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
@@ -326,6 +343,7 @@ export function normalizeStoredConfig(stored = {}) {
     ratingSync: normalizeRatingSyncSection(stored.ratingSync || {}),
     watchlistSync: normalizeWatchlistSyncSection(stored.watchlistSync || {}),
     upNextSync: normalizeUpNextSyncSection(stored.upNextSync || {}),
+    nowPlaying: normalizeNowPlayingSection(stored.nowPlaying || {}),
   };
 }
 
@@ -423,6 +441,7 @@ export function publicMediaConfig(config = {}) {
     ratingSync: normalized.ratingSync,
     watchlistSync: normalized.watchlistSync,
     upNextSync: normalized.upNextSync,
+    nowPlaying: normalized.nowPlaying,
   };
 }
 
@@ -537,6 +556,7 @@ export async function mergeIncomingConfig(config = {}) {
     ratingSync: mergeRatingSyncSection(existing.ratingSync, config.ratingSync),
     watchlistSync: mergeWatchlistSyncSection(existing.watchlistSync, config.watchlistSync),
     upNextSync: mergeSection(existing.upNextSync, config.upNextSync, []),
+    nowPlaying: mergeSection(existing.nowPlaying, config.nowPlaying, []),
   });
 }
 
@@ -668,6 +688,15 @@ export function validateConfig(config = {}) {
   }
   if (config.upNextSync && config.upNextSync.enabled !== undefined && typeof config.upNextSync.enabled !== "boolean") {
     errors.push("upNextSync.enabled must be boolean");
+  }
+  if (config.nowPlaying) {
+    for (const key of ["showUpNextWhenIdle", "showUpNextWhilePlaying"]) {
+      if (config.nowPlaying[key] !== undefined && typeof config.nowPlaying[key] !== "boolean") errors.push(`nowPlaying.${key} must be boolean`);
+    }
+    const count = config.nowPlaying.itemCount;
+    if (count !== undefined && !(Number.isInteger(count) && count >= 1 && count <= NOW_PLAYING_ITEM_COUNT_MAX)) {
+      errors.push(`nowPlaying.itemCount must be a whole number from 1 to ${NOW_PLAYING_ITEM_COUNT_MAX}`);
+    }
   }
 
   if (config.ratingSync) {

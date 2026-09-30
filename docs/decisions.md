@@ -1241,3 +1241,48 @@ both "Scrubs", so there is nothing to pick by.
 **Enforced by:** `titleMatchNamesSeveralItems` in `server/src/utils/embyClient.js` and
 `server/src/utils/jellyfinClient.js`; `test/sameTitleSeriesSearchFallback.test.js` ("an ambiguous
 title with no year or show id writes to neither same-title series").
+
+### 41. The automatic retry resends to Trakt only after a transient failure, and checks history first
+**Date:** 2026-09-29  |  **Status:** Active
+
+**Context:** The background retry queue covered only Plex, Emby and Jellyfin, so a Trakt write
+that failed for a temporary reason (429, a Trakt server error, a timeout, a dropped connection)
+stayed failed until someone pressed Retry. The local data held three 429 failures from 12
+September that were never retried. Trakt's `/sync/history` adds a play on every call, and a
+timeout or 5xx does not prove Trakt did not write it.
+
+**Decision (user, 29 September 2026):** Trakt joins the queue, with the same backoff and
+10-attempt cap, but only when its telemetry line is an error whose text shows a 429, a 5xx, a
+timeout, or a connection failure, and only while Trakt is connected. Before re-adding a watched
+play, the retry reads Trakt's history for that item within one minute of the row's
+`watched_at`; if the play is there, the row is marked synced and nothing is written.
+
+**Rejected:** *Retrying every Trakt error:* `not_found` never succeeds and would burn ten
+attempts per show Trakt does not carry. *Resending without the history check:* a timeout after
+Trakt accepted the write would add a duplicate play, the same kind of damage as the
+2026-08-19 rewatch flood.
+
+**Enforced by:** `traktNeedsRetry` in `server/src/scheduled.js`, `findExistingTraktPlay` in
+`server/src/utils/trackerDispatcher.js`; `test/pendingManualDispatchTraktRetry.test.js`.
+
+### 42. Paused in the credits then closed is a finished play; a Plex rating is not a play
+**Date:** 2026-09-29  |  **Status:** Active
+
+**Context:** The core-sync-health audit found two opposite errors. The live poller never
+completed a session it last saw paused, so pausing at 95% in the credits and closing the player
+recorded nothing unless a webhook arrived. Plex's `user.playrate` (a rating) was in the list of
+completed events, so rating a title recorded a watch dated now and sent it to every target and
+Trakt.
+
+**Decision (user, 29 September 2026):** Since paused sessions stay live (entry 13), one that
+disappears was closed. It completes when its paused position is at or past the watched threshold
+and the row is fresh (seen within five minutes); below the threshold it never does.
+`user.playrate` is ignored entirely.
+
+**Rejected:** *Leaving paused completion to webhooks only:* Emby and Jellyfin without the webhook
+plugin would never record that play. *Sending a Plex rating to Manual Watch review:* it carries
+no playback evidence to review.
+
+**Enforced by:** `canInferLiveSessionCompletion` in `server/src/utils/liveSessions.js` and
+`PLEX_COMPLETE_EVENTS` in `server/src/utils/parsers.js`; `test/livePollerCompletion.test.js`,
+`test/liveSessions.test.js`, `test/parsers.test.js`.

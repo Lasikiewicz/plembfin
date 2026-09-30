@@ -467,12 +467,13 @@ export async function clearTraktPersonalRating(connection, media, { lane = "sync
   return submitTraktPersonalRating("/sync/ratings/remove", connection, media, null, lane);
 }
 
-async function fetchAllHistoryPages(type, connection, { startAt } = {}) {
+async function fetchAllHistoryPages(type, connection, { startAt, endAt } = {}) {
   const limit = 250;
   const items = [];
   const startParam = startAt ? `&start_at=${encodeURIComponent(startAt)}` : "";
+  const endParam = endAt ? `&end_at=${encodeURIComponent(endAt)}` : "";
   for (let page = 1; page <= 10_000; page += 1) {
-    const result = await request(`${API_BASE}/sync/history/${type}?page=${page}&limit=${limit}${startParam}`, {
+    const result = await request(`${API_BASE}/sync/history/${type}?page=${page}&limit=${limit}${startParam}${endParam}`, {
       ...connection,
       includePagination: true,
     });
@@ -509,6 +510,15 @@ export async function fetchTraktPlayHistory({ clientId, accessToken }, { startAt
   for (const entry of movies || []) result.push(normalizeHistoryMovie(entry));
   for (const entry of episodes || []) result.push(normalizeHistoryEpisode(entry));
   return result.filter((item) => !item.mediaKey.endsWith(":"));
+}
+
+// Plays of one media type whose watched_at falls inside [startAt, endAt]. The
+// background retry reads this before re-adding a play, so a write Trakt
+// accepted but whose response was lost (timeout, 5xx) is not added twice.
+export async function fetchTraktHistoryWindow({ clientId, accessToken }, type, { startAt, endAt }) {
+  const kind = type === "episode" ? "episodes" : "movies";
+  const entries = await fetchAllHistoryPages(kind, { clientId, accessToken }, { startAt, endAt });
+  return entries.map(kind === "episodes" ? normalizeHistoryEpisode : normalizeHistoryMovie);
 }
 
 function parsedTimestamp(value) {

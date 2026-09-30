@@ -104,6 +104,27 @@ test("parseJellyfinWebhook derives phase boundaries", () => {
   assert.equal(parseJellyfinWebhook({ NotificationType: "SomethingElse", ...base }).phase, "ignored");
 });
 
+// The Jellyfin webhook plugin sends a flat body: the item is ItemId and the
+// top-level Id is the playback session (seen live 29 September 2026).
+test("parseJellyfinWebhook reads ItemId, not the session Id, from a flat body", () => {
+  const flat = {
+    NotificationType: "PlaybackStop",
+    Id: "34211a9cc89027b2f98dbff0e5d04a31",
+    ItemId: "24da5e42bb7ede9d6ebd79eb144f5104",
+    ItemType: "Movie",
+    Name: "Anuvahood",
+    Provider_imdb: "tt1658797",
+    PlayedToCompletion: true,
+  };
+  const parsed = parseJellyfinWebhook(flat);
+  assert.equal(parsed.watchProvenance.item_id, "24da5e42bb7ede9d6ebd79eb144f5104");
+  assert.equal(parsed.watchProvenance.session_id, "34211a9cc89027b2f98dbff0e5d04a31");
+
+  const userData = parseJellyfinWebhook({ NotificationType: "UserDataSaved", ItemId: "24da5e42", ItemType: "Movie", Name: "Anuvahood", Played: true });
+  assert.equal(userData.watchProvenance.item_id, "24da5e42");
+  assert.equal(userData.watchProvenance.session_id, "");
+});
+
 test("Emby and Jellyfin UserData Played=false with positive progress is partial playback, not an unwatch", () => {
   const item = {
     Type: "Episode",
@@ -401,4 +422,50 @@ test("an added event still carries the ids and title needed to find the watch re
   assert.equal(added.type, "movie");
   assert.equal(added.ids.tmdb, "329865");
   assert.equal(added.ids.imdb, "tt2543164");
+});
+
+// core-sync-health step 2, item 1: a rating is not a play.
+test("a Plex rating event is ignored, not recorded as a completed play", async () => {
+  const rated = await parsePlexWebhook(plexForm("user.playrate", { guid: "tmdb://329865", ratingKey: "plex-329865", type: "movie", title: "Arrival" }));
+  assert.equal(rated.phase, "ignored");
+});
+
+// Item 2: percentage fields are 0-100; a small value is never scaled up.
+test("a small direct progress percentage is not read as a fraction", () => {
+  const base = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
+  const jellyfin = parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 0.95, ...base });
+  assert.equal(jellyfin.phase, "ended");
+  assert.ok(jellyfin.progress < 1);
+  const emby = parseEmbyWebhook({ Event: "playback.stop", PlayedPercentage: 1, ...base });
+  assert.equal(emby.phase, "ended");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 150, ...base }).progress, 100);
+});
+
+// Item 3: the stop event's own PlayedToCompletion is playback evidence.
+test("an Emby or Jellyfin stop that says PlayedToCompletion counts as completed without a position", () => {
+  const item = { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } };
+  const emby = parseEmbyWebhook({ Event: "playback.stop", Item: item, PlaybackInfo: { PlayedToCompletion: true } });
+  assert.equal(emby.phase, "completed");
+  const jellyfin = parseJellyfinWebhook({ NotificationType: "PlaybackStop", PlayedToCompletion: true, Item: item });
+  assert.equal(jellyfin.phase, "completed");
+  const notFinished = parseEmbyWebhook({ Event: "playback.stop", Item: item, PlaybackInfo: { PlayedToCompletion: false } });
+  assert.equal(notFinished.phase, "ended");
+});
+
+// Item 7: the stop position wins over the resume point saved in UserData.
+test("the stop event position is preferred over a stale UserData resume point", () => {
+  const emby = parseEmbyWebhook({
+    Event: "playback.stop",
+    Item: {
+      Type: "Movie",
+      Name: "Arrival",
+      ProviderIds: { Tmdb: "329865" },
+      RunTimeTicks: 100_000_000_000,
+      UserData: { PlaybackPositionTicks: 20_000_000_000 },
+    },
+    PlaybackInfo: { PositionTicks: 95_000_000_000 },
+  });
+  assert.equal(emby.phase, "completed");
+  assert.ok(emby.progress >= 94.9);
+  assert.ok(emby.offsetMs >= 9_400_000);
 });

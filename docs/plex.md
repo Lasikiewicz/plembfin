@@ -104,7 +104,8 @@ Plex webhooks (a Plex Pass feature) POST **multipart form data** to
 `payload` field and derives the phase:
 
 - `media.play` / `media.resume` / `media.progress` / `media.pause` → `active`
-- `media.scrobble` / `user.playrate` → `completed`
+- `media.scrobble` → `completed`
+- `user.playrate` (a rating) → `ignored`; rating a title is not evidence it was played
 - `media.stop` → `completed` at the watched threshold (90% by default), else `ended`
 
 Provider IDs come from `parsePlexGuids`, which understands both modern

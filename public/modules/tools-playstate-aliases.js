@@ -12,8 +12,12 @@ let _setMessage = () => {};
 let _showConfirmModal = () => {};
 let _clearDerivedUiCaches = () => {};
 let shows = [];
+let dismissed = [];
 
 const REASONS = {
+  "title-only": "This entry has only a title. Confirm the show identity before moving it.",
+  "no-profile": "No show identity is available yet. This entry can be moved once the show is matched in your history.",
+  "newer-conflict": "This entry is newer and disagrees with the show's watch state. Choose which show it belongs to to keep the newest state.",
   "no-lookup": "Only a TMDB episode id is stored, which cannot be looked up.",
   "series-id": "TMDB says this id is a whole show, not an episode.",
   "not-found": "Neither TMDB nor TVDB could identify this id.",
@@ -86,6 +90,7 @@ function renderShow(show) {
     <ul class="playstate-alias-rows">${rows}</ul>
     <div class="settings-actions">
       ${foldButtons}
+      ${show.profiles.length ? "" : '<p class="playstate-alias-note">Match this show in your history before moving these entries.</p>'}
       <button class="button-ghost sync-action-btn sync-tool-button" type="button" data-alias-action="dismiss" data-show-key="${key}">Different show</button>
     </div>
   </article>`;
@@ -95,13 +100,14 @@ function render() {
   const list = byId("playstateAliasList");
   if (!list) return;
   list.classList.remove("hidden");
+  const dismissedHtml = dismissed.length ? `<details><summary>Dismissed (${dismissed.reduce((total, show) => total + show.rows.length, 0)})</summary>${dismissed.map((show) => `<article class="playstate-alias-show"><h4>${escapeHtml(show.title)}</h4><p>${show.rows.length} dismissed entries</p><button class="button-ghost sync-action-btn sync-tool-button" type="button" data-alias-action="restore" data-show-key="${escapeAttribute(show.showKey)}">Restore for review</button></article>`).join("")}</details>` : "";
   if (!shows.length) {
-    list.innerHTML = `<p class="playstate-alias-note">Nothing to review. Every episode watch state is stored under its show, or is still being looked up.</p>`;
+    list.innerHTML = `<p class="playstate-alias-note">Nothing to review. Every episode watch state is stored under its show, or is still being looked up.</p>${dismissedHtml}`;
     setStatus("Nothing to review", "ready");
     return;
   }
   const count = shows.reduce((total, show) => total + show.rows.length, 0);
-  list.innerHTML = shows.map(renderShow).join("");
+  list.innerHTML = shows.map(renderShow).join("") + dismissedHtml;
   setStatus(`${shows.length} show${shows.length === 1 ? "" : "s"}, ${count} entr${count === 1 ? "y" : "ies"}`, "warning");
 }
 
@@ -114,6 +120,7 @@ export async function loadPlaystateAliases() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     shows = Array.isArray(body.shows) ? body.shows : [];
+    dismissed = Array.isArray(body.dismissed) ? body.dismissed : [];
     render();
   } catch (error) {
     setStatus(`Error: ${error.message}`, "error");
@@ -135,6 +142,14 @@ async function postAction(action, payload) {
 }
 
 function confirmAction(button) {
+  if (button.dataset.aliasAction === "restore") {
+    button.disabled = true;
+    postAction("restore", { showKey: button.dataset.showKey })
+      .then((result) => showResult(`${result.restored} dismissed entries restored for review.`, "success"))
+      .catch((error) => showResult(error.message, "error"))
+      .finally(() => loadPlaystateAliases());
+    return;
+  }
   const show = shows.find((entry) => entry.showKey === button.dataset.showKey);
   if (!show) return;
   const count = show.rows.length;
@@ -142,7 +157,7 @@ function confirmAction(button) {
   const isFold = button.dataset.aliasAction === "fold";
   const message = isFold
     ? `Move ${entries} into ${show.title}?\n\nFor each episode the newest watch state wins and the older entry is deleted. Only Plembfin's local watch state changes; nothing is sent to connected platforms. This cannot be undone.`
-    : `Mark ${entries} as a different show than ${show.title}?\n\nThey are left as they are and not listed again, and the automatic repair will not move them.`;
+    : `Mark ${entries} as a different show than ${show.title}?\n\nThey are left as they are and not listed again, and the automatic repair will not move them. You can restore them from the Dismissed list.`;
   _showConfirmModal(message, async () => {
     button.disabled = true;
     try {

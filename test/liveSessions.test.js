@@ -11,7 +11,32 @@ const {
   isTerminalLiveSession,
   parsePlexSessions,
   sessionIdentity,
+  fetchLiveSessions,
 } = await import("../server/src/utils/liveSessions.js");
+const { resetSeriesIdentityCache } = await import("../server/src/utils/seriesIdentity.js");
+
+test("an Emby playing episode carries the show's ids, not the episode's own", async () => {
+  resetSeriesIdentityCache();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const body = String(url).includes("/Sessions")
+      ? [{ Id: "s1", UserId: "u", NowPlayingItem: { Id: "ep1", Type: "Episode", SeriesName: "Slow Horses", SeriesId: "series1", ParentIndexNumber: 6, IndexNumber: 3, ProviderIds: { Tvdb: "11839914" } }, PlayState: { PositionTicks: 1 } }]
+      : { ProviderIds: { Imdb: "tt5875444", Tmdb: "95480", Tvdb: "372264" } };
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    const { sessions } = await fetchLiveSessions({
+      plex: {},
+      emby: { baseUrl: "http://emby.test", apiKey: "key", userId: "u" },
+      jellyfin: {},
+    });
+    const episode = sessions.find((session) => session.source === "emby");
+    assert.deepEqual(episode.ids, { imdb: "tt5875444", tmdb: "95480", tvdb: "372264" });
+  } finally {
+    globalThis.fetch = originalFetch;
+    resetSeriesIdentityCache();
+  }
+});
 
 test("stale live-session cache rows are not trusted as completion evidence", () => {
   const now = Date.UTC(2026, 8, 12, 10, 0, 0);
@@ -54,6 +79,24 @@ function plexSessionXml(state) {
 </Video>
 </MediaContainer>`;
 }
+
+// core-sync-health step 2, item 6: progress is floored, never rounded up
+// across the watched threshold (89.6% used to read as 90%).
+test("live session progress is not rounded up to the watched threshold", () => {
+  const xml = plexSessionXml("playing").replace('viewOffset="219000"', 'viewOffset="2857667"');
+  const [session] = parsePlexSessions(xml, {});
+  assert.ok(session.progress < 90, `expected under 90, got ${session.progress}`);
+  assert.ok(session.progress >= 89.59);
+});
+
+// Item 4: a paused session can complete only in the credits and while fresh.
+test("a paused row completes only at or past the threshold and while fresh", () => {
+  const now = Date.now();
+  const paused = JSON.stringify({ playbackState: "paused", paused: true });
+  assert.equal(canInferLiveSessionCompletion({ updated_at: now - 1_000, last_progress: 95, payload_json: paused }, now), true);
+  assert.equal(canInferLiveSessionCompletion({ updated_at: now - 1_000, last_progress: 60, payload_json: paused }, now), false);
+  assert.equal(canInferLiveSessionCompletion({ updated_at: now - LIVE_SESSION_COMPLETION_MAX_AGE_MS - 1, last_progress: 95, payload_json: paused }, now), false);
+});
 
 // A paused session must stay in the poll result. When it dropped out,
 // refreshLiveSessions() read the absence as the session having ended and

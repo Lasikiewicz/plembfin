@@ -21,6 +21,8 @@ const renderPartWatched = ifLoaded("dashboard", "renderPartWatched");
 const lazyUpNext = (name) => lazyExport("up-next", name, ["dashboard"]);
 const loadUpNext = lazyUpNext("loadUpNext");
 const removeUpNextItem = lazyUpNext("removeUpNextItem");
+const upNextHasSiblingCard = lazyUpNext("upNextHasSiblingCard");
+const chooseUpNextRemovalScope = lazyUpNext("chooseUpNextRemovalScope");
 const removeShowFromUpNext = lazyUpNext("removeShowFromUpNext");
 const removeManualShowFromUpNext = lazyUpNext("removeManualShowFromUpNext");
 const addShowToUpNext = lazyUpNext("addShowToUpNext");
@@ -428,7 +430,7 @@ function attachEvents() {
         elements.explorerTopbarControls?.classList.remove("hidden");
       }
       closeMobileMenu();
-      selectView(button.dataset.view);
+      selectView(button.dataset.view, { fresh: true });
     });
   });
 
@@ -784,13 +786,17 @@ function attachEvents() {
     const title = isEpisode
       ? (payload.show_title || payload.showTitle || payload.title || "this episode")
       : (payload.title || "this movie");
-    const confirmed = await openConfirmDialog({
-      title: "Remove from Up Next",
-      body: `Remove "${title}" from Up Next in Plembfin and every connected media app?`,
-      confirmLabel: "Remove from Up Next",
-      danger: true,
-    });
-    if (!confirmed) return;
+    // Two cards for one show (a rewatch beside a new episode) ask for the scope.
+    const scope = isEpisode && item && (await upNextHasSiblingCard(item))
+      ? await chooseUpNextRemovalScope(item)
+      : (await openConfirmDialog({
+        title: "Remove from Up Next",
+        body: `Remove "${title}" from Up Next in Plembfin and every connected media app?`,
+        confirmLabel: "Remove from Up Next",
+        danger: true,
+      })) && "show";
+    if (!scope) return;
+    if (scope === "season") payload.dismissal_scope = "season";
 
     const originalText = removeBtn.textContent;
     const originalLabel = removeBtn.getAttribute("aria-label");
@@ -801,7 +807,7 @@ function attachEvents() {
     // Keep the card in place while the provider calls run. The pending state
     // is part of the rendered snapshot, so an overlapping refresh cannot
     // repaint the item as an ordinary card before removal is complete.
-    setUpNextRemovalPending(item || payload, true);
+    setUpNextRemovalPending(payload.dismissal_scope ? payload : (item || payload), true);
     try {
       const response = await fetch("/api/up-next/remove", {
         method: "POST",
@@ -821,11 +827,12 @@ function attachEvents() {
           season: isEpisode ? (payload.season ?? "") : "",
           episode: isEpisode ? (payload.episode ?? "") : "",
           provider_items: payload.provider_items || payload.providerItems || {},
+          dismissal_scope: payload.dismissal_scope || "",
         }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      if (isEpisode) {
+      if (isEpisode && scope === "show") {
         await removeManualShowFromUpNext({
           title: payload.show_title || payload.showTitle || title,
           tmdb_id: payload.show_tmdb_id || payload.showTmdbId || payload.tmdb_id || payload.tmdbId || "",
@@ -833,7 +840,7 @@ function attachEvents() {
           imdb_id: payload.show_imdb_id || payload.showImdbId || payload.imdb_id || payload.imdbId || "",
         });
       }
-      removeUpNextItem(payload.id || itemId, payload, { showScope: true });
+      removeUpNextItem(payload.id || itemId, payload, { showScope: scope === "show", seasonScope: scope === "season" });
       const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
       const synced = dismissals.filter((entry) => entry.status === "fulfilled").length;
       const issues = dismissals.filter((entry) => entry.status !== "fulfilled").length;
@@ -851,7 +858,7 @@ function attachEvents() {
       await loadUpNext({ force: true });
       renderDashboard();
     } catch (error) {
-      setUpNextRemovalPending(item || payload, false);
+      setUpNextRemovalPending(payload.dismissal_scope ? payload : (item || payload), false);
       showErrorExplainModal(`Failed to remove "${title}" from Up Next`, error.message);
     } finally {
       removeBtn.disabled = false;

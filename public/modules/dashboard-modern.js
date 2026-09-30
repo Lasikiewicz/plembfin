@@ -2,6 +2,7 @@ import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v
 import { state } from "./state.js?v=1.3.0.0.2";
 import { artKey, requestArtKey } from "./card-art.js?v=1.3.0.0.2";
 import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.3.0.0.2";
+import { nowPlayingOptions } from "./now-playing-options.js?v=1.3.0.0.2";
 // The same folded-poster behaviour on the Library and History pages.
 import "./page-card-open.js?v=1.3.0.0.2";
 
@@ -280,6 +281,19 @@ if (hasDocument) {
     event.preventDefault();
     setDashboardRunExpanded(card.dataset.collapsedRunKey, true);
   });
+
+  // Arriving on a page, including a menu click on the page already open,
+  // shows it fresh: open posters fold and expanded runs stack back up.
+  document.addEventListener("plembfin:page-entry", () => {
+    holdToken += 1;
+    openCompactCards.clear();
+    compactExpandedRuns.clear();
+    if (expandedRunKeys.size) {
+      expandedRunKeys.clear();
+      rerenderRuns();
+    }
+    syncCompactOpenCards();
+  });
 }
 
 // --- Backdrop artwork behind the cards -------------------------------------
@@ -289,12 +303,21 @@ if (hasDocument) {
 function sessionArtKey(session = {}) {
   const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
   const ids = session.ids || {};
-  return artKey(isEpisode ? "tv" : "movie", {
+  const idParts = {
     tmdb: ids.tmdb || session.tmdb_id || session.tmdbId,
     tvdb: ids.tvdb || session.tvdb_id || session.tvdbId,
     imdb: ids.imdb || session.imdb_id || session.imdbId,
-    title: isEpisode ? (session.showTitle || showName(session.title)) : session.title,
-  });
+  };
+  if (!isEpisode) return artKey("movie", { ...idParts, title: session.title });
+  const showTitle = session.showTitle || showName(session.title);
+  // A playing episode takes its own still; card-art.js falls back to the show's
+  // backdrop when the episode has none.
+  const season = Number(session.season);
+  const episode = Number(session.episode);
+  if (session.season != null && session.episode != null && Number.isInteger(season) && Number.isInteger(episode)) {
+    return artKey("episode", { ...idParts, title: `${season}x${episode} ${showTitle}` });
+  }
+  return artKey("tv", { ...idParts, title: showTitle });
 }
 
 // --- Now Playing -----------------------------------------------------------
@@ -312,13 +335,13 @@ const upNextPanel = hasDocument ? document.querySelector?.("#upNextPanel") : nul
 let featuredSourceHtml = "";
 let syncFrame = 0;
 
-// Keep in step with the :nth-child rule in styles-modern.css that hides the
-// featured cards from the rail.
-const FEATURED_UP_NEXT_COUNT = 2;
-
+// The number of featured cards is written to data-featured-up-next on the
+// dashboard; the :nth-child rules in styles-modern.css (1 to 12) hide that many
+// cards from the rail.
 function removeIdleFeature() {
   nowPlayingGrid?.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
   featuredSourceHtml = "";
+  timelineView?.removeAttribute("data-featured-up-next");
 }
 
 // The feature is a copy of the Up Next card itself, in a card-row wrapper so
@@ -336,7 +359,8 @@ function buildIdleFeature(source) {
 // features Up Next cards (CSS then hides the rail's own title).
 function syncNowPlayingHeading() {
   const heading = nowPlayingGrid?.closest(".live-panel")?.querySelector(".section-heading h2");
-  const text = nowPlayingGrid?.querySelector(".modern-idle-feature") ? "Up Next" : "Now Playing";
+  const idleFeatured = nowPlayingGrid?.querySelector(".modern-idle-feature") && !nowPlayingGrid.querySelector("[data-now-playing-card-id]");
+  const text = idleFeatured ? "Up Next" : "Now Playing";
   if (heading && heading.textContent !== text) heading.textContent = text;
 }
 
@@ -347,15 +371,20 @@ function syncIdleFeature() {
 
 function syncIdleFeatureCard() {
   if (!nowPlayingGrid) return;
+  const options = nowPlayingOptions();
   const idle = nowPlayingGrid.querySelector(":scope > .idle-state");
-  // The first FEATURED_UP_NEXT_COUNT Up Next cards, matching the CSS that
-  // hides them from the rail.
-  const sources = [...(upNextPanel?.querySelectorAll(":scope > [data-up-next-card-id]") || [])].slice(0, FEATURED_UP_NEXT_COUNT);
-  if (!idle || !sources.length) {
+  const liveCount = nowPlayingGrid.querySelectorAll(":scope > [data-now-playing-card-id]").length;
+  // Idle: Up Next fills every slot. Playing: it takes whatever slots the live
+  // sessions leave, after them. The same cards are hidden from the rail.
+  const enabled = liveCount ? options.showUpNextWhilePlaying : Boolean(idle) && options.showUpNextWhenIdle;
+  const slots = Math.max(0, options.itemCount - liveCount);
+  const sources = enabled ? [...(upNextPanel?.querySelectorAll(":scope > [data-up-next-card-id]") || [])].slice(0, slots) : [];
+  if (!sources.length) {
     removeIdleFeature();
     return;
   }
   const sourceHtml = sources.map((source) => source.outerHTML).join("");
+  timelineView?.setAttribute("data-featured-up-next", String(sources.length));
   if (nowPlayingGrid.querySelector(".modern-idle-feature") && featuredSourceHtml === sourceHtml) return;
   nowPlayingGrid.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
   featuredSourceHtml = sourceHtml;
@@ -409,6 +438,7 @@ if (timelineView) {
 }
 
 if (hasDocument) {
+  document.addEventListener("plembfin:config-changed", scheduleModernSync);
   document.addEventListener(THEME_STYLE_EVENT, () => {
     rerenderRuns();
     scheduleModernSync();

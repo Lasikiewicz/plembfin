@@ -13804,7 +13804,14 @@ h1 {
   font-size: 0.8rem;
 }
 
+.page-shell[data-active-view="dashboard"] .now-card-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
 .page-shell[data-active-view="dashboard"] .now-card-meta {
+  margin-top: auto;
   gap: 0.12rem;
   font-size: 0.78rem;
 }

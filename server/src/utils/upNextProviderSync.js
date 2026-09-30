@@ -603,6 +603,13 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
       addSkipped(title, `${provider} item was not resolved.`);
       continue;
     }
+    // A native rail holds one episode per show, so beside a rewatch the newly
+    // arrived episode stays a Plembfin-only card; the rail follows the rewatch
+    // (user decision 30 September 2026, loose-ends step 20).
+    if (item.up_next_lane === "new") {
+      addSkipped(title, "This show's rewatch card drives the app's own rail; the new episode stays in Plembfin's Up Next.");
+      continue;
+    }
     const legacySeed = seedById.get(providerItemId) || null;
     const requestedPositionMs = numeric(item.position_ms ?? item.positionMs ?? item.offset_ms ?? item.offsetMs, 0);
     const legacySeedPosition = legacySeed

@@ -624,3 +624,73 @@ test("client live-updates does not occupy a connection while the tab is hidden",
     Object.defineProperty(document, "visibilityState", { configurable: true, value: originalVisibilityState });
   }
 });
+
+// A fetch body that stays open until the request is aborted, like a real
+// streaming response.
+function openStream(signal, blocks = []) {
+  return new ReadableStream({
+    start(controller) {
+      for (const block of blocks) controller.enqueue(new TextEncoder().encode(block));
+      signal?.addEventListener("abort", () => {
+        try { controller.error(Object.assign(new Error("aborted"), { name: "AbortError" })); } catch { /* already closed */ }
+      });
+    },
+  });
+}
+
+test("client live-updates marks a newer version on a reconnect ready event", async () => {
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, { signal } = {}) => ({
+    ok: true,
+    status: 200,
+    body: openStream(signal, [
+      'data: {"type":"ready","version":1}\n\n',
+      'data: {"type":"history-version","version":2,"changes":[{"sourceTable":"watch_history","mediaKey":"a"}]}\n\n',
+      'data: {"type":"ready","version":3}\n\n',
+    ]),
+  });
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      onHistoryVersion: (version, { changes, reconnect }) => calls.push({ version, changes: changes.length, reconnect }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.deepEqual(calls, [
+      { version: 2, changes: 1, reconnect: false },
+      { version: 3, changes: 0, reconnect: true },
+    ]);
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client live-updates drops a silent stream and reconnects to catch up", async () => {
+  const calls = [];
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, { signal } = {}) => {
+    fetchCount += 1;
+    // First connection goes silent after `ready`, as a half-open socket does
+    // after sleep. The second reports the version written meanwhile.
+    const version = fetchCount === 1 ? 1 : 5;
+    return { ok: true, status: 200, body: openStream(signal, [`data: {"type":"ready","version":${version}}\n\n`]) };
+  };
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      stallMs: 50,
+      stallCheckMs: 10,
+      onHistoryVersion: (version, { reconnect }) => calls.push({ version, reconnect }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    assert.equal(fetchCount >= 2, true);
+    assert.deepEqual(calls[0], { version: 5, reconnect: true });
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -92,6 +92,16 @@ test("TV metadata lookup can resolve a title from a representative episode TVDB 
   );
 });
 
+test("Library show cards carry no Season/Ep label; dashboard episode cards keep it", () => {
+  const history = { ...episodeWithLeafIds, id: "watch-1", queue_kind: undefined, watched_at: "2026-09-01T20:00:00Z" };
+  const libraryHtml = renderDashboardHistoryPageCard(history, { explorer: true, explorerSummary: "" });
+  assert.doesNotMatch(libraryHtml, /Season\/Ep/);
+  assert.doesNotMatch(libraryHtml, />\s*S01E05\s*</);
+
+  assert.match(renderDashboardHistoryPageCard(history), /Season\/Ep:[\s\S]*S01E05/);
+  assert.match(renderDashboardHistoryPageCard(episodeWithLeafIds, { upNext: true }), /Season\/Ep:[\s\S]*S01E05/);
+});
+
 test("resume cards align a red Clear action with the watch percentage", () => {
   const html = renderDashboardHistoryPageCard({
     ...episodeWithLeafIds,

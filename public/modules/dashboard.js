@@ -476,7 +476,8 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
       `;
 
   // Dashboard cards show Season/Ep right under the episode name and drop the
-  // "Available" row and the watch-count pill; Explorer cards keep the old meta.
+  // "Available" row and the watch-count pill. Explorer (Library) cards stand
+  // for a whole show, so they carry no Season/Ep at all.
   const seasonEpisodeBelowName = isEpisode && !options.explorer;
   const seasonEpisodeRow = `
           <div class="history-card-meta-row">
@@ -484,7 +485,6 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
             <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
           </div>`;
   const metaRows = [
-    isEpisode && !seasonEpisodeBelowName ? seasonEpisodeRow : "",
     !isUpNext ? `
           <div class="history-card-meta-row">
             <span class="meta-label">Last Played:</span>

@@ -172,8 +172,12 @@ export function playlistStackRuns(list = {}, items = []) {
 }
 
 // Stacks the user opened stay open across re-renders, keyed by playlist and
-// the stack's first episode.
+// the stack's first episode, until the page is entered again (including a
+// menu click on the page already open).
 const expandedStacks = new Set();
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("plembfin:page-entry", () => expandedStacks.clear());
+}
 const stackId = (listId, firstKey) => `${listId}\n${firstKey}`;
 
 function stackCardHtml(list, run, expanded) {

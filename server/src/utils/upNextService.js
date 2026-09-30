@@ -19,6 +19,7 @@ import {
 import { createUpNextLibraryEpisodeLookup, createUpNextLibraryLookup, topUpUpNextLibraryLookups } from "./upNextLibraryLookup.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { listManualUpNextShows } from "./upNextManual.js";
+import { compareCoordinates, episodeAfter, rewatchPosition, withUpNextLanes } from "./upNextRewatch.js";
 import { isDemoMode } from "./demoMode.js";
 
 const LOCAL_METADATA_CONCURRENCY = 4;
@@ -836,6 +837,7 @@ async function localNextUpForShow(show, {
   resolveProviderEpisodes = null,
   allowUnplayable = false,
   ambiguousTitles = null,
+  laneMarkers = null,
 }) {
   const detail = await queryShowDetail({
     episodeRows,
@@ -865,7 +867,7 @@ async function localNextUpForShow(show, {
   const tvdbId = text(show.tvdb_id || metadata?.external_ids?.tvdb_id);
   // Provider inventory can resolve a show by title alone. Keep this fallback
   // available even when the local record has no external metadata identity.
-  if (!tmdbId && !tvdbId && !resolveProviderEpisodes) return null;
+  if (!tmdbId && !tvdbId && !resolveProviderEpisodes) return [];
 
   const seasonNumbers = [...new Set((metadata?.seasons || [])
     .map((season) => number(season.season_number, NaN))
@@ -884,116 +886,162 @@ async function localNextUpForShow(show, {
     : [firstSeason, firstSeason + 1];
 
   let lookups = 0;
+  // Builds the playable card for one released, unwatched episode. Returns
+  // undefined when it is watched, { covered } when a resume card already holds
+  // it, null when it must yield no card, otherwise the candidate.
+  const resolveEpisode = async (seasonNumber, episode) => {
+    const episodeNumber = number(episode.episode_number, 0);
+    const key = `${seasonNumber}:${episodeNumber}`;
+    const trackedEpisode = episodes.find((row) => coordinate(row) === key) || null;
+    const showIds = { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id };
+    const candidate = normalizeUpNextCandidate({
+      queue_kind: "next_up",
+      media_type: "episode",
+      title: show.title,
+      show_title: show.title,
+      episode_title: episode.name || "",
+      season: seasonNumber,
+      episode: episodeNumber,
+      show_ids: showIds,
+      ids: episodeIdsFromTrackedEpisode(trackedEpisode || {}, showIds),
+      provider_items: providerItemsFromTrackedEpisode(trackedEpisode || {}),
+      show_latest_watched_at: show.latest_watched_at,
+      poster_url: show.poster_url || metadata?.cached_poster_url
+        || (metadata?.poster_path ? `/api/tmdb-poster?path=${encodeURIComponent(metadata.poster_path)}` : ""),
+      air_date: episode.air_date || "",
+      source: "local",
+    });
+    if (stateIsWatched(candidate, playstateIndex)) return undefined;
+    if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) return { covered: candidate };
+    // The metadata-backed episode order is authoritative. Once it identifies
+    // the first released unwatched episode, a later provider-inventory row
+    // must not leap over it just because the direct lookup missed. Returning
+    // no card is safer than surfacing a newer season out of order.
+    // Local history and TMDB metadata can tell us what should come next, but
+    // cannot prove that a guessed episode still exists in a configured media
+    // server library, and a card nobody can play is worse than no card.
+    // A surviving provider observation already contributes the authoritative
+    // card, so the fallback stands down. `providerCandidates` must therefore
+    // be the observations that passed their own filters: passing the raw
+    // list let an already-suppressed card cancel this one too, and the
+    // episode vanished from Up Next entirely.
+    if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) {
+      // The observations only list the providers whose native rail holds the
+      // episode. 2001 Scrubs S01E06 was in Emby Resume and Jellyfin Next Up
+      // but not in any Plex rail, so the card listed no Plex item and Watch
+      // now on Plex had no target. Ask the libraries the observations do not
+      // cover and hand back only those ids; the merge adds them to the
+      // observation's card. Only when the candidate shares an alias with an
+      // observation, so the fill-in cannot become a second card.
+      if (allowUnplayable || isDemoMode() || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return null;
+      const aliases = aliasesFor(candidate);
+      const covering = providerCandidates.filter((providerCandidate) => (
+        episodeCoordinateForCandidate(providerCandidate) === key
+        && aliasesIntersect(aliases, aliasesFor(providerCandidate))));
+      if (!covering.length) return null;
+      const covered = new Set(covering.flatMap((providerCandidate) => [
+        text(providerCandidate.source).toLowerCase(),
+        ...Object.keys(providerCandidate.provider_items || {}),
+      ]));
+      const missing = [...UP_NEXT_PROVIDERS].filter((provider) => !covered.has(provider));
+      if (!missing.length) return null;
+      lookups += 1;
+      const found = await resolveProviderItems({ ...candidate, provider_items: {} }, { only: missing })
+        .catch(() => ({}));
+      const fillIn = Object.fromEntries(Object.entries(found || {})
+        .filter(([provider, ids]) => missing.includes(provider) && Array.isArray(ids) && ids.length));
+      return Object.keys(fillIn).length ? { ...candidate, provider_items: fillIn } : null;
+    }
+    // The offline demo catalog is its own authoritative library, so its
+    // bundled metadata alone is enough for a realistic next-up rail.
+    if (isDemoMode()) return candidate;
+    // Watch history only carries a native item id once something has been
+    // played, so the next unwatched episode never has one. Ask the
+    // configured libraries directly rather than dropping a card for an
+    // episode that is sitting in Plex and Emby right now.
+    const lookupProviderItems = async () => {
+      if (!resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return {};
+      lookups += 1;
+      return resolveProviderItems(candidate).catch(() => ({}));
+    };
+    const historyItems = candidate.provider_items || {};
+    if (Object.keys(historyItems).length) {
+      // A native id from an earlier play of this episode is not proof it is
+      // still in the library: Expedition X S12E01 was deleted from Emby after
+      // a watch/unwatch, and its card kept the dead id, so Watch now opened
+      // "item not found". Re-check the libraries by identity (without the
+      // stored id, which would be returned unverified). Drop the card only
+      // when every provider holding a stored id actually answered "missing";
+      // an unasked or failing provider keeps its stored id as before.
+      if (allowUnplayable || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return candidate;
+      lookups += 1;
+      const verified = await resolveProviderItems({ ...candidate, provider_items: {} }, { detailed: true })
+        .catch(() => null);
+      if (!verified) return candidate;
+      const detailed = Object.hasOwn(verified, "providerItems");
+      const unanswered = new Set(detailed ? verified.unanswered || [] : []);
+      const retained = Object.fromEntries(Object.entries(historyItems).filter(([provider]) => unanswered.has(provider)));
+      const merged = { ...retained, ...((detailed ? verified.providerItems : verified) || {}) };
+      return Object.keys(merged).length ? { ...candidate, provider_items: merged } : null;
+    }
+    if (allowUnplayable) return candidate;
+    const providerItems = await lookupProviderItems();
+    // Do not try a later episode when the first released unwatched one is
+    // not currently resolvable. Provider inventory may be broader than the
+    // metadata snapshot, but it must not override the canonical order.
+    if (!Object.keys(providerItems).length) return null;
+    return { ...candidate, provider_items: providerItems };
+  };
+
+  // A rewatch from an older season (loose-ends step 20) keeps its own card:
+  // the episode after the most recent play, when that is released, unwatched,
+  // and still behind the furthest episode watched. An already-watched episode
+  // never becomes one, because removing a card marks its episode unwatched
+  // everywhere, which would erase a real earlier watch.
+  const rewatch = rewatchPosition(episodes.filter((row) => watched.has(coordinate(row))));
+  const rewatchTarget = rewatch
+    ? episodeAfter(rewatch.latest, seasonNumbers, (season) => getCachedTmdbSeason({ tmdbId, tvdbId, seasonNumber: season })?.episodes)
+    : null;
+  const rewatchEpisode = rewatchTarget && compareCoordinates(rewatchTarget, rewatch.frontier) < 0
+    && !watched.has(`${rewatchTarget.season}:${rewatchTarget.episode}`)
+    ? (getCachedTmdbSeason({ tmdbId, tvdbId, seasonNumber: rewatchTarget.season })?.episodes || [])
+      .find((episode) => number(episode.episode_number, 0) === rewatchTarget.episode && released(episode.air_date, today))
+    : null;
+  const withLane = (candidate, lane) => (candidate && rewatchEpisode ? { ...candidate, up_next_lane: lane } : candidate);
+  const rewatchCandidates = async (frontierCandidate) => {
+    if (!rewatchEpisode) return [];
+    if (frontierCandidate && episodeCoordinateForCandidate(frontierCandidate) === `${rewatchTarget.season}:${rewatchTarget.episode}`) return [];
+    const candidate = await resolveEpisode(rewatchTarget.season, rewatchEpisode);
+    return candidate && !candidate.covered ? [withLane(candidate, "rewatch")] : [];
+  };
+
   for (const seasonNumber of [...new Set(candidateSeasons)].slice(0, 3)) {
     const season = getCachedTmdbSeason({ tmdbId, tvdbId, seasonNumber });
     const seasonEpisodes = [...(season?.episodes || [])]
       .filter((episode) => number(episode.episode_number, 0) > 0)
       .sort((left, right) => number(left.episode_number) - number(right.episode_number));
     for (const episode of seasonEpisodes) {
-      const episodeNumber = number(episode.episode_number, 0);
-      const key = `${seasonNumber}:${episodeNumber}`;
-      const isReleased = released(episode.air_date, today);      if (!isReleased || watched.has(key)) continue;
-      const trackedEpisode = episodes.find((row) => coordinate(row) === key) || null;
-      const showIds = { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id };
-      const candidate = normalizeUpNextCandidate({
-        queue_kind: "next_up",
-        media_type: "episode",
-        title: show.title,
-        show_title: show.title,
-        episode_title: episode.name || "",
-        season: seasonNumber,
-        episode: episodeNumber,
-        show_ids: showIds,
-        ids: episodeIdsFromTrackedEpisode(trackedEpisode || {}, showIds),
-        provider_items: providerItemsFromTrackedEpisode(trackedEpisode || {}),
-        show_latest_watched_at: show.latest_watched_at,
-        poster_url: show.poster_url || metadata?.cached_poster_url
-          || (metadata?.poster_path ? `/api/tmdb-poster?path=${encodeURIComponent(metadata.poster_path)}` : ""),
-        air_date: episode.air_date || "",
-        source: "local",
-      });
-      if (stateIsWatched(candidate, playstateIndex)) continue;
-      if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
-      // The metadata-backed episode order is authoritative. Once it identifies
-      // the first released unwatched episode, a later provider-inventory row
-      // must not leap over it just because the direct lookup missed. Returning
-      // no card is safer than surfacing a newer season out of order.
-      // Local history and TMDB metadata can tell us what should come next, but
-      // cannot prove that a guessed episode still exists in a configured media
-      // server library, and a card nobody can play is worse than no card.
-      // A surviving provider observation already contributes the authoritative
-      // card, so the fallback stands down. `providerCandidates` must therefore
-      // be the observations that passed their own filters: passing the raw
-      // list let an already-suppressed card cancel this one too, and the
-      // episode vanished from Up Next entirely.
-      if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) {
-        // The observations only list the providers whose native rail holds the
-        // episode. 2001 Scrubs S01E06 was in Emby Resume and Jellyfin Next Up
-        // but not in any Plex rail, so the card listed no Plex item and Watch
-        // now on Plex had no target. Ask the libraries the observations do not
-        // cover and hand back only those ids; the merge adds them to the
-        // observation's card. Only when the candidate shares an alias with an
-        // observation, so the fill-in cannot become a second card.
-        if (allowUnplayable || isDemoMode() || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return null;
-        const aliases = aliasesFor(candidate);
-        const covering = providerCandidates.filter((providerCandidate) => (
-          episodeCoordinateForCandidate(providerCandidate) === key
-          && aliasesIntersect(aliases, aliasesFor(providerCandidate))));
-        if (!covering.length) return null;
-        const covered = new Set(covering.flatMap((providerCandidate) => [
-          text(providerCandidate.source).toLowerCase(),
-          ...Object.keys(providerCandidate.provider_items || {}),
-        ]));
-        const missing = [...UP_NEXT_PROVIDERS].filter((provider) => !covered.has(provider));
-        if (!missing.length) return null;
-        lookups += 1;
-        const found = await resolveProviderItems({ ...candidate, provider_items: {} }, { only: missing })
-          .catch(() => ({}));
-        const fillIn = Object.fromEntries(Object.entries(found || {})
-          .filter(([provider, ids]) => missing.includes(provider) && Array.isArray(ids) && ids.length));
-        return Object.keys(fillIn).length ? { ...candidate, provider_items: fillIn } : null;
+      const key = `${seasonNumber}:${number(episode.episode_number, 0)}`;
+      if (!released(episode.air_date, today) || watched.has(key)) continue;
+      const frontierCandidate = await resolveEpisode(seasonNumber, episode);
+      if (frontierCandidate === undefined) continue;
+      // A frontier card is the "new" lane only beside a rewatch card that
+      // actually resolved. Alone it stays an ordinary card, because the app
+      // rail refresh skips the "new" lane.
+      if (frontierCandidate?.covered) {
+        const rewatchCards = rewatchEpisode ? await rewatchCandidates(frontierCandidate.covered) : [];
+        if (!rewatchCards.length) continue;
+        // The viewer is partway through the new episode: its resume card is
+        // the "new" lane, and the episode after it must not become a second
+        // card beside it (the Ted Lasso rule in collapseUncertainEpisodeQueues).
+        laneMarkers?.push(withLane(frontierCandidate.covered, "new"));
+        return rewatchCards;
       }
-      // The offline demo catalog is its own authoritative library, so its
-      // bundled metadata alone is enough for a realistic next-up rail.
-      if (isDemoMode()) return candidate;
-      // Watch history only carries a native item id once something has been
-      // played, so the next unwatched episode never has one. Ask the
-      // configured libraries directly rather than dropping a card for an
-      // episode that is sitting in Plex and Emby right now.
-      const lookupProviderItems = async () => {
-        if (!resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return {};
-        lookups += 1;
-        return resolveProviderItems(candidate).catch(() => ({}));
-      };
-      const historyItems = candidate.provider_items || {};
-      if (Object.keys(historyItems).length) {
-        // A native id from an earlier play of this episode is not proof it is
-        // still in the library: Expedition X S12E01 was deleted from Emby after
-        // a watch/unwatch, and its card kept the dead id, so Watch now opened
-        // "item not found". Re-check the libraries by identity (without the
-        // stored id, which would be returned unverified). Drop the card only
-        // when every provider holding a stored id actually answered "missing";
-        // an unasked or failing provider keeps its stored id as before.
-        if (allowUnplayable || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return candidate;
-        lookups += 1;
-        const verified = await resolveProviderItems({ ...candidate, provider_items: {} }, { detailed: true })
-          .catch(() => null);
-        if (!verified) return candidate;
-        const detailed = Object.hasOwn(verified, "providerItems");
-        const unanswered = new Set(detailed ? verified.unanswered || [] : []);
-        const retained = Object.fromEntries(Object.entries(historyItems).filter(([provider]) => unanswered.has(provider)));
-        const merged = { ...retained, ...((detailed ? verified.providerItems : verified) || {}) };
-        return Object.keys(merged).length ? { ...candidate, provider_items: merged } : null;
-      }
-      if (allowUnplayable) return candidate;
-      const providerItems = await lookupProviderItems();
-      // Do not try a later episode when the first released unwatched one is
-      // not currently resolvable. Provider inventory may be broader than the
-      // metadata snapshot, but it must not override the canonical order.
-      if (!Object.keys(providerItems).length) return null;
-      return { ...candidate, provider_items: providerItems };
+      const rewatchCards = await rewatchCandidates(frontierCandidate);
+      return [rewatchCards.length ? withLane(frontierCandidate, "new") : frontierCandidate, ...rewatchCards].filter(Boolean);
     }
   }
+  const rewatchCards = await rewatchCandidates(null);
 
   // Provider inventory is the availability authority when metadata lags the
   // media server. This is especially important for a show whose prior seasons
@@ -1024,7 +1072,7 @@ async function localNextUpForShow(show, {
     if (firstAvailable.length) {
       const first = firstAvailable[0];
       const sameCoordinate = firstAvailable.filter((candidate) => episodeCoordinateMatches(candidate, first));
-      return sameCoordinate.reduce((merged, candidate) => ({
+      return [sameCoordinate.reduce((merged, candidate) => ({
         ...merged,
         provider_items: [...new Set([
           ...Object.keys(merged.provider_items || {}),
@@ -1036,10 +1084,10 @@ async function localNextUpForShow(show, {
             ...(Array.isArray(candidate.provider_items?.[provider]) ? candidate.provider_items[provider] : []),
           ])],
         }), {}),
-      }), first);
+      }), first), ...rewatchCards];
     }
   }
-  return null;
+  return rewatchCards;
 }
 
 function queueShowKey(item = {}) {
@@ -1047,7 +1095,22 @@ function queueShowKey(item = {}) {
   const title = normalizedTitle(
     showTitleFrom(item.show_title || showTitleFrom(item.title || "")).replace(/\(\d{4}\)/g, " "),
   );
-  return title ? `title:${title}` : "";
+  // A newly arrived episode beside a rewatch is its own card, not a rival of
+  // the rewatch in the one-card-per-show collapse (loose-ends step 20).
+  return title ? `title:${title}${item.up_next_lane === "new" ? "|new" : ""}` : "";
+}
+
+// The "new" lane is decided in the unplayable authoritative pass too, where a
+// rewatch episode missing from every library still counts. A "new" card whose
+// show has no rewatch card on the rail is an ordinary card again, so the app
+// rail refresh (which skips "new") still follows it.
+function dropLonelyNewLanes(items = []) {
+  const rewatchShows = new Set(items.filter((item) => item.up_next_lane === "rewatch").map(queueShowKey));
+  return items.map((item) => {
+    if (item.up_next_lane !== "new" || rewatchShows.has(queueShowKey({ ...item, up_next_lane: "" }))) return item;
+    const { up_next_lane: _lane, ...rest } = item;
+    return rest;
+  });
 }
 
 function uncertainEpisodeQueueItem(item = {}) {
@@ -1127,6 +1190,7 @@ async function localNextUpCandidates({
   allowUnplayable = false,
   manualShowKeys = new Set(),
   ambiguousTitles = null,
+  laneMarkers = null,
 }) {
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
@@ -1164,7 +1228,7 @@ async function localNextUpCandidates({
       }
       const show = selectedShows[cursor++];
       if (!show) break;
-      const candidate = await localNextUpForShow(show, {
+      const candidates = await localNextUpForShow(show, {
         playstateIndex,
         progressCandidates,
         providerCandidates,
@@ -1174,8 +1238,9 @@ async function localNextUpCandidates({
         resolveProviderEpisodes,
         allowUnplayable,
         ambiguousTitles,
+        laneMarkers,
       });
-      if (candidate) results.push(candidate);
+      results.push(...candidates);
     }
   }
   await Promise.all(Array.from({
@@ -1282,6 +1347,8 @@ export async function buildUpNextProjection({
   const aliasesCanonicalResume = (candidate) => canonicalResumeAliases
     .some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate)));
 
+  // Rewatch-lane positions held by a resume card rather than a next-up one.
+  const laneMarkers = [];
   // The media detail page is the source of truth for episode progression: its
   // episode list marks the first released episode not currently watched as
   // next. Resolve those coordinates before accepting native provider rails so
@@ -1301,6 +1368,7 @@ export async function buildUpNextProjection({
       allowUnplayable: true,
       manualShowKeys,
       ambiguousTitles,
+      laneMarkers,
     })
     : [];
 
@@ -1398,6 +1466,7 @@ export async function buildUpNextProjection({
       resolveProviderEpisodes: resolveProviderEpisodes || (mediaConfig ? createUpNextLibraryEpisodeLookup(mediaConfig, { stats: lookupStats }) : null),
       manualShowKeys,
       ambiguousTitles,
+      laneMarkers,
     });
   }
 
@@ -1406,14 +1475,14 @@ export async function buildUpNextProjection({
   // played again: a newer real position outranks the dismissal, which mirrors
   // what the browser-local map used to do before this moved server-side.
   const dismissals = createUpNextDismissalFilter();
-  const merged = collapseUncertainEpisodeQueues(mergeUpNextCandidates([
+  const merged = collapseUncertainEpisodeQueues(dropLonelyNewLanes(withUpNextLanes(mergeUpNextCandidates([
     ...canonicalResume,
     ...providerResume,
     ...providerNextUp,
     ...resumeNativeNextUp,
     ...resumeNativeSecondary,
     ...localNextUp,
-  ]).filter(isRegularUpNextEpisode).filter((candidate) => {
+  ]), [...localNextUp, ...authoritativeNextEpisodes, ...laneMarkers], episodeCoordinateMatches)).filter(isRegularUpNextEpisode).filter((candidate) => {
     const dismissedAt = dismissals.dismissedAt(candidate);
     if (!dismissedAt) return true;
     const updatedAt = number(candidate.updated_at);

@@ -1,5 +1,5 @@
 import { getTrackerConnection, recordTrackerOutbound, recordTrackerOutboundBatch, replaceTrackerSnapshot, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
-import { fetchTraktPlayHistory, refreshTraktToken, setTraktWatchHistoryBatch, setTraktWatchState, trackerMediaIdentityKeys, trackerMediaKey } from "./traktClient.js";
+import { fetchTraktHistoryWindow, fetchTraktPlayHistory, refreshTraktToken, setTraktWatchHistoryBatch, setTraktWatchState, trackerMediaIdentityKeys, trackerMediaKey, trackerMediaMatches } from "./traktClient.js";
 import { hydrateTraktAppCredentials } from "./traktAppConfig.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 import { canonicalCompoundEpisodeMedia, canonicalizeCompoundEpisodeRows } from "./compoundEpisode.js";
@@ -1352,7 +1352,26 @@ export async function retryTraktRestoreItem(row = {}, {
   return { success: false, code: "not_found", error: lastError };
 }
 
+// A background retry follows a timeout or 5xx, and Trakt may have written the
+// play before the response was lost. Look for that play near the row's
+// watched_at so the retry cannot add a second one (core-sync-health step 1).
+const TRAKT_RETRY_HISTORY_WINDOW_MS = 60_000;
+
+async function findExistingTraktPlay(connection, trackerMedia, watchedAt) {
+  const watchedMs = Date.parse(String(watchedAt || ""));
+  if (!Number.isFinite(watchedMs)) return null;
+  const range = {
+    startAt: new Date(watchedMs - TRAKT_RETRY_HISTORY_WINDOW_MS).toISOString(),
+    endAt: new Date(watchedMs + TRAKT_RETRY_HISTORY_WINDOW_MS).toISOString(),
+  };
+  const type = trackerMedia.type || trackerMedia.mediaType;
+  const plays = await fetchTraktHistoryWindow(connection, type, range);
+  return plays.find((play) => trackerMediaMatches(trackerMedia, play.media)) || null;
+}
+
 async function dispatchTrakt(media, state, lane = "sync", isCancelled = () => false) {
+  const checkHistoryFirst = state === "watched" && Boolean(media?.traktRetryHistoryCheck);
+  const retryWatchedAt = media?.watched_at || media?.watchedAt || "";
   // Trakt has one canonical coordinate for some two-part episodes. Local
   // source media may arrive as the second split part, so normalize the
   // outbound tracker payload while keeping the local history row untouched.
@@ -1370,6 +1389,23 @@ async function dispatchTrakt(media, state, lane = "sync", isCancelled = () => fa
   }
   if (!trackerMedia) {
     throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });
+  }
+  if (checkHistoryFirst) {
+    let existing;
+    try {
+      existing = await findExistingTraktPlay(connection, trackerMedia, retryWatchedAt);
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      connection = await withFreshTraktConnection(true);
+      existing = await findExistingTraktPlay(connection, trackerMedia, retryWatchedAt);
+    }
+    if (existing) {
+      return {
+        target: "trakt",
+        status: "success",
+        detail: `Already on Trakt (play found in Trakt history at ${new Date(existing.watchedAt).toISOString()}); not added again`,
+      };
+    }
   }
   const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
   const mediaKey = trackerMediaKey(trackerMedia);
@@ -1496,7 +1532,14 @@ export async function dispatchTrackerWatchState(media, state, { lane = "sync", i
   } catch (error) {
     updateTrackerConnectionStatus("trakt", { lastError: error.message });
     const status = error.code === "not_found" ? "not_found" : "failed";
-    return [{ target: "trakt", status, detail: error.message || String(error) }];
+    // Keep a rate-limit or server-error status in the detail even when Trakt
+    // sent its own error text: the background retry queue reads the detail
+    // to tell a transient failure from one that will never succeed.
+    let detail = error.message || String(error);
+    const httpStatus = Number(error?.status);
+    const transientHttp = httpStatus === 429 || (httpStatus >= 500 && httpStatus <= 599);
+    if (transientHttp && error.code !== "UPSTREAM_TIMEOUT" && !detail.includes(String(httpStatus))) detail += ` (HTTP ${httpStatus})`;
+    return [{ target: "trakt", status, detail }];
   }
 }
 

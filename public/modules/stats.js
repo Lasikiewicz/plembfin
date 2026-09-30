@@ -233,11 +233,7 @@ export function renderStatsKpis(report = selectedStatsReport()) {
     return;
   }
 
-  const activity = state.stats.monthlyActivity || [];
-  let peakMonth = null;
-  if (activity.length) {
-    peakMonth = activity.reduce((best, row) => Number(row.count) > Number(best.count) ? row : best, activity[0]);
-  }
+  const peakMonth = busiestMonth(monthlyActivityForPeriod(state.stats.monthlyActivity || [], state.statsPeriodType, state.statsPeriodValue));
 
   const topSrc = report?.topSource || state.stats.topSource || "none";
   const topSrcCount = report?.sourceBreakdown?.[0]?.count || state.stats.topSourceCount || 0;
@@ -434,15 +430,24 @@ export function renderStatsBookends(container, report = selectedStatsReport()) {
   `;
 }
 
-export function renderMonthChart() {
-  let rows = state.stats.monthlyActivity || [];
-  if (state.statsPeriodType === "year" && state.statsPeriodValue) {
-    rows = rows.filter((row) => String(row.month || "").startsWith(`${state.statsPeriodValue}-`));
-  } else if (state.statsPeriodType === "month" && state.statsPeriodValue) {
-    rows = rows.filter((row) => row.month === state.statsPeriodValue);
-  } else {
-    rows = rows.slice(-12);
+export function monthlyActivityForPeriod(activity = [], periodType = "all", periodValue = "") {
+  if (periodType === "year" && periodValue) {
+    return activity.filter((row) => String(row.month || "").startsWith(`${periodValue}-`));
   }
+  if (periodType === "month" && periodValue) {
+    return activity.filter((row) => row.month === periodValue);
+  }
+  return activity;
+}
+
+export function busiestMonth(activity = []) {
+  if (!activity.length) return null;
+  return activity.reduce((best, row) => Number(row.count) > Number(best.count) ? row : best, activity[0]);
+}
+
+export function renderMonthChart() {
+  let rows = monthlyActivityForPeriod(state.stats.monthlyActivity || [], state.statsPeriodType, state.statsPeriodValue);
+  if (state.statsPeriodType !== "year" && state.statsPeriodType !== "month") rows = rows.slice(-12);
   if (!rows.length) {
     elements.monthChart.innerHTML = `<div class="empty-log"><b>No monthly activity yet</b><span>Completed watches will appear here.</span></div>`;
     return;

@@ -5,9 +5,16 @@ let lastVersion = null;
 let lastDiscoverVersion = null;
 let lastUpNextVersion = null;
 let visibilityHandler = null;
+let resumeHandler = null;
 let lockAbortController = null;
 
 const RECONNECT_MS = 1_000;
+// The server writes at least a heartbeat every 15 s. A stream that has been
+// silent for three of those is dead (typically a half-open socket after the
+// computer slept) even though the browser has not reported an error, so the
+// page would otherwise sit on it forever showing stale data.
+const STALL_MS = 45_000;
+const STALL_CHECK_MS = 5_000;
 
 function progressFromEvent(event, { standalone = false } = {}) {
   const progress = {
@@ -50,12 +57,17 @@ export function stopLiveUpdates() {
   reconnectTimer = null;
   if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
   visibilityHandler = null;
+  if (resumeHandler) {
+    window.removeEventListener?.("online", resumeHandler);
+    window.removeEventListener?.("pageshow", resumeHandler);
+  }
+  resumeHandler = null;
   lastVersion = null;
   lastDiscoverVersion = null;
   lastUpNextVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onSyncAttention, onError } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onSyncAttention, onError, stallMs = STALL_MS, stallCheckMs = STALL_CHECK_MS } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -145,13 +157,21 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     // first so the client's sync-busy flag is current before onHistoryVersion
     // decides whether to queue a dashboard refresh.
     const changes = Array.isArray(event.changes) ? event.changes : [];
-    onHistoryVersion?.(version, { changes, initial: false, event });
+    // A `ready` event with a newer version means this tab reconnected after
+    // missing changes (hidden tab, sleep, dropped stream). It carries no
+    // change list, so the page must reload its data rather than patch it.
+    onHistoryVersion?.(version, { changes, initial: false, reconnect: event.type === "ready", event });
   };
 
   const connect = async () => {
     if (generation !== connectionGeneration || !isVisible() || activeController) return;
     const controller = new AbortController();
     activeController = controller;
+    let lastActivityAt = Date.now();
+    const stallTimer = setInterval(() => {
+      if (Date.now() - lastActivityAt >= stallMs) controller.abort();
+    }, stallCheckMs);
+    controller.signal.addEventListener("abort", () => clearInterval(stallTimer), { once: true });
     try {
       const response = await fetch("/api/live-updates", {
         headers: authHeaders?.() || {},
@@ -165,6 +185,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
       while (generation === connectionGeneration) {
         const { value, done } = await reader.read();
         if (done) break;
+        lastActivityAt = Date.now();
         buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
         let boundary = buffer.indexOf("\n\n");
         while (boundary >= 0) {
@@ -177,6 +198,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     } catch (error) {
       if (error?.name !== "AbortError") onError?.(error);
     } finally {
+      clearInterval(stallTimer);
       if (activeController === controller) activeController = null;
       scheduleReconnect();
     }
@@ -218,5 +240,20 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     requestConnection();
   };
   document.addEventListener("visibilitychange", visibilityHandler);
+  // Waking from sleep or regaining the network can leave the old socket
+  // half-open without any visibility change. Drop it and reconnect so the
+  // `ready` snapshot brings the page up to date straight away.
+  resumeHandler = (event) => {
+    if (generation !== connectionGeneration || !isVisible()) return;
+    // Only a page restored from the back/forward cache holds a stale socket.
+    if (event?.type === "pageshow" && !event.persisted) return;
+    if (activeController) {
+      activeController.abort();
+      return;
+    }
+    requestConnection();
+  };
+  window.addEventListener?.("online", resumeHandler);
+  window.addEventListener?.("pageshow", resumeHandler);
   requestConnection();
 }

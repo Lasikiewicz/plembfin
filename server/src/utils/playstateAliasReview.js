@@ -55,7 +55,8 @@ function profileKeyFor(profile, row) {
 function showKeyedRow(profile, row, group) {
   const key = profileKeyFor(profile, row);
   const siblings = group.filter((other) => idsShareAny(rowIds(other), profile.ids));
-  return siblings.find((other) => other.media_key === key)
+  return db.prepare("SELECT * FROM playstate WHERE media_key = ?").get(key)
+    || siblings.find((other) => other.media_key === key)
     || siblings.sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0))[0]
     || null;
 }
@@ -101,14 +102,17 @@ export async function listUnprovenPlaystateAliases({
   const shows = new Map();
   for (const { showKey, rows: group } of groups.values()) {
     const profiles = seriesIdentityProfilesForShowTitle(showKey);
-    if (!profiles.length) continue;
     for (const row of group) {
-      // Title-keyed rows with no id at all are out of this card's scope (plan).
-      if (!Object.values(rowIds(row)).some(Boolean)) continue;
+      const idless = !Object.values(rowIds(row)).some(Boolean);
       if (profiles.some((profile) => idsShareAny(rowIds(row), profile.ids))) continue;
       const proof = { findCached, tvdbCached, pendingLookups: new Map(), pendingTvdbLookups: new Map() };
-      if (provenPlaystateAliasProfile(row, profiles, proof)) continue;
-      if (proof.pendingLookups.size || proof.pendingTvdbLookups.size) continue;
+      const proven = idless
+        ? (profiles.length === 1 ? profiles[0] : null)
+        : provenPlaystateAliasProfile(row, profiles, proof);
+      const series = proven ? showKeyedRow(proven, row, group) : null;
+      const conflict = series && Number(row.updated_at || 0) > Number(series.updated_at || 0) && row.state !== series.state;
+      if (proven && !conflict && !idless) continue;
+      if (!idless && (proof.pendingLookups.size || proof.pendingTvdbLookups.size)) continue;
       if (!shows.has(showKey)) {
         shows.set(showKey, {
           showKey,
@@ -119,7 +123,9 @@ export async function listUnprovenPlaystateAliases({
         });
       }
       const show = shows.get(showKey);
-      const reason = unprovenReason(row, profiles, proof);
+      const reason = conflict ? { code: "newer-conflict" }
+        : idless ? { code: profiles.length > 1 ? "ambiguous" : profiles.length ? "title-only" : "no-profile" }
+        : unprovenReason(row, profiles, proof);
       if (reason.code === "other-show" && profiles.every((profile) => profile.ids.tmdb) && !show.tmdbDisagreement) {
         show.tmdbDisagreement = { findShowId: reason.otherShowId, profileTmdbIds: profiles.map((profile) => profile.ids.tmdb) };
       }
@@ -187,7 +193,7 @@ export async function foldPlaystateAliasesIntoShow(showKey, profileIndex, option
           deleted += 1;
           continue;
         }
-        if (group.some((row) => row.media_key === key)) {
+        if (db.prepare("SELECT 1 FROM playstate WHERE media_key = ?").get(key)) {
           deleteStmt.run(key);
           deleted += 1;
         }
@@ -209,4 +215,26 @@ export async function dismissPlaystateAliasesForShow(showKey, options = {}) {
   for (const row of show.rows) keys.add(row.mediaKey);
   upsertSetting.run(DISMISSED_ID, toJson({ keys: [...keys] }), Date.now());
   return { dismissed: show.rows.length };
+}
+
+// Dismissal is per stored row key. Restoring only changes the skip list.
+export function listDismissedPlaystateAliases() {
+  const keys = dismissedPlaystateAliasKeys();
+  const groups = new Map();
+  for (const row of db.prepare("SELECT * FROM playstate WHERE media_type = 'episode'").all()) {
+    if (!keys.has(row.media_key)) continue;
+    const showKey = normalizeRepairShowTitle(showTitleFromEpisodeTitle(row.title));
+    if (!groups.has(showKey)) groups.set(showKey, { showKey, title: showTitleFromEpisodeTitle(row.title), rows: [] });
+    groups.get(showKey).rows.push({ mediaKey: row.media_key, season: Number(row.season), episode: Number(row.episode), state: row.state });
+  }
+  return [...groups.values()].sort((left, right) => left.title.localeCompare(right.title));
+}
+
+export function restoreDismissedPlaystateAliases(showKey) {
+  const show = listDismissedPlaystateAliases().find((entry) => entry.showKey === String(showKey || ""));
+  if (!show) throw Object.assign(new Error("That show has no dismissed entries left"), { status: 404 });
+  const keys = dismissedPlaystateAliasKeys();
+  for (const row of show.rows) keys.delete(row.mediaKey);
+  upsertSetting.run(DISMISSED_ID, toJson({ keys: [...keys] }), Date.now());
+  return { restored: show.rows.length };
 }

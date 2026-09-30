@@ -10,6 +10,7 @@ import { fetchPlexWithRefresh } from "./utils/plexFetch.js";
 import { buildCacheRow, canInferLiveSessionCompletion, fetchLiveSessions, hydrateCachedSession, isStaleLiveSessionRow } from "./utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
+import { getTrackerConnection } from "./utils/trackerConnectionRepo.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
@@ -807,18 +808,26 @@ async function processCompletedSession(row, config, loopStore) {
     return null;
   }
 
-  // Invariant: never re-date an already-watched item to today. If plembfin already has this title
-  // marked watched, don't post a fresh Date.now() record from the live tracker.
+  // Invariant: never re-date an already-watched item to today. An item already
+  // held as watched is recorded again only as a rewatch, by the same rule the
+  // webhook path uses: its last watch fell on an earlier UTC day than this
+  // session. A session crossing the threshold is playback evidence, so unlike a
+  // played-flag event it can open a rewatch (core-sync-health step 2).
+  const lastSeenDay = Number(row.updated_at || 0) > 0 ? new Date(Number(row.updated_at)).toISOString().slice(0, 10) : "";
   const knownPlaystate = await getPlaystateForMedia(media).catch(() => null);
+  let isRewatchOnNewDay = false;
   if (knownPlaystate?.state === "watched") {
-    return null;
+    const lastWatchedDay = String(knownPlaystate.watched_at || "").slice(0, 10);
+    if (!lastWatchedDay || !lastSeenDay || lastWatchedDay >= lastSeenDay) return null;
+    isRewatchOnNewDay = true;
   }
   // getPlaystateForMedia can still miss an already-recorded watch stored
   // under a media_key from a different source - see the matching comment on
   // the webhook handlers. A real session crossing the watched threshold is
   // trustworthy evidence a play happened, but it still should not create a
-  // second row for an episode already recorded under a different key.
-  const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+  // second row for an episode already recorded under a different key. An
+  // approved rewatch skips it: it would re-find the old watch just compared.
+  const existingByAnyKey = isRewatchOnNewDay ? null : await findWatchedByAnyMediaKey(media).catch(() => null);
   if (isAuthoritativeRestoreActive()) return null;
   if (existingByAnyKey) {
     await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
@@ -1885,6 +1894,34 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
   return false;
 }
 
+// Trakt joins the automatic retry only for failures that prove nothing
+// permanent is wrong: a rate limit, a Trakt server error, a timeout or a
+// connection failure. "Could not match" and other errors stay terminal until
+// the user presses Retry. The trakt line is absent when Trakt was skipped
+// (not connected, echo suppressed), which never counts as needing a retry.
+const TRAKT_TRANSIENT_FAILURE = /failed with (?:429|5\d\d)\b|\(HTTP (?:429|5\d\d)\)|upstream request timed out|upstream request failed/i;
+
+export function traktRetryActive() {
+  return getTrackerConnection("trakt")?.status === "connected";
+}
+
+// Manual watch rows write "Plex status:" / "Trakt status:" without the
+// "Target " prefix, so both spellings name a target's line.
+function targetTelemetryLine(telemetry = "", target = "") {
+  const pattern = new RegExp(`^(?:target\\s+)?${target}(?: progress)? status:`, "i");
+  return String(telemetry || "").split("\n").find((line) => pattern.test(line.trim())) || "";
+}
+
+function traktTelemetryLine(telemetry = "") {
+  return targetTelemetryLine(telemetry, "trakt");
+}
+
+export function traktNeedsRetry(telemetry = "", source = "") {
+  if (String(source || "").toLowerCase().includes("trakt")) return false;
+  const line = traktTelemetryLine(telemetry).trim();
+  return /^(?:target\s+)?trakt status:\s*error\b/i.test(line) && TRAKT_TRANSIENT_FAILURE.test(line);
+}
+
 function dispatchSourceForPendingRow(row = {}, action = row.sync_action) {
   const normalizedAction = String(action || "").toLowerCase();
   const telemetry = String(row.sync_dispatch_telemetry || "");
@@ -1911,6 +1948,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
     const rows = await getCachedHistory();
 
     const activeTargets = getActiveTargetsForConfig(config);
+    const includeTrakt = traktRetryActive();
     const toRetry = [];
     const now = Date.now();
 
@@ -1931,6 +1969,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
           needsSync = true;
         }
       }
+      if (!isPending && includeTrakt && traktNeedsRetry(telemetry, dispatchSource)) needsSync = true;
 
       if (needsSync && syncRetryEligible(row, now)) {
         toRetry.push(row);
@@ -1992,6 +2031,13 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       const targetsStillNeeded = activeTargets.filter(
         (target) => !isTargetSynced(row.sync_dispatch_telemetry || "", target, dispatchSource)
       );
+      const retryTrakt = includeTrakt && traktNeedsRetry(row.sync_dispatch_telemetry || "", dispatchSource);
+      if (retryTrakt) {
+        targetsStillNeeded.push("trakt");
+        // The failed write may have reached Trakt before its response was
+        // lost, so the dispatcher checks Trakt history before adding again.
+        if (!isUnwatched) media.traktRetryHistoryCheck = true;
+      }
       if (targetsStillNeeded.length) media.syncTargets = targetsStillNeeded;
 
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
@@ -2016,13 +2062,12 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       // prior confirmed line forward instead of letting it drop out of the
       // telemetry, which would otherwise make allSyncedNow below regress to
       // false and re-queue an already-finished target forever.
-      const previousTelemetryLines = String(row.sync_dispatch_telemetry || "").split("\n");
-      const carriedForwardLines = activeTargets
-        .filter((target) => !targetsStillNeeded.includes(target))
-        .map((target) => previousTelemetryLines.find((line) => {
-          const lower = line.toLowerCase();
-          return lower.includes(`target ${target} status:`) || lower.includes(`target ${target} progress status:`);
-        }))
+      // Trakt is carried forward too whenever an explicit target list left it
+      // out, so a confirmed or terminal Trakt result survives a local retry.
+      const carriedTargets = activeTargets.filter((target) => !targetsStillNeeded.includes(target));
+      if (media.syncTargets && !targetsStillNeeded.includes("trakt")) carriedTargets.push("trakt");
+      const carriedForwardLines = carriedTargets
+        .map((target) => targetTelemetryLine(row.sync_dispatch_telemetry, target))
         .filter(Boolean);
 
       const telemetryLines = [
@@ -2038,9 +2083,10 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       ];
 
       const previousRetryCount = Number(row.sync_retry_count || 0);
-      const allSyncedNow = activeTargets.length > 0 && activeTargets.every((target) =>
-        isTargetSynced(telemetryLines.join("\n"), target, dispatchSource)
-      );
+      const telemetryNow = telemetryLines.join("\n");
+      const allSyncedNow = (activeTargets.length > 0 || includeTrakt)
+        && activeTargets.every((target) => isTargetSynced(telemetryNow, target, dispatchSource))
+        && !(includeTrakt && traktNeedsRetry(telemetryNow, dispatchSource));
       let terminal = false;
       if (allSyncedNow) {
         await updateWatchSyncRetry(id, 0, 0, { skipInvalidate: true });
@@ -2139,7 +2185,7 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
     if (Number(row.last_progress || 0) >= watchedThresholdPercent()) {
       if (!canInferLiveSessionCompletion(row, now)) {
         staleIds.push(row.session_id);
-        logger(`Live session disappeared while paused; not inferring a completed watch: ${row.title} (${row.session_id})`);
+        logger(`Live session disappeared but its row cannot prove a completed watch; not inferring one: ${row.title} (${row.session_id})`);
         continue;
       }
       logger(`Live session completed playback: ${row.title} (${row.session_id})`);

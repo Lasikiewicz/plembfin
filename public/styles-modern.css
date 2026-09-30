@@ -244,7 +244,7 @@ html[data-style="modern"] #timeline-view .live-panel {
   padding: 0.75rem 0 0;
 }
 
-#timeline-view:has(.modern-idle-feature) #upNextDashboardSection .up-next-heading-copy > h2 {
+#timeline-view:not(:has(#nowPlayingGrid > [data-now-playing-card-id])):has(.modern-idle-feature) #upNextDashboardSection .up-next-heading-copy > h2 {
   display: none;
 }
 
@@ -253,8 +253,82 @@ html[data-style="modern"] #nowPlayingGrid {
   padding: 0;
 }
 
-#nowPlayingGrid > .idle-state:has(~ .modern-idle-feature),
-#timeline-view:has(.modern-idle-feature) #upNextPanel > [data-up-next-card-id]:nth-child(-n + 2 of [data-up-next-card-id]) {
+#nowPlayingGrid > .idle-state:has(~ .modern-idle-feature) {
+  display: none;
+}
+
+/* data-featured-up-next is set by dashboard-modern.js to the number of Up Next
+   cards featured in the panel (1 to 3, the Now Playing option maximum). */
+#timeline-view[data-featured-up-next="1"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 1 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="2"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 2 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="3"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 3 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="4"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 4 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="5"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 5 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="6"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 6 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="7"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 7 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="8"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 8 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="9"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 9 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="10"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 10 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="11"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 11 of [data-up-next-card-id]),
+#timeline-view[data-featured-up-next="12"] #upNextPanel > [data-up-next-card-id]:nth-child(-n + 12 of [data-up-next-card-id]) {
+  display: none;
+}
+
+/* Up Next cards (in the rail and featured in the panel) show the episode title
+   in the normal text colour, not the accent. Two ids outrank the accent rules. */
+html :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] .history-card-episode,
+html #timeline-view :is(#upNextPanel, #nowPlayingGrid) [data-up-next-card-id] .history-card-episode {
+  color: var(--text);
+}
+
+/* Options popup opened by the cog beside the Now Playing heading
+   (modules/now-playing-options.js). */
+#timeline-view .live-panel {
+  position: relative;
+}
+
+.now-playing-options-menu {
+  position: absolute;
+  top: 2.4rem;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.75rem;
+  width: min(22rem, 100%);
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.now-playing-options-menu.hidden {
+  display: none;
+}
+
+.now-playing-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.now-playing-option-count {
+  justify-content: space-between;
+}
+
+.now-playing-option-count input {
+  width: 4.5rem;
+}
+
+.now-playing-option-error {
+  margin: 0;
+  color: var(--danger, #f87171);
+  font-size: 0.85rem;
+}
+
+.now-playing-option-error.hidden {
   display: none;
 }
 
@@ -320,11 +394,15 @@ html[data-style="modern"] #nowPlayingGrid .live-now-card .now-card-details {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  justify-content: center;
+  /* Live, title and episode anchor to the top; the details and progress bar
+     sit at the bottom (the meta block's auto top margin). */
+  justify-content: flex-start;
   gap: 0.3rem;
   min-width: 0;
-  height: auto;
-  padding: 0;
+  height: 100%;
+  /* The same 0.65rem the Up Next card's text column has, top and bottom; the
+     card's own padding and gap inset the sides. */
+  padding: 0.65rem 0;
   overflow: hidden;
 }
 
@@ -361,8 +439,9 @@ html[data-style="modern"] #nowPlayingGrid .live-now-card .now-card-episode {
 
 html[data-style="modern"] #nowPlayingGrid .live-now-card .now-card-meta {
   display: flex;
-  /* One detail per line: Season/Ep, User, Device, App Used. */
+  /* One detail per line: User, Device, App Used. */
   flex-flow: column nowrap;
+  margin-top: auto;
   gap: 0.15rem;
   color: var(--muted);
   font-size: 0.8rem;

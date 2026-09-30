@@ -6,8 +6,9 @@ import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.3.0.0.2";
 import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.3.0.0.2";
 import {
   manualShowMatches, isShowInUpNext, provenDifferentShow, upNextShowActionHtml,
-  upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys, withoutNowPlaying,
+  upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys, withoutNowPlaying, upNextRemovalMatches,
 } from "./up-next-shared.js?v=1.3.0.0.2";
+export { chooseUpNextRemovalScope, upNextHasSiblingCard } from "./up-next-shared.js?v=1.3.0.0.2";
 import { renderMediaCard } from "./media-card.js?v=1.3.0.0.2";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
@@ -291,7 +292,7 @@ export function isUpNextItemDismissed(item) {
   return true;
 }
 
-export function removeUpNextItem(itemId, details = {}, { showScope = false } = {}) {
+export function removeUpNextItem(itemId, details = {}, { showScope = false, seasonScope = false } = {}) {
   const id = String(itemId || "").trim();
   const mediaKey = String(details.media_key || details.mediaKey || "").trim();
   if (!id && !mediaKey) return;
@@ -299,11 +300,10 @@ export function removeUpNextItem(itemId, details = {}, { showScope = false } = {
   const removedItem = removedIndex >= 0
     ? state.upNextItems[removedIndex]
     : { ...details, id: details.id || id, media_key: details.media_key || mediaKey || id };
-  const showKeys = showScope ? new Set(upNextShowDismissalKeys(removedItem)) : new Set();
   const matchesRemoval = (item) => {
     const isSameItem = String(item?.id || "") === id || String(item?.media_key || "") === mediaKey;
     if (isSameItem) return true;
-    return showKeys.size > 0 && !provenDifferentShow(removedItem, item) && upNextShowDismissalKeys(item).some((key) => showKeys.has(key));
+    return (showScope || seasonScope) && upNextRemovalMatches(removedItem, item, seasonScope ? "season" : "show");
   };
   const removedItems = state.upNextItems.filter(matchesRemoval);
   // The caller keeps the card in a pending-removal state until the server has
@@ -370,10 +370,18 @@ function dismissalShowKey(entry = {}) {
   const tvdb = String(entry.show_tvdb_id || item.show_tvdb_id || item.showTvdbId || "").trim();
   const imdb = String(entry.show_imdb_id || item.show_imdb_id || item.showImdbId || "").trim().toLowerCase();
   const title = String(entry.show_title || item.show_title || item.showTitle || "").trim();
-  if (tmdb) return `show:tmdb:${tmdb.toLowerCase()}`;
-  if (tvdb) return `show:tvdb:${tvdb.toLowerCase()}`;
-  if (imdb) return `show:imdb:${imdb}`;
-  return `show:title:${slug(title || entry.title || item.title || "untitled")}`;
+  const season = dismissedSeason(entry);
+  const key = tmdb ? `show:tmdb:${tmdb.toLowerCase()}`
+    : tvdb ? `show:tvdb:${tvdb.toLowerCase()}`
+      : imdb ? `show:imdb:${imdb}`
+        : `show:title:${slug(title || entry.title || item.title || "untitled")}`;
+  return season == null ? key : `${key}:s${season}`;
+}
+
+// A season-scoped removal (a show with a rewatch card) lists as its own entry.
+function dismissedSeason(entry = {}) {
+  const item = dismissalSnapshot(entry);
+  return item.dismissal_scope === "season" && item.season != null && item.season !== "" ? Number(item.season) : null;
 }
 
 function dismissalShowKeys(entry = {}) {
@@ -425,11 +433,12 @@ function dismissedUpNextCardRecord(group) {
   const showTvdbId = group.representative.show_tvdb_id || source.show_tvdb_id || source.showTvdbId || "";
   const showImdbId = group.representative.show_imdb_id || source.show_imdb_id || source.showImdbId || "";
   const showPoster = source.show_poster_url || source.showPosterUrl || source.canonical_poster_url || source.canonicalPosterUrl || "";
+  const season = dismissedSeason(group.representative);
   return {
     ...source,
     id: `dismissed:${group.key}`,
     media_type: "tv",
-    title: showTitle,
+    title: season == null ? showTitle : `${showTitle} - Season ${season}`,
     tmdb_id: showTmdbId,
     tvdb_id: showTvdbId,
     imdb_id: showImdbId,
@@ -439,7 +448,7 @@ function dismissedUpNextCardRecord(group) {
     poster_url: showPoster || source.poster_url || source.posterUrl || "",
     show_poster_url: showPoster,
     meta: "Dismissed from Up Next",
-    description: "This show will stay out of Up Next until you add it back.",
+    description: `This ${season == null ? "show" : "season"} will stay out of Up Next until you add it back.`,
   };
 }
 

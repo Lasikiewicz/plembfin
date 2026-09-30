@@ -5,6 +5,8 @@ import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { resolvePlexAccountId } from "./plexClient.js";
 import { isUpNextSeedDeviceId } from "./embyClient.js";
 import { decodeHtmlEntities } from "./parsers.js";
+import { watchedThresholdPercent } from "./tuning.js";
+import { resolveSeriesIds } from "./seriesIdentity.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).trim().replace(/\/+$/, "");
@@ -152,9 +154,11 @@ function millisecondsFrom(value) {
   return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
+// Floored, not rounded: the poller compares this with the watched threshold,
+// and rounding let 89.5% count as a completed 90%. Display code rounds itself.
 function progressPercent(offsetMs, durationMs) {
   if (!durationMs || durationMs <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((offsetMs / durationMs) * 100)));
+  return Math.max(0, Math.min(100, Math.floor((offsetMs / durationMs) * 10_000) / 100));
 }
 
 function indexNumberOrNull(value) {
@@ -528,6 +532,17 @@ export function isUpNextSeedSession(session = {}) {
   ].some(isUpNextSeedDeviceId);
 }
 
+// Emby and Jellyfin list an episode's own ProviderIds on its session item, so a
+// playing episode would otherwise carry episode ids where the show's belong
+// (no artwork, wrong show link). Swap in the series ids, memoized per series.
+async function withEpisodeSeriesIds(sessions, source, providerConfig) {
+  return Promise.all(sessions.map(async (session) => {
+    if (session.mediaType !== "episode" || !session.seriesItemId) return session;
+    const seriesIds = await resolveSeriesIds(source, session.seriesItemId, providerConfig);
+    return seriesIds ? { ...session, ids: { imdb: seriesIds.imdb, tmdb: seriesIds.tmdb, tvdb: seriesIds.tvdb } } : session;
+  }));
+}
+
 async function fetchEmbySessions(config) {
   if (!config.emby.baseUrl || !config.emby.apiKey) return { sessions: [], ok: true };
   const url = new URL(`${config.emby.baseUrl}/Sessions`);
@@ -535,14 +550,12 @@ async function fetchEmbySessions(config) {
   const json = await fetchJson(url, { Accept: "application/json", "X-Emby-Token": config.emby.apiKey });
   if (!json) return { sessions: [], ok: false };
   const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
-  return {
-    sessions: sessions
-      .map((session) => normalizeSessionItem(session, "emby", config.emby))
-      .filter(Boolean)
-      .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase())
-      .filter((session) => !isUpNextSeedSession(session)),
-    ok: true,
-  };
+  const normalized = sessions
+    .map((session) => normalizeSessionItem(session, "emby", config.emby))
+    .filter(Boolean)
+    .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase())
+    .filter((session) => !isUpNextSeedSession(session));
+  return { sessions: await withEpisodeSeriesIds(normalized, "emby", config.emby), ok: true };
 }
 
 async function fetchJellyfinSessions(config) {
@@ -551,14 +564,12 @@ async function fetchJellyfinSessions(config) {
   const json = await fetchJson(url, jellyfinAuthHeaders(config.jellyfin));
   if (!json) return { sessions: [], ok: false };
   const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
-  return {
-    sessions: sessions
-      .map((session) => normalizeSessionItem(session, "jellyfin", config.jellyfin))
-      .filter(Boolean)
-      .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase())
-      .filter((session) => !isUpNextSeedSession(session)),
-    ok: true,
-  };
+  const normalized = sessions
+    .map((session) => normalizeSessionItem(session, "jellyfin", config.jellyfin))
+    .filter(Boolean)
+    .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase())
+    .filter((session) => !isUpNextSeedSession(session));
+  return { sessions: await withEpisodeSeriesIds(normalized, "jellyfin", config.jellyfin), ok: true };
 }
 
 // Returns { sessions, failedSources }: failedSources names which of "plex"/"emby"/
@@ -632,8 +643,14 @@ export function hydrateCachedSession(row = {}) {
   };
 }
 
+// Paused sessions stay live (decision 13), so one that vanishes was closed.
+// Paused in the credits (at or past the watched threshold) and seen within the
+// staleness window counts as finished; a paused row below the threshold never
+// does (user decision, core-sync-health step 2, 29 Sept 2026).
 export function canInferLiveSessionCompletion(row = {}, now = Date.now()) {
   if (isStaleLiveSessionRow(row, now)) return false;
   const session = hydrateCachedSession(row);
-  return !session.paused && String(session.playbackState || "").toLowerCase() !== "paused";
+  const paused = session.paused || String(session.playbackState || "").toLowerCase() === "paused";
+  if (!paused) return true;
+  return Number(row.last_progress || 0) >= watchedThresholdPercent();
 }

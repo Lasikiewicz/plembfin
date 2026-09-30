@@ -5,6 +5,8 @@ import {
   dismissPlaystateAliasesForShow,
   foldPlaystateAliasesIntoShow,
   listUnprovenPlaystateAliases,
+  listDismissedPlaystateAliases,
+  restoreDismissedPlaystateAliases,
 } from "../utils/playstateAliasReview.js";
 
 // Settings -> Tools -> Database Repairs -> Watch-State Aliases
@@ -20,13 +22,16 @@ export async function handlePlaystateAliases(req, res, path) {
     if (!action) {
       if (req.method !== "GET") return methodNotAllowed(res);
       const shows = await listUnprovenPlaystateAliases();
-      return sendJson(res, { ok: true, shows }, 200, { "Cache-Control": "no-store" });
+      return sendJson(res, { ok: true, shows, dismissed: listDismissedPlaystateAliases() }, 200, { "Cache-Control": "no-store" });
     }
     if (req.method !== "POST") return methodNotAllowed(res);
     const body = await readJson(req);
     if (action === "fold") {
       const result = await foldPlaystateAliasesIntoShow(body.showKey, body.profile ?? 0);
       return sendJson(res, { ok: true, ...result });
+    }
+    if (action === "restore") {
+      return sendJson(res, { ok: true, ...restoreDismissedPlaystateAliases(body.showKey) });
     }
     if (action === "dismiss") {
       const result = await dismissPlaystateAliasesForShow(body.showKey);

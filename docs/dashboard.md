@@ -133,6 +133,18 @@ full-table read and dedupe per show when Up Next resolves up to 24 of them. It a
 mutated by the calls consuming it. Any new caller that resolves many shows in one pass
 should hand the same snapshot to each call rather than letting each one re-read.
 
+Up Next normally holds one card per show. The exception is a rewatch from an older season
+(`server/src/utils/upNextRewatch.js`): when a show's most recent watched play is behind its
+furthest watched episode, and the episode right after that play is released and unwatched, that
+episode gets a rewatch card (`up_next_lane: "rewatch"`) beside the show's ordinary next episode
+after the furthest one (`up_next_lane: "new"`, only once a media library has it). An episode
+already watched never becomes a rewatch card, because Remove marks its episode unwatched
+everywhere. A part-watched new episode is the "new" card itself, so the episode after it does not
+appear beside it. The native rail refresh skips the "new" card: the apps' rails hold one episode
+per show and follow the rewatch. Remove on a show with two cards asks whether to hide that card's
+season (`dismissal_scope: "season"`, stored with season aliases only) or the whole show; the
+dismissed dialog lists a hidden season as its own entry.
+
 Resume cards show progress, source badges, app links, Watch now, Mark watched, and Clear
 progress when a positive playback position exists. The three-dot menu on all Up Next cards
 provides Mark watched, Rate, watchlist actions, Clear progress (only for resume items with

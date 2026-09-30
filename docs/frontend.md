@@ -119,9 +119,13 @@ Rules that keep this correct:
   "Recently watched" title (both styles, stored per row under `plembfin:dashboard-compact:tv`
   and `:movie`): every card in the row folds to its poster (the details slide closed behind
   it), clicking a folded poster opens that card, and a further click behaves as normal. The
-  Now Playing heading is hidden; when nothing is
-  playing the first Up Next item is featured there in a backdrop layout (and hidden from the
-  Up Next rail by CSS), and live sessions take the same layout side by side. One
+  Now Playing heading is hidden; the Up Next items that fill the panel (default 3 in total;
+  all of them when nothing is playing, the slots the live sessions leave otherwise, after the
+  sessions) are featured there in a backdrop layout and hidden from the Up Next rail by CSS
+  (`data-featured-up-next` on `#timeline-view`), and live sessions take the same layout side
+  by side. A cog beside the heading opens the options popup (`modules/now-playing-options.js`):
+  Up Next when idle, Up Next after live sessions, and the item count (1 to 3), saved
+  server-wide in the `nowPlaying` config section. One
   MutationObserver on `#timeline-view` drives all of this, so `sync.js` and `up-next.js`
   have no hooks for it.
 - The Posters only switch on Library, Discover, History, Watchlist, Ratings, and Playlists
@@ -191,7 +195,14 @@ SPA navigation via `history.pushState`:
   The shell reset is repeated after the active view paints and after any lazy route
   modules replay the route, so replacing a page cannot restore the previous page's
   scroll offset. Explicit hash anchors and Upcoming's current-week anchor keep their
-  intentional destinations.
+  intentional destinations. A sidebar click on the page already open
+  (`selectView(view, { fresh: true })`) reloads the browser page, exactly like the
+  browser's refresh; an in-place reset rebuilt Up Next and the rails several times and
+  flickered. Page entry also scrolls every scrolled element inside `.page-shell` (rails
+  included) back to its start and dispatches `plembfin:page-entry`
+  on `document`; `dashboard-modern.js` (open posters, expanded runs), `page-card-open.js`
+  (the in-place open card) and `playlists.js` (expanded episode stacks) listen and fold
+  back, so a page is always entered fresh.
 - `handleRouting(path)` (`app.js`) - parses the URL into `state.activeView` (+ mode/
   detail state) and calls the right opener. Routes:
 
@@ -317,7 +328,13 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   announce committed watch-state and personal-media changes, while separate Discover
   and Up Next cache generations announce changed derived snapshots. The client debounces
   bursts and reloads the affected active view in place, then reconnects after a dropped
-  stream.
+  stream. A stream silent for 45 s (three missed server heartbeats, typically a
+  half-open socket after sleep) is dropped and reopened, as is the stream on `online`
+  and on a back/forward-cache `pageshow`. A reconnect `ready` event whose version is
+  newer than the tab last saw carries no change list, so it triggers a full refresh
+  (history, dashboard, Up Next, History page, Movies/TV Shows grid, Stats, open detail
+  page) rather than an in-place patch. Now Playing treats a poll request still pending
+  after 30 s as abandoned, so a hung request cannot stop later polls.
 - Watchlist mutations are local-first: the Watchlist page and detail cards update after
   the local transaction and show `Saved locally` or provider queue feedback without
   waiting on a remote API call. The same live refresh path reloads Watchlist cards when

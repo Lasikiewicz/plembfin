@@ -8,6 +8,8 @@ const NOW_PLAYING_POLL_MS = 10000;
 let _cb = {};
 let nowPlayingRequestController = null;
 let nowPlayingRequestGeneration = 0;
+let nowPlayingRequestStartedAt = 0;
+const NOW_PLAYING_REQUEST_STALE_MS = 30000;
 
 export function initSync(callbacks) {
   _cb = callbacks;
@@ -959,7 +961,6 @@ export function renderActiveSessions() {
               ${epLabel ? `<span class="now-card-episode">${escapeHtml(epLabel)}</span>` : ""}
             </div>
             <div class="now-card-meta">
-              ${isEpisode && session.season != null ? `<span><span class="meta-label">Season/Ep:</span> S${session.season} · E${session.episode}</span>` : ""}
               ${userName ? `<span><span class="meta-label">User:</span> ${escapeHtml(userName)}</span>` : ""}
               ${deviceName ? `<span><span class="meta-label">Device:</span> ${escapeHtml(deviceName)}</span>` : ""}
               <span><span class="meta-label">App Used:</span> ${sourceBadgeHtml(session.source)}</span>
@@ -993,10 +994,16 @@ export function renderActiveSessions() {
 
 export async function loadActiveSessions({ force = false } = {}) {
   if (!state.token) return state.activeSessions;
-  if (state.nowPlayingRequestActive && !force) return state.activeSessions;
-  if (state.nowPlayingRequestActive && force) nowPlayingRequestController?.abort();
+  // A request that never settles (a socket left half-open by sleep) would
+  // otherwise make every later poll skip, freezing Now Playing on a visible
+  // page until the next focus change. Treat it as abandoned after a while.
+  const requestStuck = state.nowPlayingRequestActive
+    && Date.now() - nowPlayingRequestStartedAt > NOW_PLAYING_REQUEST_STALE_MS;
+  if (state.nowPlayingRequestActive && !force && !requestStuck) return state.activeSessions;
+  if (state.nowPlayingRequestActive) nowPlayingRequestController?.abort();
 
   const requestGeneration = ++nowPlayingRequestGeneration;
+  nowPlayingRequestStartedAt = Date.now();
   const requestController = typeof AbortController === "function" ? new AbortController() : null;
   nowPlayingRequestController = requestController;
 
