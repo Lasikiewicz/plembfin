@@ -346,7 +346,36 @@ app.get("/version.json", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   try {
     const bundled = JSON.parse(fs.readFileSync(path.resolve(PUBLIC_DIR, "..", "changelog.json"), "utf8"));
-    return res.json({ version: String(bundled.version || "").trim() || null });
+    const root = path.resolve(PUBLIC_DIR, "..");
+    const hasAlphaFile = fs.existsSync(path.join(root, "changelog.alpha.json"));
+    const hasDevelopFile = fs.existsSync(path.join(root, "changelog.develop.json"));
+    const envChannel = String(process.env.BUILD_CHANNEL || "").toLowerCase().trim();
+    let channel = "release";
+    if (["alpha", "develop"].includes(envChannel)) {
+      channel = envChannel;
+    } else if (!["release", "latest", "stable", "main"].includes(envChannel)) {
+      if (hasAlphaFile && !fs.existsSync(path.join(root, "changelog.json"))) channel = "alpha";
+      else if (hasDevelopFile && !fs.existsSync(path.join(root, "changelog.json"))) channel = "develop";
+    }
+
+    const payload = { version: String(bundled.version || "").trim() || null, channel };
+    if (channel === "alpha") {
+      const manifest = JSON.parse(fs.readFileSync(path.join(root, "changelog.alpha.json"), "utf8"));
+      const entry = Array.isArray(manifest.entries) ? manifest.entries[0] : null;
+      payload.alphaBuild = {
+        build: Number(manifest.build) || 0,
+        baseVersion: manifest.baseVersion || null,
+        version: entry?.version || manifest.version || null,
+        shortVersion: entry?.shortVersion || entry?.version || manifest.version || null,
+      };
+    } else if (channel === "develop") {
+      const manifest = JSON.parse(fs.readFileSync(path.join(root, "changelog.develop.json"), "utf8"));
+      payload.developBuild = {
+        version: String(manifest.version || "").trim() || null,
+        build: Number(manifest.build) || 0,
+      };
+    }
+    return res.json(payload);
   } catch {
     return res.status(503).json({ error: "Version unavailable" });
   }
