@@ -25,6 +25,7 @@ import {
   isReleaseTypeCommitMessage,
 } from "./changelog-message.js";
 import { changeAreaDetails } from "./changelog-git-helpers.js";
+import { findStaleCaptures, loadCatalogue } from "../website/scripts/stale-captures.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const updatesPath = path.join(root, "plan", "updates.md");
@@ -203,7 +204,23 @@ function targetData(target, commits) {
   };
 }
 
-export function buildUpdatesModel({ baseline, head, commits = [], surfaces = null, generatedAt = new Date().toISOString() } = {}) {
+// Website images whose catalogued source files changed, with the commits that touched them.
+// A missing or unreadable catalogue leaves the section out rather than failing the commit hook.
+function captureData(changedFiles, commits, catalogue) {
+  let result;
+  try {
+    result = findStaleCaptures(changedFiles, catalogue || loadCatalogue());
+  } catch {
+    return null;
+  }
+  const images = result.images.map((image) => ({
+    ...image,
+    commits: commits.filter((commit) => commit.files.some((file) => image.files.includes(file))).map((commit) => commit.shortId).filter(Boolean),
+  }));
+  return { ...result, images };
+}
+
+export function buildUpdatesModel({ baseline, head, commits = [], surfaces = null, catalogue = null, generatedAt = new Date().toISOString() } = {}) {
   const normalisedCommits = commits.map(normaliseCommit).filter(Boolean);
   const changedFiles = unique(normalisedCommits.flatMap((commit) => commit.files));
   const targets = mapWebsiteTargets(changedFiles, surfaces).map((target) => targetData(target, normalisedCommits));
@@ -228,6 +245,7 @@ export function buildUpdatesModel({ baseline, head, commits = [], surfaces = nul
     changelogChanges: [...changelogChanges.values()],
     targets,
     unmappedFiles,
+    captures: captureData(changedFiles, normalisedCommits, catalogue),
   };
 }
 
@@ -290,6 +308,23 @@ export function buildUpdatesMarkdown(model) {
     lines.push("### Unmapped application/site paths", "", "No website guide covers these paths; check them during the Force to main review:", "");
     lines.push(...model.unmappedFiles.map((file) => `- \`${file}\``));
     lines.push("");
+  }
+
+  const captures = model.captures;
+  if (captures) {
+    lines.push("## Website images to retake", "", "Images whose catalogued source files changed (`website/capture-catalogue.json`); every view of each is retaken during **Force to main**.", "");
+    if (captures.shared.length) lines.push(`- Shared files changed, so every image is listed: ${captures.shared.map((file) => `\`${file}\``).join(", ")}`, "");
+    if (captures.images.length) {
+      for (const image of captures.images) {
+        const commits = image.commits.length ? ` [${image.commits.join(", ")}]` : "";
+        const live = image.live ? ` (needs live state: ${image.live})` : "";
+        const files = image.files.filter((file) => !captures.shared.includes(file));
+        lines.push(`- \`${image.id}\` (${image.variants.join(", ")})${live}${commits}${files.length ? `: ${files.map((file) => `\`${file}\``).join(", ")}` : ""}`);
+      }
+      lines.push("", ...captures.commands.map((command) => `Retake from \`website/\`: \`${command}\``), "");
+    } else {
+      lines.push("- No website images to retake.", "");
+    }
   }
 
   lines.push("## Commit inventory", "");

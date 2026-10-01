@@ -94,3 +94,35 @@ test("tooling commits stay in the inventory but do not become changelog-ready ap
   assert.equal(model.changelogChanges.length, 0);
   assert.match(buildUpdatesMarkdown(model), /refresh local release planning ledger/);
 });
+
+test("the ledger lists website images whose catalogued sources changed, in every view, with their commits", () => {
+  const catalogue = {
+    variants: { dark: { style: "classic" }, light: { style: "classic" }, "modern-dark": { style: "modern" }, "modern-light": { style: "modern" } },
+    commonSources: { all: ["public/styles.css"], modern: ["public/styles-modern.css"] },
+    images: {
+      stats: { variants: ["dark", "light", "modern-dark", "modern-light"], sources: ["public/modules/stats.js"] },
+      upcoming: { variants: ["dark", "light", "modern-dark", "modern-light"], sources: ["public/modules/upcoming.js"] },
+    },
+  };
+  const model = buildUpdatesModel({
+    baseline: { ref: "origin/main", sha: "base-commit" },
+    head: "head-commit",
+    generatedAt: "2026-10-01T12:00:00.000Z",
+    surfaces,
+    catalogue,
+    commits: [
+      { id: "4444444444444444444444444444444444444444", date: "2026-10-01T11:00:00+01:00", message: "fix: stats totals", files: ["public/modules/stats.js"] },
+      { id: "5555555555555555555555555555555555555555", date: "2026-10-01T11:30:00+01:00", message: "fix: modern card spacing", files: ["public/styles-modern.css"] },
+    ],
+  });
+
+  assert.deepEqual(model.captures.images.map((image) => [image.id, image.variants.length, image.commits]), [
+    ["stats", 4, ["4444444", "5555555"]],
+    ["upcoming", 2, ["5555555"]],
+  ]);
+  const markdown = buildUpdatesMarkdown(model);
+  assert.match(markdown, /## Website images to retake/);
+  assert.match(markdown, /`stats` \(dark, light, modern-dark, modern-light\) \[4444444, 5555555\]: `public\/modules\/stats.js`/);
+  assert.match(markdown, /captures:retake -- stats`/);
+  assert.match(markdown, /captures:retake -- --variant=modern-dark,modern-light upcoming`/);
+});

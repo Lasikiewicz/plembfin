@@ -203,7 +203,7 @@ npm run updates:refresh
 npm run check:website-impact
 ```
 
-Read `plan/updates.md` (Website check targets, Changelog-ready changes, and commit inventory).
+Read `plan/updates.md` (Website check targets, Website images to retake, Changelog-ready changes, and commit inventory).
 The develop inventory can include later application work: reconcile targets against the
 pinned alpha changes and preview's outstanding list. The definitive impact check is run
 in the alpha checkout after carrying in the reviewed website in step 5.
