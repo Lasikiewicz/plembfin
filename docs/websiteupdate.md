@@ -136,6 +136,8 @@ The gate has three phases, all checked against the same approved release build:
 1. **A — review and prepare:** Resolve the current `origin/main` documentation baseline,
    read the release's website-impact targets, review affected guides in the local website
    preview, make any edits on local `develop`, and write a standalone `captures.md` list.
+   `npm run captures:stale` in `website/` lists the images whose catalogued source files
+   changed since `origin/main` (all views of each), with the `captures:retake` command.
    The application being documented is the pinned alpha candidate running on port 5055,
    not the `develop` app. Stop after writing the capture list and hand it to phase B.
 2. **B — capture only:** Give a cheaper agent the one-line handoff naming `captures.md`.

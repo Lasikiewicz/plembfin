@@ -17,6 +17,8 @@
     "check:privacy": "node scripts/check-capture-privacy.mjs",
     "check:catalogue": "node scripts/check-capture-catalogue.mjs",
     "check:links": "node scripts/check-content-links.mjs",
+    "captures:retake": "node scripts/recapture.mjs",
+    "captures:stale": "node scripts/stale-captures.mjs",
     "captures:compose": "node scripts/compose-full-page-capture.mjs",
     "captures:crop-settings": "node scripts/crop-settings-captures.mjs",
     "captures:neutralize-dark-settings": "node scripts/neutralize-dark-capture-highlights.mjs",
@@ -37,6 +39,7 @@
     "typescript": "^5.8.3"
   },
   "devDependencies": {
+    "playwright-core": "^1.63.0",
     "sharp": "^0.35.4",
     "svgo": "^4.1.0"
   }

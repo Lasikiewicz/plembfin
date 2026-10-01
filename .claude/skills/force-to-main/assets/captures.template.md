@@ -12,22 +12,27 @@ navigation, opening the specified menus, and scrolling are allowed.
 
 - App URL: `<app-url>`
 - Approved source checkout: `<absolute-candidate-worktree>`
-- Expected source commit: `<full-pinned-alpha-hash>`
-- Expected served version/channel: `<alpha-version>` / `alpha` (stable promotion is later).
+- Expected source commit: `<full-pinned-alpha-hash>` (the candidate also carries the
+  uncommitted release promotion changes, so the working tree is modified; that is expected)
+- Expected served version/channel: `<release-version>` / `release` (the main build).
 - Server PID and command: `<pid>` / `<recorded-command>`
 - Repository: `<absolute-main-checkout>`
-- Signed-in collaborative browser tab: `<tab-id>`; if missing, open the app URL and check
-  whether the session is available. If login is required, report FAIL; do not find or
-  copy credentials into this file or your report.
+- Browser: any browser tooling available to you may be used. The default is Google Chrome
+  through Claude in Chrome (`mcp__claude-in-chrome__*`, the user's signed-in session); the
+  built-in browser pane or any other automation-capable browser is equally acceptable.
+  Open the app URL in a new tab and check whether the session is signed in. If login is
+  required, report FAIL; do not find or copy credentials into this file or your report.
+  Stay with one browser for the whole run.
 - Staging folder: `<absolute-run-folder>/captures/`
 - Website command working directory: `<absolute-main-checkout>/website/`
 - Return line: `Force to main v<version>, phase C: read the run summary.`
 
 Before capturing, verify `git -C '<absolute-candidate-worktree>' rev-parse HEAD` equals
 the expected hash and the recorded PID still serves this app. Verify the running build
-through `/api/changelog` in the signed-in tab; `current` is the stable base, while
-`alphaBuild.version` / `developBuild.version` identifies the installed channel build.
-Use `preview_evaluate` with this expression, returning only these safe fields:
+through `/api/changelog` in the signed-in tab; on the main build `channel` is `release`
+and `current` is the release version.
+Run this expression in the page with your browser's JavaScript tool (for example
+`javascript_tool` in Claude in Chrome), returning only these safe fields:
 
 ```javascript
 (async () => {
@@ -49,10 +54,8 @@ Use `preview_evaluate` with this expression, returning only these safe fields:
 ```
 
 Compare `channel` and normalized `buildVersion` with the expected values above.
-Record `sidebarLabel` separately: direct navigation to `/settings` can retain the
-bundled stable badge (`v<stableVersion>`) even on an alpha/develop server. This known
-initial label is allowed only when the API build/channel and source/PID all match;
-an unexplained different label fails. Do not change badge text or DOM content.
+Record `sidebarLabel` separately; it should read `v<stableVersion>`. A different label
+fails. Do not change badge text or DOM content.
 Inspect only the theme keys and needed DOM data; do not dump storage, cookies,
 configuration, or authenticated URLs. On any source/build/channel mismatch or failed
 version request, report FAIL for all pending images and stop. Do not repair the server
@@ -65,11 +68,12 @@ Never copy a capture into `website/` in this phase.
 
 ## Capture commands
 
-Use the T3 collaborative preview tools. First call `preview_status` with the recorded
-tab ID, then `preview_open` if no automation-capable tab is attached. Use
-`preview_navigate`, `preview_resize` (`mode: freeform`, the entry's width/height), and
-`preview_snapshot` before interacting. Prefer snapshot-provided locators. Use
-`preview_evaluate` for DOM measurements and exact container scroll positions.
+Use whichever browser tooling you have (default: Claude in Chrome; load its tools with one
+ToolSearch call if deferred). Open the app in a tab you create, navigate to the entry's
+route, set the viewport to the entry's width/height (`resize_window` or the equivalent; if
+the browser cannot emulate the exact size, say so and report FAIL rather than scaling),
+and read the page before interacting. Prefer accessibility-tree refs over coordinates. Use
+the JavaScript tool for DOM measurements and exact container scroll positions.
 
 For each entry, set the app's own style and mode with `#themeStyleButton` and
 `#themeToggleButton` as necessary. Verify Modern has `data-style="modern"` on `<html>`;
@@ -78,8 +82,8 @@ Wait for the requested state, loaded images, and settled layout. Close unrelated
 tooltips, or banners. Do not hide errors or change DOM content to manufacture a state:
 if the required view cannot be reached, report FAIL with the reason.
 
-Call `preview_snapshot` with `save: true, includeImage: false` for a viewport PNG;
-use its returned `screenshotPath` in PowerShell:
+Take a viewport screenshot and save it as a PNG file in staging. Where the browser tool
+returns a file path, copy it (PowerShell):
 
 ```powershell
 Copy-Item -LiteralPath '<returned-screenshotPath>' -Destination '<staging>/<filename>.png'
@@ -87,8 +91,8 @@ Copy-Item -LiteralPath '<returned-screenshotPath>' -Destination '<staging>/<file
 
 Inspect each saved raw PNG at its original size before cropping or composing; headings
 and body text must be legible. If snapshot saving fails or the saved frame is blurred,
-inspect the error/image and retry once after reopening the same T3 tab with
-`preview_open` at the specified route and rechecking theme, viewport, and scroll state.
+inspect the error/image and retry once after reopening the route in a fresh tab of the same
+browser and rechecking theme, viewport, and scroll state.
 If saving or image quality still fails, report FAIL; do not accept an unreadable frame,
 claim an unsaved snapshot as a staged image, or switch browser systems.
 

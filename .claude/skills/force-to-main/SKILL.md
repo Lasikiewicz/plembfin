@@ -17,6 +17,24 @@ in step 4, including lock/source reconciliation. Neither request starts a new re
 creates another worktree, or repeats completed approvals. Only the exact initial
 `Force to main` request starts at step 0.
 
+**Show the flow at every stop.** Every time the run pauses for the user (and at the end of
+each phase), finish the message with this checklist, ticking what is done, marking the
+current stop with "here", and saying in one line what happens next. Keep the wording fixed
+so the user can follow the stage at a glance:
+
+```text
+- [ ] 1 Main build candidate running and changelog preview shown
+- [ ] 2 Suggested changelog updates made
+- [ ] 3 User accepts changelog and build
+- [ ] 4 Website phase A: guides reviewed, capture list written
+- [ ] 5 Website phase B: cheaper agent takes the captures (handoff line)
+- [ ] 6 Website phase C: images accepted, website checks pass
+- [ ] 7 Release promoted and committed locally (website carried in)
+- [ ] 8 Final review: release build presented for the user
+- [ ] 9 Force-push main and publish workflow
+- [ ] 10 OCI demo verified, local develop reconciled
+```
+
 ### 0 - Pre-checks, release lock, and run plan
 
 Check GHCR Cleanup first: it deletes tags from the same package this release publishes.
@@ -103,52 +121,80 @@ node scripts/promote-alpha-to-main.js --preview
 This reads without promoting or resetting any manifests. Show the exact new version,
 headline, and every section bullet. Outstanding website guides are information at this
 point; `--confirm` remains fail-closed later. Save the preview and approved message in
-the run plan. Incorporate requested wording changes and repeat the preview until the
-user approves the changelog in chat. Do not begin website work yet.
+the run plan. Do not ask for changelog approval here: the user approves the changelog and
+the running main build together in step 2, after seeing the app. Incorporate requested
+wording changes by editing `changelog.alpha.json` and repeating the preview and step 2.
+Do not begin website work yet.
 
-### 2 - Start the release candidate and obtain build approval
+### 2 - Build and start the main release candidate, then obtain one approval
 
-Install this worktree's own dependencies with `npm ci`. Stop the develop server on 5055
-before starting the candidate: both use the main checkout's data, and must never run
-against it concurrently. Verify the listening process belongs to this app before stopping
-it; record how to restore it if the release is abandoned. Do not copy `.env` or credentials
-into the worktree. Read `.claude/local-environment.md` in the main checkout if present;
-carry any required local environment settings explicitly, without printing secrets.
+**The user tests the MAIN build, not the alpha source.** "Force to main" means the candidate
+they see reports the new stable version (`v<version>`, channel `release`) and carries the new
+Stable changelog entry. Never show the pinned alpha source with alpha metadata as the
+candidate, and never ask for changelog approval before the app is running.
+
+Install this worktree's own dependencies with `npm ci`. Run `node scripts/promote-alpha-to-main.js --confirm`
+inside the detached release worktree (never the main checkout). This is safe: the worktree is
+disposable, `--confirm` only rewrites manifests and restamps assets, and nothing is committed
+or pushed. It yields exactly the release the final promotion will produce, except the
+reviewed website and README, which are carried in later (step 5). The worktree's
+`changelog.alpha.json` `releaseMessage` edit from step 1 must be in place first.
+
+Stop the develop server on 5055 before starting the candidate: both use the main checkout's
+data, and must never run against it concurrently. Verify the listening process belongs to
+this app before stopping it; record how to restore it if the release is abandoned. Do not
+copy `.env` or credentials into the worktree. Read `.claude/local-environment.md` in the
+main checkout if present; carry any required local environment settings explicitly, without
+printing secrets.
 
 PowerShell example (the variables are from step 1):
 
 ```powershell
 Set-Location -LiteralPath $releaseWorktree
 npm ci
+node scripts/promote-alpha-to-main.js --confirm
 $releaseListeners = Get-NetTCPConnection -LocalPort 5055 -State Listen -ErrorAction SilentlyContinue
 # Inspect ownership first, then stop only the verified Plembfin listener(s).
 $releaseListeners | Select-Object OwningProcess -Unique |
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false }
 $env:DATA_DIR = Join-Path $releaseRepo "data"
 $env:PORT = "5055"
-$env:BUILD_CHANNEL = "alpha"
+$env:BUILD_CHANNEL = "main"
 $releaseServer = Start-Process -FilePath (Get-Command node).Source -ArgumentList "scripts/start-local.js" -WorkingDirectory $releaseWorktree -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $releaseWorktree "server.stdout.log") -RedirectStandardError (Join-Path $releaseWorktree "server.stderr.log")
 Invoke-WebRequest http://localhost:5055/health
 ```
 
 Wait for readiness before the health request. Record the PID and paths; inspect errors
-if startup fails. Verify the served source is the pinned alpha hash and check the
-installed alpha version/channel through `/api/changelog` as described in the capture
-template. Record the sidebar label separately; direct Settings navigation can initially
-show the stable base. Give the user `http://localhost:5055/` to check. This is the
-application source being released, with alpha metadata until final promotion; do not
-claim it already reports the new stable version or run `--confirm` early to make it do so.
+if startup fails. Verify the served source is the pinned alpha hash plus the `--confirm`
+changes (`git rev-parse HEAD` equals the pin), and that `/version.json` and `/api/changelog`
+report the new version with channel `release` and `current` equal to `<version>`. The
+sidebar should read `v<version>` with no channel label. Give the user `http://localhost:5055/`
+to check, with a short checklist (sidebar version, Settings → Changelog Stable tab showing
+the new entry, the pages the release changed, mobile width). Show the changelog entry text
+alongside it.
 
-**Wait for explicit approval of both the changelog and this running build before phase A.**
-A build change invalidates this approval: fix it through develop / Force to alpha and
-restart with the new pinned tip. Leave the approved candidate running through website
-phases A, B, and C, including across the cheaper-agent handoff.
+Only once the build is serving, review the entry as a stable-release reader would and
+recommend specific changelog changes if any are warranted: bullets to drop (alpha or
+develop only mechanics, internal fixes stable users never saw), reword, or merge; bullets
+that are too long or visual-detail heavy; anything missing that the build shows; and the
+`releaseMessage`. Give each recommendation with its reason, or say the entry needs no
+changes. Do not make edits until the user agrees; do not ask the user to decide wording
+before the build is running.
+
+**Wait for one explicit approval of both the changelog and this running main build before
+phase A.** The user decides when they have checked both; do not treat silence, or approval
+of the preview text alone, as approval. A build change invalidates this approval: fix it
+through develop / Force to alpha and restart with the new pinned tip. A changelog wording
+change alone is made in `changelog.alpha.json`; discard the worktree's `--confirm` changes
+(`git checkout -- . ` then re-edit and re-run `--confirm`) and restart. Leave the approved
+candidate running through website phases A, B, and C, including across the cheaper-agent
+handoff.
 
 ### 3 - Website phase A: review against the approved running build
 
 Return to the main checkout on `develop`. Follow `docs/websiteupdate.md` for baseline
 discovery, change review, content quality, and visual/privacy checks. Its Force-to-main
-section defines phases A/B/C; the app target is the running alpha worktree on 5055. Never
+section defines phases A/B/C; the app target is the running main-build candidate on 5055. Never
 restart the develop app to review or take captures. Only describe behaviour present in
 the approved release source, including in website pages already edited on develop.
 
@@ -164,7 +210,11 @@ in the alpha checkout after carrying in the reviewed website in step 5.
 
 Review affected guides and shared site surfaces against the running candidate. Make
 website copy edits on `develop`, identify required captures, and start the website preview
-from `website/` with `npm run dev`. A guide that remains accurate may instead be recorded
+from `website/` with `npm run dev`. List the images to retake with `npm run captures:stale`
+in `website/` (files changed since `origin/main`, every view of each image), reconciled
+against the pinned alpha changes like the inventory; `npm run captures:retake -- <ids>`
+retakes them as `website/capture-catalogue.json` describes. A placed image whose size
+differs from the catalogue fails `npm run check:catalogue`, so update its catalogue sizes. A guide that remains accurate may instead be recorded
 in `website/src/data/release-review.json` with a reason; `publishedVersion` must match the
 version live on `origin/main`, so old reviews never excuse this release.
 
@@ -180,9 +230,8 @@ the run summary, local credentials, or website docs. Keep credentials out of the
 Verify the browser session and capture-tool/dependency availability before handing off;
 if sign-in cannot be shared, record that phase B must report the login blocker.
 Verify the served channel/build through `/api/changelog` as described in the capture
-template. Record the sidebar label separately: a direct Settings navigation can show
-the bundled stable badge until the app loads channel metadata. Do not use that initial
-badge alone to identify the candidate or alter the app to make it match.
+template (the main candidate reports channel `release` and `current` = the new version).
+Record the sidebar label separately; it should read `v<version>`.
 Record the phase result and exact capture-list path in the run summary, then stop.
 
 ### 4 - Website phase B handoff, then phase C completion
@@ -286,7 +335,8 @@ so no unrelated change enters the release commit.
 Before final review, stop the recorded candidate process and remove its worktree. Preserve
 the approved message/preview in the plan, verify the resolved path equals this run's external
 worktree, and inspect `git -C "$releaseWorktree" status --short`. Only its recorded candidate
-wording edits and server logs may be discarded; stop if there is unexpected work.
+wording edits, the step 2 `--confirm` output (manifests, restamped assets, version bump), and
+server logs may be discarded; stop if there is unexpected work.
 
 ```powershell
 Stop-Process -Id $releaseServer.Id -Force -Confirm:$false

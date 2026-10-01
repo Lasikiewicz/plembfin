@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Release the pinned alpha candidate as v<version> and publish the website reviewed against
+Release the pinned alpha tip as v<version> (tested first as a running main build) and publish the website reviewed against
 that same build.
 
 ## Waiting on you
@@ -12,7 +12,7 @@ Nothing.
 ## Steps
 
 - [ ] [Release candidate and approvals](active/force-to-main-<version>/step1-release-candidate.md)
-  - [ ] Changelog and running pinned-alpha build approved before website work
+  - [ ] Changelog and running main build approved together before website work
 - [ ] [Website phase A: review and capture list](active/force-to-main-<version>/step2-website-a.md)
   - [ ] Guides reviewed against the approved build; capture list ready
 - [ ] [Website phase B: captures](active/force-to-main-<version>/step3-website-b.md)

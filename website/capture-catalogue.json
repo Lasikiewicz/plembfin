@@ -5,11 +5,11 @@
   "browser": {
     "channel": "msedge",
     "viewport": {
-      "width": 1794,
-      "height": 857
+      "width": 1440,
+      "height": 683
     },
     "deviceScaleFactor": 1,
-    "note": "Edge maximized on a 1080p screen at 100% scale."
+    "note": "1440 x 683, the size of the published classic dashboard frames and the width behind the 1232 px element frames (user decision 1 October 2026)."
   },
   "variants": {
     "dark": {
@@ -108,12 +108,12 @@
           "height": 683
         },
         "modern-dark": {
-          "width": 1794,
-          "height": 857
+          "width": 1440,
+          "height": 683
         },
         "modern-light": {
-          "width": 1794,
-          "height": 857
+          "width": 1440,
+          "height": 683
         }
       }
     },
@@ -133,7 +133,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#nowPlayingPanel"
+          "css": ".live-panel"
         },
         "padding": 0
       },
@@ -147,20 +147,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1256,
-          "height": 165
+          "width": 1231,
+          "height": 156
         },
         "light": {
-          "width": 1256,
-          "height": 165
+          "width": 1231,
+          "height": 156
         },
         "modern-dark": {
-          "width": 1614,
-          "height": 206
+          "width": 1231,
+          "height": 156
         },
         "modern-light": {
-          "width": 1614,
-          "height": 206
+          "width": 1231,
+          "height": 156
         }
       }
     },
@@ -177,10 +177,13 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#nowPlayingPanel",
-          "includeOpenPopover": true,
+          "css": ".live-panel",
           "padding": 16
         },
+        "through": {
+          "css": "#nowPlayingOptionsMenu"
+        },
+        "noScroll": true,
         "padding": 0
       },
       "live": "playback",
@@ -192,14 +195,25 @@
       ],
       "sizes": {
         "modern-dark": {
-          "width": 1256,
-          "height": 173
+          "width": 1255,
+          "height": 188
         },
         "modern-light": {
-          "width": 1256,
-          "height": 173
+          "width": 1255,
+          "height": 188
         }
-      }
+      },
+      "steps": [
+        {
+          "click": "#nowPlayingOptionsButton"
+        },
+        {
+          "waitFor": "#nowPlayingOptionsMenu"
+        },
+        {
+          "wait": 500
+        }
+      ]
     },
     "dashboard-up-next": {
       "pages": [
@@ -217,7 +231,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#upNextRail"
+          "css": "#upNextPanel"
         },
         "padding": 0
       },
@@ -230,20 +244,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 136
         },
         "light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 136
         },
         "modern-dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 136
         },
         "modern-light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 136
         }
       }
     },
@@ -262,7 +276,17 @@
       "framing": {
         "type": "viewport"
       },
-      "live": "dismissed-up-next",
+      "steps": [
+        {
+          "click": "#upNextDismissedButton"
+        },
+        {
+          "waitFor": "[data-up-next-restore-all]"
+        },
+        {
+          "wait": 1500
+        }
+      ],
       "automation": "auto",
       "sources": [
         "public/modules/up-next.js",
@@ -270,19 +294,19 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1200,
+          "width": 1440,
           "height": 683
         },
         "light": {
-          "width": 1200,
+          "width": 1440,
           "height": 683
         },
         "modern-dark": {
-          "width": 1200,
+          "width": 1440,
           "height": 683
         },
         "modern-light": {
-          "width": 1200,
+          "width": 1440,
           "height": 683
         }
       }
@@ -302,7 +326,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "TV Shows"
+          "css": "#dashboardTvHistoryPanel"
         },
         "padding": 0
       },
@@ -313,20 +337,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "modern-dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "modern-light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         }
       }
     },
@@ -345,7 +369,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Movies"
+          "css": "#dashboardMovieHistoryPanel"
         },
         "padding": 0
       },
@@ -356,20 +380,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "modern-dark": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         },
         "modern-light": {
-          "width": 1232,
-          "height": 167
+          "width": 1231,
+          "height": 164
         }
       }
     },
@@ -388,10 +412,27 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".global-search-panel"
+          "css": "#globalSearchDropdown"
         },
         "padding": 0
       },
+      "steps": [
+        {
+          "click": "#globalSearchInput"
+        },
+        {
+          "fill": {
+            "css": "#globalSearchInput",
+            "value": "Ted Lasso"
+          }
+        },
+        {
+          "wait": 4000
+        },
+        {
+          "waitFor": "#globalSearchDropdown"
+        }
+      ],
       "automation": "auto",
       "sources": [
         "public/modules/app-events.js",
@@ -432,9 +473,12 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#themeToggle"
+          "css": "#themeStyleButton"
         },
-        "padding": 0
+        "padding": 50,
+        "through": {
+          "css": "#themeToggleButton"
+        }
       },
       "automation": "auto",
       "sources": [
@@ -442,20 +486,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 260,
-          "height": 160
+          "width": 259,
+          "height": 138
         },
         "light": {
-          "width": 260,
-          "height": 160
+          "width": 259,
+          "height": 138
         },
         "modern-dark": {
-          "width": 260,
-          "height": 160
+          "width": 259,
+          "height": 138
         },
         "modern-light": {
-          "width": 260,
-          "height": 160
+          "width": 259,
+          "height": 138
         }
       }
     },
@@ -556,10 +600,13 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".poster-menu",
-          "includeCard": true,
-          "padding": 16
+          "css": "#appShell"
         },
+        "size": {
+          "width": 722,
+          "height": 546
+        },
+        "noScroll": true,
         "padding": 0
       },
       "automation": "auto",
@@ -569,22 +616,30 @@
       ],
       "sizes": {
         "dark": {
-          "width": 900,
-          "height": 680
+          "width": 722,
+          "height": 546
         },
         "light": {
-          "width": 900,
-          "height": 680
+          "width": 722,
+          "height": 546
         },
         "modern-dark": {
-          "width": 900,
-          "height": 680
+          "width": 722,
+          "height": 546
         },
         "modern-light": {
-          "width": 900,
-          "height": 680
+          "width": 722,
+          "height": 546
         }
-      }
+      },
+      "steps": [
+        {
+          "forceClick": ".poster-overflow-btn"
+        },
+        {
+          "wait": 800
+        }
+      ]
     },
     "history": {
       "pages": [
@@ -797,7 +852,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".personal-media-grid"
+          "css": ".personal-media-card-grid"
         },
         "padding": 0
       },
@@ -808,20 +863,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1200,
-          "height": 837
+          "width": 1231,
+          "height": 182
         },
         "light": {
-          "width": 1200,
-          "height": 837
+          "width": 1231,
+          "height": 182
         },
         "modern-dark": {
-          "width": 1200,
-          "height": 837
+          "width": 1231,
+          "height": 182
         },
         "modern-light": {
-          "width": 1200,
-          "height": 837
+          "width": 1231,
+          "height": 182
         }
       }
     },
@@ -879,7 +934,10 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".personal-media-grid"
+          "css": ".personal-media-rating-section"
+        },
+        "through": {
+          "css": ".personal-media-rating-section:last-of-type"
         },
         "padding": 0
       },
@@ -890,20 +948,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1200,
-          "height": 518
+          "width": 1231,
+          "height": 629
         },
         "light": {
-          "width": 1200,
-          "height": 518
+          "width": 1231,
+          "height": 629
         },
         "modern-dark": {
-          "width": 1200,
-          "height": 518
+          "width": 1231,
+          "height": 629
         },
         "modern-light": {
-          "width": 1200,
-          "height": 518
+          "width": 1231,
+          "height": 629
         }
       }
     },
@@ -922,7 +980,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Episodes"
+          "css": ".personal-media-rating-section:has(#personal-ratings-episode-title)"
         },
         "padding": 0
       },
@@ -933,20 +991,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1050,
-          "height": 270
+          "width": 1231,
+          "height": 392
         },
         "light": {
-          "width": 1050,
-          "height": 270
+          "width": 1231,
+          "height": 392
         },
         "modern-dark": {
-          "width": 1050,
-          "height": 270
+          "width": 1231,
+          "height": 392
         },
         "modern-light": {
-          "width": 1050,
-          "height": 270
+          "width": 1231,
+          "height": 392
         }
       }
     },
@@ -1004,7 +1062,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".playlist-rail"
+          "css": ".personal-media-list-row"
         },
         "padding": 0
       },
@@ -1014,20 +1072,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1200,
-          "height": 362
+          "width": 1216,
+          "height": 124
         },
         "light": {
-          "width": 1200,
-          "height": 362
+          "width": 1216,
+          "height": 124
         },
         "modern-dark": {
-          "width": 1200,
-          "height": 362
+          "width": 1216,
+          "height": 124
         },
         "modern-light": {
-          "width": 1200,
-          "height": 362
+          "width": 1216,
+          "height": 124
         }
       }
     },
@@ -1092,7 +1150,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#syncActivityView"
+          "css": "#sync-activity-view"
         },
         "padding": 0
       },
@@ -1102,20 +1160,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1260,
-          "height": 664
+          "width": 1231,
+          "height": 682
         },
         "light": {
-          "width": 1260,
-          "height": 664
+          "width": 1231,
+          "height": 682
         },
         "modern-dark": {
-          "width": 1260,
-          "height": 664
+          "width": 1231,
+          "height": 682
         },
         "modern-light": {
-          "width": 1260,
-          "height": 664
+          "width": 1231,
+          "height": 682
         }
       }
     },
@@ -1179,20 +1237,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 2560,
-          "height": 2549
+          "width": 1440,
+          "height": 1669
         },
         "light": {
-          "width": 2560,
-          "height": 2549
+          "width": 1440,
+          "height": 1669
         },
         "modern-dark": {
-          "width": 2560,
-          "height": 2549
+          "width": 1440,
+          "height": 1669
         },
         "modern-light": {
-          "width": 2560,
-          "height": 2549
+          "width": 1440,
+          "height": 1669
         }
       }
     },
@@ -1211,7 +1269,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-detail-header"
+          "css": ".immersive-header"
         },
         "padding": 0
       },
@@ -1224,20 +1282,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1295,
-          "height": 334
+          "width": 1231,
+          "height": 315
         },
         "light": {
-          "width": 1295,
-          "height": 334
+          "width": 1231,
+          "height": 315
         },
         "modern-dark": {
-          "width": 1295,
-          "height": 334
+          "width": 1231,
+          "height": 315
         },
         "modern-light": {
-          "width": 1295,
-          "height": 334
+          "width": 1231,
+          "height": 315
         }
       }
     },
@@ -1259,7 +1317,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-detail-actions"
+          "css": ".immersive-header"
         },
         "padding": 0
       },
@@ -1272,20 +1330,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1295,
-          "height": 300
+          "width": 1231,
+          "height": 315
         },
         "light": {
-          "width": 1295,
-          "height": 300
+          "width": 1231,
+          "height": 315
         },
         "modern-dark": {
-          "width": 1295,
-          "height": 300
+          "width": 1231,
+          "height": 315
         },
         "modern-light": {
-          "width": 1295,
-          "height": 300
+          "width": 1231,
+          "height": 315
         }
       }
     },
@@ -1309,7 +1367,8 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-action-row"
+          "css": "#mediaDetailActions",
+          "padding": 20
         },
         "padding": 0
       },
@@ -1323,20 +1382,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 990,
-          "height": 109
+          "width": 308,
+          "height": 63
         },
         "light": {
-          "width": 990,
-          "height": 109
+          "width": 308,
+          "height": 63
         },
         "modern-dark": {
-          "width": 990,
-          "height": 110
+          "width": 308,
+          "height": 63
         },
         "modern-light": {
-          "width": 990,
-          "height": 110
+          "width": 308,
+          "height": 63
         }
       }
     },
@@ -1356,7 +1415,8 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Watch Status"
+          "heading": "Watch Status",
+          "padding": 12
         },
         "padding": 0
       },
@@ -1370,20 +1430,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 580,
-          "height": 160
+          "width": 604,
+          "height": 68
         },
         "light": {
-          "width": 580,
-          "height": 160
+          "width": 604,
+          "height": 68
         },
         "modern-dark": {
-          "width": 580,
-          "height": 160
+          "width": 604,
+          "height": 68
         },
         "modern-light": {
-          "width": 580,
-          "height": 160
+          "width": 604,
+          "height": 68
         }
       }
     },
@@ -1403,7 +1463,8 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-ratings"
+          "css": ".media-facts-group--ratings",
+          "padding": 16
         },
         "padding": 0
       },
@@ -1416,20 +1477,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 900,
-          "height": 189
+          "width": 411,
+          "height": 69
         },
         "light": {
-          "width": 900,
-          "height": 189
+          "width": 411,
+          "height": 69
         },
         "modern-dark": {
-          "width": 900,
-          "height": 189
+          "width": 411,
+          "height": 68
         },
         "modern-light": {
-          "width": 900,
-          "height": 189
+          "width": 411,
+          "height": 68
         }
       }
     },
@@ -1463,20 +1524,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 185
+          "width": 1231,
+          "height": 188
         },
         "light": {
-          "width": 1600,
-          "height": 185
+          "width": 1231,
+          "height": 188
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 185
+          "width": 1231,
+          "height": 188
         },
         "modern-light": {
-          "width": 1600,
-          "height": 185
+          "width": 1231,
+          "height": 188
         }
       }
     },
@@ -1509,20 +1570,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "light": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "modern-light": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         }
       }
     },
@@ -1542,7 +1603,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Trailers and Clips"
+          "css": ".trailers-section"
         },
         "padding": 0
       },
@@ -1555,20 +1616,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 257
+          "width": 1231,
+          "height": 260
         },
         "light": {
-          "width": 1600,
-          "height": 257
+          "width": 1231,
+          "height": 260
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 257
+          "width": 1231,
+          "height": 260
         },
         "modern-light": {
-          "width": 1600,
-          "height": 257
+          "width": 1231,
+          "height": 260
         }
       }
     },
@@ -1601,20 +1662,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 237
+          "width": 1231,
+          "height": 234
         },
         "light": {
-          "width": 1600,
-          "height": 237
+          "width": 1231,
+          "height": 234
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 237
+          "width": 1231,
+          "height": 234
         },
         "modern-light": {
-          "width": 1600,
-          "height": 237
+          "width": 1231,
+          "height": 234
         }
       }
     },
@@ -1633,7 +1694,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Recommendations"
+          "heading": "Recommended"
         },
         "padding": 0
       },
@@ -1646,20 +1707,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 209
+          "width": 1231,
+          "height": 194
         },
         "light": {
-          "width": 1600,
-          "height": 209
+          "width": 1231,
+          "height": 194
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 209
+          "width": 1231,
+          "height": 194
         },
         "modern-light": {
-          "width": 1600,
-          "height": 209
+          "width": 1231,
+          "height": 194
         }
       }
     },
@@ -1679,12 +1740,12 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Collection",
-          "through": {
-            "heading": "Recommendations"
-          }
+          "heading": "Collection"
         },
-        "padding": 0
+        "padding": 0,
+        "through": {
+          "heading": "Recommended"
+        }
       },
       "automation": "auto",
       "sources": [
@@ -1695,20 +1756,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1232,
-          "height": 467
+          "width": 1231,
+          "height": 385
         },
         "light": {
-          "width": 1232,
-          "height": 467
+          "width": 1231,
+          "height": 385
         },
         "modern-dark": {
-          "width": 1232,
-          "height": 467
+          "width": 1231,
+          "height": 385
         },
         "modern-light": {
-          "width": 1232,
-          "height": 467
+          "width": 1231,
+          "height": 385
         }
       }
     },
@@ -1726,7 +1787,10 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-detail-sections"
+          "css": ".cast-section"
+        },
+        "through": {
+          "css": ".trailers-section"
         },
         "padding": 0
       },
@@ -1739,12 +1803,12 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1295,
-          "height": 398
+          "width": 1231,
+          "height": 612
         },
         "light": {
-          "width": 1295,
-          "height": 398
+          "width": 1231,
+          "height": 612
         }
       }
     },
@@ -1762,12 +1826,7 @@
       "route": "/movie/a-quiet-place",
       "state": "Movie detail with the Appearance menu open, showing independent section switches. Change nothing.",
       "framing": {
-        "type": "element",
-        "target": {
-          "css": ".media-appearance-menu",
-          "padding": 16
-        },
-        "padding": 0
+        "type": "viewport"
       },
       "automation": "auto",
       "sources": [
@@ -1779,22 +1838,30 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 633
+          "width": 1440,
+          "height": 683
         },
         "light": {
-          "width": 1600,
-          "height": 633
+          "width": 1440,
+          "height": 683
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 633
+          "width": 1440,
+          "height": 683
         },
         "modern-light": {
-          "width": 1600,
-          "height": 633
+          "width": 1440,
+          "height": 683
         }
-      }
+      },
+      "steps": [
+        {
+          "click": "#sidebarAppearanceButton"
+        },
+        {
+          "wait": 600
+        }
+      ]
     },
     "media-appearance": {
       "pages": [
@@ -1840,7 +1907,18 @@
           "width": 1440,
           "height": 683
         }
-      }
+      },
+      "steps": [
+        {
+          "click": "#sidebarAppearanceButton"
+        },
+        {
+          "waitFor": "#sidebarAppearanceMediaGroup"
+        },
+        {
+          "wait": 600
+        }
+      ]
     },
     "media-tools-focus": {
       "pages": [
@@ -1873,22 +1951,30 @@
       ],
       "sizes": {
         "dark": {
-          "width": 400,
-          "height": 160
+          "width": 142,
+          "height": 174
         },
         "light": {
-          "width": 400,
-          "height": 160
+          "width": 142,
+          "height": 174
         },
         "modern-dark": {
-          "width": 400,
-          "height": 160
+          "width": 142,
+          "height": 174
         },
         "modern-light": {
-          "width": 400,
-          "height": 160
+          "width": 142,
+          "height": 174
         }
-      }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        }
+      ]
     },
     "media-info-focus": {
       "pages": [
@@ -1907,7 +1993,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-info-panel"
+          "css": ".media-info-overlay"
         },
         "padding": 0
       },
@@ -1921,22 +2007,36 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "light": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "modern-dark": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "modern-light": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         }
-      }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Info"
+        },
+        {
+          "wait": 1500
+        }
+      ]
     },
     "media-edit-images-focus": {
       "pages": [
@@ -1955,7 +2055,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".edit-images-dialog"
+          "css": ".edit-image-dialog"
         },
         "padding": 0
       },
@@ -1969,22 +2069,36 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1280,
-          "height": 869
+          "width": 1411,
+          "height": 648
         },
         "light": {
-          "width": 1280,
-          "height": 869
+          "width": 1411,
+          "height": 648
         },
         "modern-dark": {
-          "width": 1280,
-          "height": 869
+          "width": 1411,
+          "height": 648
         },
         "modern-light": {
-          "width": 1280,
-          "height": 869
+          "width": 1411,
+          "height": 648
         }
-      }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Edit Images"
+        },
+        {
+          "wait": 1500
+        }
+      ]
     },
     "fix-match": {
       "pages": [
@@ -2011,20 +2125,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1320,
-          "height": 723
+          "width": 1440,
+          "height": 683
         },
         "light": {
-          "width": 1320,
-          "height": 723
+          "width": 1440,
+          "height": 683
         },
         "modern-dark": {
-          "width": 1320,
-          "height": 723
+          "width": 1440,
+          "height": 683
         },
         "modern-light": {
-          "width": 1320,
-          "height": 723
+          "width": 1440,
+          "height": 683
         }
       }
     },
@@ -2059,22 +2173,36 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1200,
-          "height": 657
+          "width": 1320,
+          "height": 642
         },
         "light": {
-          "width": 1200,
-          "height": 657
+          "width": 1320,
+          "height": 642
         },
         "modern-dark": {
-          "width": 1200,
-          "height": 657
+          "width": 1320,
+          "height": 642
         },
         "modern-light": {
-          "width": 1200,
-          "height": 657
+          "width": 1320,
+          "height": 642
         }
-      }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Fix Match"
+        },
+        {
+          "wait": 1500
+        }
+      ]
     },
     "tv-detail-page": {
       "pages": [
@@ -2102,20 +2230,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 2560,
-          "height": 2027
+          "width": 1440,
+          "height": 1646
         },
         "light": {
-          "width": 2560,
-          "height": 2027
+          "width": 1440,
+          "height": 1646
         },
         "modern-dark": {
-          "width": 2560,
-          "height": 2027
+          "width": 1440,
+          "height": 1646
         },
         "modern-light": {
-          "width": 2560,
-          "height": 2027
+          "width": 1440,
+          "height": 1646
         }
       }
     },
@@ -2134,10 +2262,10 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Cast",
-          "through": {
-            "heading": "Trailers and Clips"
-          }
+          "heading": "Cast"
+        },
+        "through": {
+          "css": ".trailers-section"
         },
         "padding": 0
       },
@@ -2150,20 +2278,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 664
+          "width": 1231,
+          "height": 612
         },
         "light": {
-          "width": 1600,
-          "height": 664
+          "width": 1231,
+          "height": 612
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 664
+          "width": 1231,
+          "height": 612
         },
         "modern-light": {
-          "width": 1600,
-          "height": 664
+          "width": 1231,
+          "height": 612
         }
       }
     },
@@ -2196,20 +2324,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 216
+          "width": 1231,
+          "height": 200
         },
         "light": {
-          "width": 1600,
-          "height": 216
+          "width": 1231,
+          "height": 200
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 216
+          "width": 1231,
+          "height": 200
         },
         "modern-light": {
-          "width": 1600,
-          "height": 216
+          "width": 1231,
+          "height": 200
         }
       }
     },
@@ -2241,20 +2369,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "light": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         },
         "modern-light": {
-          "width": 1600,
-          "height": 167
+          "width": 1231,
+          "height": 145
         }
       }
     },
@@ -2273,7 +2401,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "heading": "Trailers and Clips"
+          "css": ".trailers-section"
         },
         "padding": 0
       },
@@ -2286,20 +2414,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1217,
-          "height": 272
+          "width": 1231,
+          "height": 260
         },
         "light": {
-          "width": 1232,
-          "height": 261
+          "width": 1231,
+          "height": 260
         },
         "modern-dark": {
-          "width": 1217,
-          "height": 272
+          "width": 1231,
+          "height": 260
         },
         "modern-light": {
-          "width": 1232,
-          "height": 261
+          "width": 1231,
+          "height": 260
         }
       }
     },
@@ -2331,20 +2459,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1217,
-          "height": 212
+          "width": 1231,
+          "height": 200
         },
         "light": {
-          "width": 1232,
-          "height": 202
+          "width": 1231,
+          "height": 200
         },
         "modern-dark": {
-          "width": 1217,
-          "height": 212
+          "width": 1231,
+          "height": 200
         },
         "modern-light": {
-          "width": 1232,
-          "height": 202
+          "width": 1231,
+          "height": 200
         }
       }
     },
@@ -2376,20 +2504,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1217,
-          "height": 627
+          "width": 1231,
+          "height": 683
         },
         "light": {
-          "width": 1217,
-          "height": 627
+          "width": 1231,
+          "height": 683
         },
         "modern-dark": {
-          "width": 1217,
-          "height": 627
+          "width": 1231,
+          "height": 683
         },
         "modern-light": {
-          "width": 1217,
-          "height": 627
+          "width": 1231,
+          "height": 683
         }
       }
     },
@@ -2408,7 +2536,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": ".media-info-panel"
+          "css": ".media-info-overlay"
         },
         "padding": 0
       },
@@ -2422,22 +2550,36 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "light": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "modern-dark": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         },
         "modern-light": {
-          "width": 1344,
-          "height": 898
+          "width": 1199,
+          "height": 581
         }
-      }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Info"
+        },
+        {
+          "wait": 1500
+        }
+      ]
     },
     "tv-spoilers-off": {
       "pages": [
@@ -2451,8 +2593,8 @@
         "modern-dark",
         "modern-light"
       ],
-      "route": "/tvshow/reacher/season/4",
-      "state": "Reacher detail with Season 4 expanded and Hide Spoilers unchecked.",
+      "route": "/tvshow/bridgerton/season/3",
+      "state": "Bridgerton detail with Season 3 expanded (5 of 8 episodes watched) and Hide Spoilers unchecked.",
       "framing": {
         "type": "element",
         "target": {
@@ -2460,6 +2602,17 @@
         },
         "padding": 0
       },
+      "steps": [
+        {
+          "setChecked": {
+            "css": "[data-hide-episode-spoilers]",
+            "value": false
+          }
+        },
+        {
+          "wait": 800
+        }
+      ],
       "restoreAfter": "Hide Spoilers setting",
       "automation": "auto",
       "sources": [
@@ -2471,20 +2624,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "light": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "modern-light": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         }
       }
     },
@@ -2498,8 +2651,8 @@
         "modern-dark",
         "modern-light"
       ],
-      "route": "/tvshow/reacher/season/4",
-      "state": "Reacher detail with Season 4 expanded and Hide Spoilers checked, hiding unwatched artwork and synopses. Restore the original setting afterwards.",
+      "route": "/tvshow/bridgerton/season/3",
+      "state": "Bridgerton detail with Season 3 expanded (5 of 8 episodes watched) and Hide Spoilers checked, hiding unwatched artwork and synopses.",
       "framing": {
         "type": "element",
         "target": {
@@ -2507,6 +2660,17 @@
         },
         "padding": 0
       },
+      "steps": [
+        {
+          "setChecked": {
+            "css": "[data-hide-episode-spoilers]",
+            "value": true
+          }
+        },
+        {
+          "wait": 800
+        }
+      ],
       "restoreAfter": "Hide Spoilers setting",
       "automation": "auto",
       "sources": [
@@ -2518,20 +2682,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "light": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         },
         "modern-light": {
-          "width": 1600,
-          "height": 1000
+          "width": 1231,
+          "height": 622
         }
       }
     },
@@ -2555,7 +2719,7 @@
         "type": "crop",
         "source": "settings-index",
         "target": {
-          "css": ".settings-landing"
+          "css": "#settingsOverview"
         },
         "legacyRect": {
           "left": 160,
@@ -2572,20 +2736,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1440,
-          "height": 759
+          "width": 1231,
+          "height": 682
         },
         "light": {
-          "width": 1440,
-          "height": 759
+          "width": 1231,
+          "height": 682
         },
         "modern-dark": {
-          "width": 1440,
-          "height": 759
+          "width": 1231,
+          "height": 682
         },
         "modern-light": {
-          "width": 1440,
-          "height": 759
+          "width": 1231,
+          "height": 682
         }
       }
     },
@@ -2604,7 +2768,7 @@
       "framing": {
         "type": "element",
         "target": {
-          "css": "#settingsAbout"
+          "css": "#about-view"
         },
         "padding": 0
       },
@@ -2617,20 +2781,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1232,
-          "height": 471
+          "width": 1231,
+          "height": 508
         },
         "light": {
-          "width": 1232,
-          "height": 471
+          "width": 1231,
+          "height": 508
         },
         "modern-dark": {
-          "width": 1232,
-          "height": 471
+          "width": 1231,
+          "height": 508
         },
         "modern-light": {
-          "width": 1232,
-          "height": 471
+          "width": 1231,
+          "height": 508
         }
       }
     },
@@ -2667,20 +2831,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 270
+          "width": 1231,
+          "height": 196
         },
         "light": {
-          "width": 1335,
-          "height": 270
+          "width": 1231,
+          "height": 196
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 270
+          "width": 1231,
+          "height": 196
         },
         "modern-light": {
-          "width": 1335,
-          "height": 270
+          "width": 1231,
+          "height": 196
         }
       }
     },
@@ -2718,20 +2882,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 245
+          "width": 1231,
+          "height": 165
         },
         "light": {
-          "width": 1335,
-          "height": 245
+          "width": 1231,
+          "height": 165
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 245
+          "width": 1231,
+          "height": 165
         },
         "modern-light": {
-          "width": 1335,
-          "height": 245
+          "width": 1231,
+          "height": 165
         }
       }
     },
@@ -2767,20 +2931,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "light": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "modern-light": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         }
       }
     },
@@ -2812,20 +2976,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 696
+          "width": 1231,
+          "height": 353
         },
         "light": {
-          "width": 1335,
-          "height": 696
+          "width": 1231,
+          "height": 353
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 696
+          "width": 1231,
+          "height": 353
         },
         "modern-light": {
-          "width": 1335,
-          "height": 696
+          "width": 1231,
+          "height": 353
         }
       }
     },
@@ -2843,15 +3007,11 @@
       "route": "/settings/media-servers",
       "state": "Settings media-servers page at scroll top; section panels loaded.",
       "framing": {
-        "type": "crop",
-        "source": "settings-media-servers",
+        "type": "element",
         "target": {
-          "subPanel": "media-servers-plex"
+          "css": "[data-settings-panel='apps']:not(.hidden)"
         },
-        "legacyRect": {
-          "top": 65,
-          "height": 345
-        }
+        "padding": 0
       },
       "automation": "auto",
       "sources": [
@@ -2862,20 +3022,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 344
+          "width": 1231,
+          "height": 353
         },
         "light": {
-          "width": 1335,
-          "height": 344
+          "width": 1231,
+          "height": 353
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 344
+          "width": 1231,
+          "height": 353
         },
         "modern-light": {
-          "width": 1335,
-          "height": 344
+          "width": 1231,
+          "height": 353
         }
       }
     },
@@ -2912,20 +3072,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 155
+          "width": 1231,
+          "height": 111
         },
         "light": {
-          "width": 1335,
-          "height": 155
+          "width": 1231,
+          "height": 111
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 155
+          "width": 1231,
+          "height": 111
         },
         "modern-light": {
-          "width": 1335,
-          "height": 155
+          "width": 1231,
+          "height": 111
         }
       }
     },
@@ -2962,20 +3122,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 164
+          "width": 1231,
+          "height": 111
         },
         "light": {
-          "width": 1335,
-          "height": 164
+          "width": 1231,
+          "height": 111
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 164
+          "width": 1231,
+          "height": 111
         },
         "modern-light": {
-          "width": 1335,
-          "height": 164
+          "width": 1231,
+          "height": 111
         }
       }
     },
@@ -2995,15 +3155,11 @@
       "route": "/settings/webhooks",
       "state": "Settings webhooks page at scroll top; section panels loaded.",
       "framing": {
-        "type": "crop",
-        "source": "settings-webhooks",
+        "type": "element",
         "target": {
-          "subPanel": "general-endpoints-guides"
+          "css": "[data-settings-panel='general']:not(.hidden)"
         },
-        "legacyRect": {
-          "top": 65,
-          "height": 730
-        }
+        "padding": 0
       },
       "automation": "auto",
       "sources": [
@@ -3013,20 +3169,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 730
+          "width": 1231,
+          "height": 346
         },
         "light": {
-          "width": 1335,
-          "height": 730
+          "width": 1231,
+          "height": 346
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 730
+          "width": 1231,
+          "height": 346
         },
         "modern-light": {
-          "width": 1335,
-          "height": 730
+          "width": 1231,
+          "height": 346
         }
       }
     },
@@ -3063,20 +3219,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "light": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         },
         "modern-light": {
-          "width": 1335,
-          "height": 170
+          "width": 1231,
+          "height": 107
         }
       }
     },
@@ -3113,20 +3269,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1350,
-          "height": 380
+          "width": 1231,
+          "height": 233
         },
         "light": {
-          "width": 1350,
-          "height": 380
+          "width": 1231,
+          "height": 233
         },
         "modern-dark": {
-          "width": 1350,
-          "height": 380
+          "width": 1231,
+          "height": 233
         },
         "modern-light": {
-          "width": 1350,
-          "height": 380
+          "width": 1231,
+          "height": 233
         }
       }
     },
@@ -3161,20 +3317,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "light": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "modern-dark": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "modern-light": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         }
       }
     },
@@ -3208,20 +3364,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "light": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "modern-dark": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         },
         "modern-light": {
-          "width": 1350,
-          "height": 180
+          "width": 1231,
+          "height": 111
         }
       }
     },
@@ -3260,20 +3416,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 480
+          "width": 1231,
+          "height": 363
         },
         "light": {
-          "width": 1335,
-          "height": 480
+          "width": 1231,
+          "height": 363
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 480
+          "width": 1231,
+          "height": 363
         },
         "modern-light": {
-          "width": 1335,
-          "height": 480
+          "width": 1231,
+          "height": 363
         }
       }
     },
@@ -3310,20 +3466,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         }
       }
     },
@@ -3360,20 +3516,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         }
       }
     },
@@ -3410,20 +3566,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         },
         "modern-light": {
-          "width": 1335,
-          "height": 240
+          "width": 1231,
+          "height": 182
         }
       }
     },
@@ -3455,20 +3611,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 692
+          "width": 1231,
+          "height": 629
         },
         "light": {
-          "width": 1335,
-          "height": 692
+          "width": 1231,
+          "height": 629
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 692
+          "width": 1231,
+          "height": 629
         },
         "modern-light": {
-          "width": 1335,
-          "height": 692
+          "width": 1231,
+          "height": 629
         }
       }
     },
@@ -3507,20 +3663,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 125
+          "width": 1231,
+          "height": 548
         },
         "light": {
-          "width": 1335,
-          "height": 125
+          "width": 1231,
+          "height": 548
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 125
+          "width": 1231,
+          "height": 548
         },
         "modern-light": {
-          "width": 1335,
-          "height": 125
+          "width": 1231,
+          "height": 548
         }
       }
     },
@@ -3561,20 +3717,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 380
+          "width": 1231,
+          "height": 283
         },
         "light": {
-          "width": 1335,
-          "height": 380
+          "width": 1231,
+          "height": 283
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 380
+          "width": 1231,
+          "height": 283
         },
         "modern-light": {
-          "width": 1335,
-          "height": 380
+          "width": 1231,
+          "height": 283
         }
       }
     },
@@ -3595,7 +3751,7 @@
         "type": "crop",
         "source": "settings-backup",
         "target": {
-          "subPanel": "backup-local"
+          "css": "#backup-local"
         },
         "legacyRect": {
           "top": 65,
@@ -3611,20 +3767,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 235
+          "width": 733,
+          "height": 174
         },
         "light": {
-          "width": 1335,
-          "height": 235
+          "width": 733,
+          "height": 174
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 235
+          "width": 733,
+          "height": 174
         },
         "modern-light": {
-          "width": 1335,
-          "height": 235
+          "width": 733,
+          "height": 174
         }
       }
     },
@@ -3645,7 +3801,7 @@
         "type": "crop",
         "source": "settings-backup",
         "target": {
-          "subPanel": "backup-remote"
+          "css": "#backup-remote"
         },
         "legacyRect": {
           "top": 300,
@@ -3661,20 +3817,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 320
+          "width": 733,
+          "height": 237
         },
         "light": {
-          "width": 1335,
-          "height": 320
+          "width": 733,
+          "height": 237
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 320
+          "width": 733,
+          "height": 237
         },
         "modern-light": {
-          "width": 1335,
-          "height": 320
+          "width": 733,
+          "height": 237
         }
       }
     },
@@ -3691,15 +3847,11 @@
       "route": "/settings/restore",
       "state": "Restore page at scroll top with local watch-history and full-backup sources.",
       "framing": {
-        "type": "crop",
-        "source": "settings-restore",
+        "type": "element",
         "target": {
-          "css": "[data-backup-tab='restore']"
+          "css": "[data-settings-panel='backups']:not(.hidden)"
         },
-        "legacyRect": {
-          "top": 0,
-          "height": 520
-        }
+        "padding": 0
       },
       "automation": "auto",
       "sources": [
@@ -3710,20 +3862,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 520
+          "width": 1231,
+          "height": 345
         },
         "light": {
-          "width": 1335,
-          "height": 520
+          "width": 1231,
+          "height": 345
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 520
+          "width": 1231,
+          "height": 345
         },
         "modern-light": {
-          "width": 1335,
-          "height": 520
+          "width": 1231,
+          "height": 345
         }
       }
     },
@@ -3738,18 +3890,25 @@
         "modern-light"
       ],
       "route": "/settings/restore",
-      "state": "Settings restore page at scroll top; section panels loaded.",
+      "state": "Settings restore page at scroll top with Local Plembfin Restore expanded, showing the passphrase field and the stored full backups. Change nothing.",
       "framing": {
-        "type": "crop",
-        "source": "settings-restore",
+        "type": "element",
         "target": {
-          "css": "#restore-local"
+          "css": "[data-settings-panel='backups']:not(.hidden)"
         },
-        "legacyRect": {
-          "top": 65,
-          "height": 500
-        }
+        "padding": 0
       },
+      "steps": [
+        {
+          "click": "#local-plembfin-restore > summary"
+        },
+        {
+          "waitFor": "#local-plembfin-restore[open]"
+        },
+        {
+          "wait": 1500
+        }
+      ],
       "automation": "auto",
       "sources": [
         "public/modules/settings-shell.js",
@@ -3759,20 +3918,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 500
+          "width": 1231,
+          "height": 530
         },
         "light": {
-          "width": 1335,
-          "height": 500
+          "width": 1231,
+          "height": 530
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 500
+          "width": 1231,
+          "height": 530
         },
         "modern-light": {
-          "width": 1335,
-          "height": 500
+          "width": 1231,
+          "height": 530
         }
       }
     },
@@ -3791,15 +3950,11 @@
       "route": "/settings/restore",
       "state": "Restore page with the Local Watch History Restore accordion (details#local-watch-history-restore) open, so the backup rows and the Merge or Replace choice show. Change and restore nothing.",
       "framing": {
-        "type": "crop",
-        "source": "settings-restore",
+        "type": "element",
         "target": {
-          "css": "#restore-local"
+          "css": "[data-settings-panel='backups']:not(.hidden)"
         },
-        "legacyRect": {
-          "top": 65,
-          "height": 660
-        }
+        "padding": 0
       },
       "automation": "auto",
       "sources": [
@@ -3810,22 +3965,30 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 660
+          "width": 1231,
+          "height": 629
         },
         "light": {
-          "width": 1335,
-          "height": 660
+          "width": 1231,
+          "height": 629
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 660
+          "width": 1231,
+          "height": 629
         },
         "modern-light": {
-          "width": 1335,
-          "height": 660
+          "width": 1231,
+          "height": 629
         }
-      }
+      },
+      "steps": [
+        {
+          "click": "#local-watch-history-restore summary"
+        },
+        {
+          "wait": 800
+        }
+      ]
     },
     "settings-tools-database-repairs": {
       "pages": [
@@ -3861,20 +4024,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 433
+          "width": 1231,
+          "height": 389
         },
         "light": {
-          "width": 1335,
-          "height": 433
+          "width": 1231,
+          "height": 389
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 433
+          "width": 1231,
+          "height": 389
         },
         "modern-light": {
-          "width": 1335,
-          "height": 433
+          "width": 1231,
+          "height": 389
         }
       }
     },
@@ -3910,20 +4073,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 235
+          "width": 1231,
+          "height": 182
         },
         "light": {
-          "width": 1335,
-          "height": 235
+          "width": 1231,
+          "height": 182
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 235
+          "width": 1231,
+          "height": 182
         },
         "modern-light": {
-          "width": 1335,
-          "height": 235
+          "width": 1231,
+          "height": 182
         }
       }
     },
@@ -3959,20 +4122,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 430
+          "width": 1231,
+          "height": 418
         },
         "light": {
-          "width": 1335,
-          "height": 430
+          "width": 1231,
+          "height": 418
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 430
+          "width": 1231,
+          "height": 418
         },
         "modern-light": {
-          "width": 1335,
-          "height": 430
+          "width": 1231,
+          "height": 418
         }
       }
     },
@@ -3989,11 +4152,7 @@
       "route": "/settings/tools",
       "state": "Tools page; the Guided Setup control showing the resumable onboarding flow.",
       "framing": {
-        "type": "element",
-        "target": {
-          "text": "Guided Setup"
-        },
-        "padding": 0
+        "type": "viewport"
       },
       "automation": "auto",
       "sources": [
@@ -4004,20 +4163,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1600,
-          "height": 759
+          "width": 1440,
+          "height": 683
         },
         "light": {
-          "width": 1600,
-          "height": 759
+          "width": 1440,
+          "height": 683
         },
         "modern-dark": {
-          "width": 1600,
-          "height": 759
+          "width": 1440,
+          "height": 683
         },
         "modern-light": {
-          "width": 1600,
-          "height": 759
+          "width": 1440,
+          "height": 683
         }
       }
     },
@@ -4049,20 +4208,20 @@
       ],
       "sizes": {
         "dark": {
-          "width": 1335,
-          "height": 1080
+          "width": 1231,
+          "height": 434
         },
         "light": {
-          "width": 1335,
-          "height": 1080
+          "width": 1231,
+          "height": 434
         },
         "modern-dark": {
-          "width": 1335,
-          "height": 1080
+          "width": 1231,
+          "height": 434
         },
         "modern-light": {
-          "width": 1335,
-          "height": 1080
+          "width": 1231,
+          "height": 434
         }
       }
     }
