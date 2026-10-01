@@ -61,7 +61,7 @@ There is no separate linter configured. A local `.env` at the repo root is loade
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).
 
-When implementation work completes an item in [`plan/todo.md`](../plan/todo.md), remove it in
+When implementation work completes an item in [`todo.md`](../todo.md), remove it in
 the same change, move its verified plan folder from `plan/active/<name>/` into
 `plan/archive/<name>/` with the summary (`plan/<name>.md`) as `summary.md`, and refresh the
 relevant documentation and README section if the completed work changes user-visible behavior.

@@ -157,7 +157,7 @@ Rules that hold regardless of which skill is running:
 
 ## Documentation and backlog sync
 
-[`plan/todo.md`](plan/todo.md) is the single backlog: one line per plan, linking its summary,
+[`todo.md`](todo.md) is the single backlog: one line per plan, linking its summary,
 never a detailed entry. Completed plans move to [`plan/archive/`](plan/archive/) and leave the
 TODO. There is no root `TODO.md` (retired 15 September 2026).
 
@@ -219,7 +219,7 @@ section. Before closing a plan, verify code and docs both describe current behav
 ### MANDATORY: keep the TODO current, and never overstate status
 
 **Before ending any turn that changed code, and before starting a new phase of work, update
-[`plan/todo.md`](plan/todo.md) and the owning plan's summary ("Where we are" and the step
+[`todo.md`](todo.md) and the owning plan's summary ("Where we are" and the step
 ticks) with the real status.** Not
 optional, not waiting to be asked. Also move the plan to the top of "Last worked on". Work with
 no plan becomes a step in the loose-ends plan; if it is substantial, write its own plan.

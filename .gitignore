@@ -8,6 +8,7 @@ scratch/
 
 # Local planning artifacts
 plan/
+todo.md
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
