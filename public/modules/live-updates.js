@@ -60,6 +60,7 @@ export function stopLiveUpdates() {
   if (resumeHandler) {
     window.removeEventListener?.("online", resumeHandler);
     window.removeEventListener?.("pageshow", resumeHandler);
+    window.removeEventListener?.("focus", resumeHandler);
   }
   resumeHandler = null;
   lastVersion = null;
@@ -67,7 +68,7 @@ export function stopLiveUpdates() {
   lastUpNextVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onSyncAttention, onError, stallMs = STALL_MS, stallCheckMs = STALL_CHECK_MS } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onResume, onSyncProgress, onSyncAttention, onError, stallMs = STALL_MS, stallCheckMs = STALL_CHECK_MS } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -78,6 +79,16 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
   // visible tab; a newly visible tab reconnects and receives the current
   // authoritative version/progress snapshot immediately.
   const isVisible = () => document.visibilityState !== "hidden";
+  let lastResumeNotificationAt = 0;
+  const notifyResume = (reason) => {
+    if (!isVisible()) return;
+    const now = Date.now();
+    // Browsers commonly emit visibilitychange, focus, and pageshow together
+    // when a window is restored. One revalidation is enough for that return.
+    if (now - lastResumeNotificationAt < 1_500) return;
+    lastResumeNotificationAt = now;
+    onResume?.({ reason });
+  };
 
   const scheduleReconnect = () => {
     if (generation !== connectionGeneration || reconnectTimer || !isVisible()) return;
@@ -237,6 +248,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
       reconnectTimer = null;
       return;
     }
+    notifyResume("visibilitychange");
     requestConnection();
   };
   document.addEventListener("visibilitychange", visibilityHandler);
@@ -247,6 +259,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     if (generation !== connectionGeneration || !isVisible()) return;
     // Only a page restored from the back/forward cache holds a stale socket.
     if (event?.type === "pageshow" && !event.persisted) return;
+    notifyResume(event?.type || "online");
     if (activeController) {
       activeController.abort();
       return;
@@ -255,5 +268,6 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
   };
   window.addEventListener?.("online", resumeHandler);
   window.addEventListener?.("pageshow", resumeHandler);
+  window.addEventListener?.("focus", resumeHandler);
   requestConnection();
 }

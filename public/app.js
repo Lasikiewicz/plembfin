@@ -3488,6 +3488,9 @@ function initialize() {
       if (!isDemoMode()) {
         startLiveUpdates({
           authHeaders,
+          onResume: () => {
+            if (state.token) queueLiveHistoryRefresh({ immediate: true, fullRefresh: true });
+          },
           onHistoryVersion: (version, { changes = [], reconnect = false } = {}) => {
             const upNextRelevantChange = changes.length === 0 || changes.some((change) => ["watch_history", "playstate", "playback_progress"].includes(
               String(change.sourceTable || change.source_table || "").toLowerCase(),

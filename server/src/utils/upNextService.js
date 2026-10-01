@@ -9,6 +9,7 @@ import {
   normalizeUpNextCandidate,
   sortUpNextItems,
   upNextIdentityAliases,
+  upNextUpdateTime,
 } from "./upNextIdentity.js";
 import {
   getUpNextFeedSourceVersion,
@@ -1135,7 +1136,7 @@ function uncertainEpisodeQueueItem(item = {}) {
 function furthestEpisode(left = {}, right = {}) {
   return Number(right.season || 0) - Number(left.season || 0)
     || Number(right.episode || 0) - Number(left.episode || 0)
-    || Number(right.updated_at || 0) - Number(left.updated_at || 0)
+    || upNextUpdateTime(right) - upNextUpdateTime(left)
     || String(left.id || "").localeCompare(String(right.id || ""));
 }
 
@@ -1175,7 +1176,7 @@ export function collapseUncertainEpisodeQueues(items = []) {
     // to sit beside S04E05); several part-watched episodes keep the latest.
     if (knownResume.length) {
       const latest = [...knownResume].sort((left, right) => (
-        Number(right.updated_at || 0) - Number(left.updated_at || 0) || furthestEpisode(left, right)
+        upNextUpdateTime(right) - upNextUpdateTime(left) || furthestEpisode(left, right)
       ))[0];
       collapsed.push(...rows.filter((row) => row !== latest && !knownResume.includes(row) && !uncertain.includes(row)), latest);
     } else if (uncertain.length > 1) {

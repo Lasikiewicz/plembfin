@@ -41,6 +41,11 @@ function parseDateMs(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function upNextUpdateTime(candidate = {}) {
+  return parseDateMs(candidate.updated_at ?? candidate.updatedAt)
+    || parseDateMs(candidate.source_updated_at ?? candidate.sourceUpdatedAt);
+}
+
 function parseYear(value, title = "") {
   const explicit = numberOrNull(value);
   if (explicit && explicit >= 1800 && explicit <= 3000) return explicit;
@@ -505,7 +510,7 @@ function mergeGroup(rows) {
     Number(hasVerifiedMediaIdentity(right)) - Number(hasVerifiedMediaIdentity(left))
       || Number(right.is_canonical) - Number(left.is_canonical)
       || Number(right.playback_position_known === true) - Number(left.playback_position_known === true)
-      || Number(right.updated_at || 0) - Number(left.updated_at || 0)
+      || upNextUpdateTime(right) - upNextUpdateTime(left)
       || Number(right.position_ms || 0) - Number(left.position_ms || 0)
       || String(left.canonical_key).localeCompare(String(right.canonical_key))
   ))[0];
@@ -802,7 +807,7 @@ export function sortUpNextItems(items = []) {
     const rightKnownResume = right.queue_kind === "resume" && right.playback_position_known !== false;
     if (leftKnownResume !== rightKnownResume) return leftKnownResume ? -1 : 1;
     if (leftKnownResume) {
-      return Number(right.updated_at || 0) - Number(left.updated_at || 0)
+      return upNextUpdateTime(right) - upNextUpdateTime(left)
         || String(left.id || left.canonical_key || "").localeCompare(String(right.id || right.canonical_key || ""));
     }
     const leftShowWatchedAt = parseDateMs(left.show_latest_watched_at || left.showLatestWatchedAt);
