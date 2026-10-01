@@ -24,7 +24,8 @@
     "captures:neutralize-dark-settings": "node scripts/neutralize-dark-capture-highlights.mjs",
     "captures:inventory": "node scripts/capture-inventory.mjs --write",
     "preview": "node scripts/run-astro.mjs preview",
-    "check:baseline": "node scripts/check-doc-baseline.mjs"
+    "check:baseline": "node scripts/check-doc-baseline.mjs",
+    "check:release-parity": "node scripts/check-release-parity.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

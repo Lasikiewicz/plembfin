@@ -23,19 +23,30 @@ The current checkout is the source of truth, including uncommitted website fixes
 
 ## Workflow
 
-1. From `website/`, run the website deployment checks:
+1. From `website/`, check the application matches the released main build:
+
+   ```bash
+   npm run check:release-parity
+   ```
+
+   The live website must never show anything the main build does not have. If it fails,
+   stop and show the user the listed application files. Continue only if the user confirms
+   in chat that no website text or image shows those changes; otherwise new application
+   work is documented through **Force to main**.
+
+2. From `website/`, run the website deployment checks:
 
    ```bash
    npm run check:deploy
    ```
 
-2. Build the current website tree:
+3. Build the current website tree:
 
    ```bash
    npm run build
    ```
 
-3. Deploy the resulting `dist/` directly to Cloudflare Pages:
+4. Deploy the resulting `dist/` directly to Cloudflare Pages:
 
    ```bash
    npx --yes wrangler@latest pages deploy dist --project-name plembfin-website --branch main --commit-message "Update Plembfin website from local source" --commit-dirty=true
@@ -45,11 +56,11 @@ The current checkout is the source of truth, including uncommitted website fixes
    or ask the user to complete Cloudflare login. Do not switch to a GitHub push as a
    workaround.
 
-4. Verify the returned `pages.dev` deployment URL and `https://plembfin.com` both serve
+5. Verify the returned `pages.dev` deployment URL and `https://plembfin.com` both serve
    the new page successfully. Confirm the production response contains the current
    website output when a specific fix or marker is part of the request.
 
-5. Report the production URL and any deployment URL. State clearly that this used the
+6. Report the production URL and any deployment URL. State clearly that this used the
    website-only path and did not trigger a Plembfin application rebuild on GitHub.
 
 "Push to git", "Force to alpha", and "Force to main" remain separate workflows and do
