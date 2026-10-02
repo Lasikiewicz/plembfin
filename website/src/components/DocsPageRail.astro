@@ -3,6 +3,15 @@ const { sourceVersion = "", sourceCount = 0 } = Astro.props;
 ---
 
 <aside class="docs-page-rail" data-doc-page-rail aria-label="Guide sections">
+  <button
+    class="docs-back-button button-secondary"
+    type="button"
+    data-doc-back
+    aria-label="Return to the previous documentation page or section"
+    hidden
+  >
+    ← Back to previous
+  </button>
   <nav class="docs-page-outline" aria-label="Sections in this guide">
     <div class="docs-page-outline-heading">On this page</div>
     <div class="docs-page-outline-list" data-doc-page-outline-list></div>

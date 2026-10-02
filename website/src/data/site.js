@@ -531,12 +531,22 @@ export const docsNav = [
           { id: "pwa-and-local-operation", label: "PWA and local operation" },
         ],
       },
+      {
+        slug: "watch-history-before-library-rebuild",
+        label: "Protect watch history before a rebuild",
+        description: "Back up watched state and resume progress before replacing a server or library.",
+      },
     ],
   },
   {
     label: "Fix a problem",
     description: "Start with the symptom and follow exact, feature-specific recovery steps.",
     items: [
+      {
+        slug: "watch-progress-not-syncing",
+        label: "Watch progress not syncing",
+        description: "Trace one watch event from its source through Plembfin to the destination.",
+      },
       {
         slug: "troubleshooting",
         label: "Troubleshooting",
@@ -626,6 +636,8 @@ export const docsSidebarNav = [
       { slug: "playlists", label: "Playlists" },
       { slug: "integrations", label: "Integrations" },
       { slug: "operations", label: "Backups and operations" },
+      { slug: "watch-history-before-library-rebuild", label: "Protect watch history before a rebuild" },
+      { slug: "watch-progress-not-syncing", label: "Watch progress not syncing" },
       { slug: "safe-daily-workflows", label: "Safe daily workflows" },
       { slug: "troubleshooting", label: "Troubleshooting" },
     ],
@@ -670,7 +682,9 @@ export const docsPageNav = [
   { slug: "sync-tools", label: "Sync Activity" },
   { slug: "manual-watch-review", label: "Manual Watch review" },
   { slug: "operations", label: "Backups and operations" },
+  { slug: "watch-history-before-library-rebuild", label: "Protect watch history before a rebuild" },
   { slug: "safe-daily-workflows", label: "Safe daily workflows" },
+  { slug: "watch-progress-not-syncing", label: "Watch progress not syncing" },
   { slug: "troubleshooting", label: "Troubleshooting" },
 ];
 

@@ -17,6 +17,16 @@ Agent instructions for working with this codebase.
 - **No Browser Actions Unless Asked** - Never open browsers/browser tools unless explicitly requested. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
 - **Act immediately on simple requests** - Make clear, specific changes directly without preamble or planning steps. Save analysis for genuinely complex or ambiguous tasks.
 
+## Quick edits
+
+When the user says **"enable quick edits"**, keep quick-edit mode active until they say **"disable quick edits"** or the conversation ends:
+
+- Make only the requested changes, then briefly report what changed. The user will test the changes and report anything that needs correction.
+- Do not run tests, builds, linters, browser checks, or other verification during quick-edit mode, even when normal instructions would call for them. Do not claim the work was tested.
+- If the user reports a problem, make the requested fix and leave testing to them while quick-edit mode remains active.
+- When the user says they are happy or asks for full testing, exit quick-edit mode and run the full relevant checks before any local commit. Commit only when the user explicitly asks. Never push or deploy without explicit instruction.
+- This mode changes the test and feedback workflow; it does not waive the other project instructions or safety and approval requirements.
+
 ## Website work is isolated (mandatory)
 
 - Website/Traks work uses only the local `website/` tree, its own checks/build, and direct

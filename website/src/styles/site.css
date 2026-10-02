@@ -176,7 +176,7 @@ img {
 .section,
 .docs-shell,
 .changelog-shell {
-  width: min(100% - 3rem, 78rem);
+  width: min(100% - 3rem, 84rem);
   margin-inline: auto;
 }
 
@@ -231,7 +231,7 @@ img {
 .site-search-panel {
   position: absolute;
   top: calc(100% + 1px);
-  right: max(1.5rem, calc((100% - 78rem) / 2));
+  right: max(1.5rem, calc((100% - 84rem) / 2));
   display: none;
   width: min(24rem, 100% - 3rem);
   padding: var(--space-2);
@@ -1432,7 +1432,7 @@ html.light-mode .button-secondary:focus-visible {
   grid-template-columns: 13.5rem minmax(0, 1fr);
   gap: clamp(2rem, 4vw, 4rem);
   align-items: start;
-  width: min(100% - 3rem, 78rem);
+  width: min(100% - 3rem, 84rem);
   padding-top: clamp(1rem, 1.5vw, 1.75rem);
 }
 
@@ -1823,6 +1823,10 @@ html.light-mode .docs-page-outline-link.active {
   line-height: 1.65;
 }
 
+.docs-intro p {
+  margin-top: var(--space-3);
+}
+
 .docs-search {
   display: grid;
   gap: var(--space-2);
@@ -1999,20 +2003,20 @@ html.light-mode .docs-page-outline-link.active {
 }
 
 .docs-category {
-  padding-top: var(--space-5);
+  padding-top: var(--space-4);
 }
 
 .docs-category h2 {
   margin: 0;
   color: var(--text);
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
 .docs-category > p {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--muted);
   font-size: 0.82rem;
 }
@@ -2107,17 +2111,21 @@ html.light-mode .docs-page-outline-link.active {
 
 .docs-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 26rem));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
   gap: var(--space-2);
-  justify-content: start;
-  margin-top: var(--space-3);
+  justify-content: stretch;
+  margin-top: var(--space-2);
+}
+
+.docs-card-grid > .docs-card:only-child {
+  max-width: 34rem;
 }
 
 .docs-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   background: var(--surface-soft);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
@@ -2231,7 +2239,7 @@ html.light-mode .docs-page-outline-link.active {
 .docs-back-button {
   display: flex;
   width: fit-content;
-  margin: 0 auto var(--space-4);
+  margin: 0 0 var(--space-4);
 }
 
 .docs-back-button[hidden] {
@@ -2243,7 +2251,14 @@ html.light-mode .docs-page-outline-link.active {
 }
 
 .article-header h1 {
-  font-size: clamp(1.8rem, 2.5vw, 2.5rem);
+  max-width: none;
+  font-size: clamp(1.75rem, 2.7vw, 2.35rem);
+  line-height: 1.06;
+}
+
+.docs-intro h1 {
+  font-size: clamp(1.75rem, 2.7vw, 2.35rem);
+  line-height: 1.06;
 }
 
 .docs-article-search {
@@ -2348,8 +2363,13 @@ html.light-mode .docs-page-outline-link.active {
   line-height: 1.42;
 }
 
-.article-body :is(p, ul, ol, table, blockquote, pre, h2, h3, h4) {
-  max-width: 112ch;
+.article-body :is(p, ul, ol, blockquote, h2, h3, h4) {
+  max-width: 75ch;
+}
+
+.article-body :is(table, pre) {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .article-body .screenshot-figure {
@@ -2561,8 +2581,8 @@ html.light-mode .docs-page-outline-link.active {
 /* Changelog ------------------------------------------------------------- */
 
 .changelog-shell {
-  width: min(100% - 3rem, 78rem);
-  max-width: 78rem;
+  width: min(100% - 3rem, 84rem);
+  max-width: 84rem;
   padding-top: clamp(1.75rem, 3vw, 3rem);
 }
 
@@ -2616,8 +2636,8 @@ html.light-mode .docs-page-outline-link.active {
 
 .changelog-entry {
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr);
-  gap: clamp(2rem, 6vw, 5rem);
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: clamp(2rem, 3vw, 2.5rem);
 }
 
 .changelog-entry-meta {
@@ -2637,7 +2657,7 @@ html.light-mode .docs-page-outline-link.active {
 }
 
 .changelog-entry-content {
-  max-width: none;
+  max-width: 56rem;
   padding-bottom: var(--space-6);
 }
 
@@ -2654,6 +2674,7 @@ html.light-mode .docs-page-outline-link.active {
   margin: var(--space-4) 0 0;
   color: var(--soft);
   line-height: 1.65;
+  max-width: 72ch;
 }
 
 .changelog-entry-content ul {
@@ -2664,6 +2685,10 @@ html.light-mode .docs-page-outline-link.active {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.changelog-entry-content li {
+  max-width: 72ch;
 }
 
 .changelog-sections {
@@ -4870,10 +4895,142 @@ html.light-mode .docs-page-outline-link.active {
   }
 }
 
+/* Modern theme system shared by every site page. */
+html[data-style="modern"] {
+  --modern-section-gap: clamp(1.5rem, 4.8vw, 4.5rem);
+}
+
+html[data-style="modern"] :is(.simple-features, .simple-why, .support-page) {
+  display: grid;
+  gap: var(--modern-section-gap);
+  margin-top: var(--modern-section-gap);
+  padding-bottom: 0;
+}
+
+html[data-style="modern"] :is(.simple-features-hero, .simple-features-index, .simple-features-proof, .simple-why-hero, .simple-why-builder, .simple-why-scenarios, .simple-why-reasons, .simple-why-changes, .simple-why-footer, .support-hero, .section) {
+  padding-block: 0;
+  border-block: 0;
+}
+
+html[data-style="modern"] .simple-home,
+html[data-style="modern"] .simple-features,
+html[data-style="modern"] .simple-why,
+html[data-style="modern"] .support-page,
+html[data-style="modern"] .changelog-shell {
+  --modern-section-gap: clamp(1.5rem, 4.8vw, 4.5rem);
+}
+
+html[data-style="modern"] .changelog-shell,
+html[data-style="modern"] main > .section {
+  margin-top: var(--modern-section-gap);
+  padding-top: 0;
+}
+
+html[data-style="modern"] .docs-shell {
+  margin-top: 0;
+  padding-top: clamp(1rem, 1.5vw, 1.75rem);
+}
+
+html[data-style="modern"] :is(.simple-home, .simple-features, .simple-why, .support-page) .simple-eyebrow,
+html[data-style="modern"] main .section-index {
+  display: none;
+}
+
+html[data-style="modern"] main :is(.section-header h2, .simple-section-heading h2, .simple-why-builder-title, .simple-why-changes h2, .simple-why-footer h2, .simple-features-stack h2, .docs-category h2, .docs-coverage-header h2, .article-body h2, .changelog-entry-content h2) {
+  max-width: none;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+html[data-style="modern"] main :is(.simple-features-hero h1, .simple-why-hero h1, .hero-copy h1, .docs-intro h1, .article-header h1, .changelog-header h1) {
+  max-width: 18ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.65rem, 5vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+html[data-style="modern"] main .article-header h1 {
+  max-width: none;
+  font-size: clamp(1.75rem, 2.7vw, 2.35rem);
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+html[data-style="modern"] main .docs-intro h1 {
+  font-size: clamp(1.75rem, 2.7vw, 2.35rem);
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+html[data-style="modern"] main .docs-category h2 {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.article-header p {
+  margin-top: var(--space-3);
+}
+
+html[data-style="modern"] .simple-why-hero h1 {
+  max-width: 18ch;
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  letter-spacing: -0.05em;
+  line-height: 1.02;
+}
+
+html[data-style="modern"] main :is(.simple-section-heading > p, .section-header > p) {
+  max-width: none;
+}
+
+html[data-style="modern"] main .screenshot-figure figcaption {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+html[data-style="modern"] .changelog-header {
+  padding-bottom: 0;
+}
+
+html[data-style="modern"] .changelog-entry {
+  padding-block: var(--modern-section-gap);
+}
+
+html[data-style="modern"] .simple-feature-group + .simple-feature-group {
+  margin-top: var(--modern-section-gap);
+}
+
+.simple-feature-group-title {
+  margin: 0;
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+html[data-style="modern"] .simple-feature-group-title {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: -0.025em;
+  text-transform: none;
+}
+
 /* Simple product landing pass: one promise, one proof point, short linked rows. */
 .simple-home,
 .simple-features {
-  width: min(calc(100% - 3rem), 78rem);
+  width: min(calc(100% - 3rem), 84rem);
   margin-inline: auto;
 }
 
@@ -4914,7 +5071,7 @@ html.light-mode .docs-page-outline-link.active {
 .simple-features-hero h1 {
   max-width: 18ch;
   margin: 0.9rem auto 0;
-  font-size: clamp(2.7rem, 5.7vw, 4.65rem);
+  font-size: clamp(2.7rem, 5.7vw, 3.5rem);
   line-height: 0.98;
 }
 
@@ -5248,6 +5405,231 @@ html.light-mode .docs-page-outline-link.active {
   line-height: 1;
 }
 
+/* Homepage experiment: modern style leads with the promise, then gives the product the full stage. */
+html[data-style="modern"] .simple-home {
+  --modern-home-section-gap: clamp(1.5rem, 4.8vw, 4.5rem);
+  display: grid;
+  gap: var(--modern-home-section-gap);
+  margin-top: var(--modern-home-section-gap);
+}
+
+html[data-style="modern"] .modern-home-intro {
+  display: grid;
+  gap: var(--modern-home-section-gap);
+  margin: 0;
+}
+
+html[data-style="modern"] .simple-home > section {
+  padding-block: 0;
+  border-bottom: 0;
+}
+
+html[data-style="modern"] .simple-home .simple-home-hub {
+  padding-block: 0;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(17rem, 0.88fr);
+  grid-template-areas:
+    "eyebrow eyebrow"
+    "title lede"
+    "title actions"
+    "meta note";
+  column-gap: clamp(2rem, 7vw, 7rem);
+  row-gap: 0.75rem;
+  align-items: end;
+  max-width: none;
+  margin: 0;
+  padding: 0 clamp(0.25rem, 2vw, 1.5rem);
+  text-align: left;
+  border: 0;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-eyebrow {
+  display: none;
+}
+
+html[data-style="modern"] .simple-home .simple-eyebrow {
+  display: none;
+}
+
+html[data-style="modern"] .simple-home h2 {
+  max-width: none;
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+html[data-style="modern"] .simple-home-image-description {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+html[data-style="modern"] .simple-home .simple-home-up-next-note,
+html[data-style="modern"] .simple-home .simple-home-flow > .simple-section-heading-note {
+  max-width: none;
+  margin-top: 0.75rem;
+  padding-top: 0;
+  border-top: 0;
+}
+
+html[data-style="modern"] .simple-home .simple-home-up-next-note > p,
+html[data-style="modern"] .simple-home .simple-home-flow > .simple-section-heading-note > p {
+  max-width: none;
+  flex: 1;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-hero h1 {
+  grid-area: title;
+  max-width: 13ch;
+  margin: 0;
+  font-size: clamp(2.65rem, 5vw, 3.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-hero h1 span {
+  color: var(--accent);
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-lede {
+  grid-area: lede;
+  max-width: 39ch;
+  margin: 0;
+  align-self: end;
+  font-size: clamp(0.94rem, 1.2vw, 1.08rem);
+  line-height: 1.65;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-actions {
+  grid-area: actions;
+  justify-content: flex-start;
+  margin: 0.35rem 0 0;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-demo-note,
+html[data-style="modern"] .modern-home-intro .simple-meta {
+  grid-area: note;
+  margin-inline: 0;
+  text-align: left;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-meta {
+  grid-area: meta;
+  align-self: end;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-preview {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-section-heading {
+  display: flex;
+  align-items: end;
+  gap: 2rem;
+  margin: 0 0 0.9rem;
+  padding-inline: 0;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-section-heading h2 {
+  max-width: none;
+  margin-top: 0;
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-section-heading > p {
+  max-width: 36ch;
+  margin: 0 0 0.05rem auto;
+  font-size: 0.76rem;
+}
+
+html[data-style="modern"] .modern-home-intro .simple-home-preview .screenshot-figure {
+  margin-top: 0;
+}
+
+html[data-style="modern"] .modern-home-intro .screenshot-frame img {
+  border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--line-strong));
+  box-shadow: 0 26px 75px color-mix(in oklab, var(--bg) 65%, transparent);
+}
+
+@media (max-width: 900px) {
+  html[data-style="modern"] .modern-home-intro .simple-home-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.85fr);
+    grid-template-areas:
+      "eyebrow eyebrow"
+      "title title"
+      "lede lede"
+      "actions actions"
+      "meta note";
+    row-gap: 0.85rem;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-home-hero h1 {
+    max-width: 13ch;
+    font-size: clamp(2.65rem, 8vw, 4.1rem);
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-home-lede {
+    max-width: 58ch;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-actions {
+    margin-top: 0.3rem;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-home-preview .simple-section-heading {
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  html[data-style="modern"] .modern-home-intro {
+    width: min(calc(100% - 1.5rem), 78rem);
+    margin: 0;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-home-hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "eyebrow"
+      "title"
+      "lede"
+      "actions"
+      "note"
+      "meta";
+    padding-inline: 0;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-home-hero h1 {
+    max-width: 13ch;
+    font-size: clamp(2.45rem, 11vw, 3.3rem);
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-actions {
+    justify-content: flex-start;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-section-heading {
+    display: block;
+    padding-inline: 0;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-section-heading h2 {
+    margin-top: 0.35rem;
+  }
+
+  html[data-style="modern"] .modern-home-intro .simple-section-heading > p {
+    margin: 0.5rem 0 0;
+  }
+}
+
 .simple-home-hub {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
@@ -5478,7 +5860,7 @@ html.light-mode .docs-page-outline-link.active {
 
 /* Why Plembfin: scenario-led explanation of the local source-of-truth model. */
 .simple-why {
-  width: min(calc(100% - 3rem), 78rem);
+  width: min(calc(100% - 3rem), 84rem);
   margin-inline: auto;
 }
 
