@@ -48,7 +48,7 @@ VersionInfoCopyright=Copyright (C) Plembfin contributors
 [Tasks]
 Name: "tray"; Description: "Start Plembfin in the notification area when I sign in (quick access and server status)"; GroupDescription: "Startup options:"; Flags: checkedonce
 Name: "desktopicon"; Description: "Create a desktop shortcut (quick access to the dashboard)"; GroupDescription: "Additional shortcuts:"; Flags: checkedonce
-Name: "firewall"; Description: "Allow private-network connections on TCP 5055 (needed only for access from other devices on your LAN)"; GroupDescription: "Network access:"; Flags: checkedonce
+Name: "firewall"; Description: "Allow private-network connections to the selected port (needed only for access from other devices on your LAN)"; GroupDescription: "Network access:"; Flags: checkedonce
 Name: "launch"; Description: "Open Plembfin in your browser after installation (recommended to finish setup)"; GroupDescription: "After installation:"; Flags: checkedonce
 
 [Dirs]
@@ -72,7 +72,6 @@ Type: files; Name: "{userstartup}\Plembfin notification area.lnk"
 [Run]
 Filename: "{app}\PlembfinTray.exe"; Description: "Start Plembfin in the notification area"; Flags: postinstall nowait runasoriginaluser; Tasks: tray
 Filename: "{app}\PlembfinTray.exe"; Parameters: "--open"; Description: "Open Plembfin"; Flags: postinstall nowait skipifsilent runasoriginaluser; Tasks: launch
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Plembfin (Private)"" dir=in action=allow protocol=TCP localport=5055 profile=private"; Flags: runhidden waituntilterminated; Tasks: firewall
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Plembfin (Private)"""; Flags: runhidden waituntilterminated
@@ -80,6 +79,176 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 [Code]
 const
   PlembfinServiceName = 'Plembfin';
+  PlembfinRegistryKey = 'Software\Plembfin';
+
+var
+  PortPage: TInputQueryWizardPage;
+
+function IsValidPort(const PortText: String): Boolean;
+var
+  PortNumber: Integer;
+  PortValue: String;
+  Index: Integer;
+begin
+  Result := False;
+  PortValue := Trim(PortText);
+  if PortValue = '' then Exit;
+  for Index := 1 to Length(PortValue) do begin
+    if (PortValue[Index] < '0') or (PortValue[Index] > '9') then Exit;
+  end;
+  PortNumber := StrToIntDef(PortValue, 0);
+  Result := (PortNumber >= 1) and (PortNumber <= 65535);
+end;
+
+function ExistingPort: String;
+var
+  Candidate: String;
+  ServiceXml: AnsiString;
+  Marker: AnsiString;
+  MarkerPosition: Integer;
+  ValuePosition: Integer;
+  QuotePosition: Integer;
+begin
+  Result := '5055';
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, PlembfinRegistryKey, 'Port', Candidate) and IsValidPort(Candidate) then begin
+    Result := Trim(Candidate);
+    Exit;
+  end;
+
+  { Older installations do not have the registry value, so preserve their configured port. }
+  if not LoadStringFromFile(ExpandConstant('{app}\PlembfinService.xml'), ServiceXml) then Exit;
+  Marker := 'name="PORT" value="';
+  MarkerPosition := Pos(Marker, ServiceXml);
+  if MarkerPosition = 0 then Exit;
+  ValuePosition := MarkerPosition + Length(Marker);
+  QuotePosition := Pos('"', Copy(ServiceXml, ValuePosition, Length(ServiceXml) - ValuePosition + 1));
+  if QuotePosition = 0 then Exit;
+  Candidate := Copy(ServiceXml, ValuePosition, QuotePosition - 1);
+  if IsValidPort(Candidate) then Result := Trim(Candidate);
+end;
+
+function SelectedPort: String;
+begin
+  Result := Trim(PortPage.Values[0]);
+end;
+
+function CheckPortAvailability(var PortInUse: Boolean): Boolean;
+var
+  PowerShellPath: String;
+  Arguments: String;
+  ResultCode: Integer;
+begin
+  Result := False;
+  PortInUse := False;
+  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  if not FileExists(PowerShellPath) then Exit;
+
+  Arguments :=
+    '-NoProfile -NonInteractive -Command "$ErrorActionPreference=''Stop''; ' +
+    '$port=' + SelectedPort + '; $current=' + ExistingPort + '; ' +
+    '$service=Get-Service -Name ''Plembfin'' -ErrorAction SilentlyContinue; ' +
+    'if ($service -and $service.Status -eq ''Running'' -and $port -eq $current) { exit 0 }; ' +
+    'try { $listeners=@(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue); ' +
+    'if ($listeners.Count -gt 0) { exit 2 } else { exit 0 } } catch { exit 3 }"';
+
+  if not Exec(PowerShellPath, Arguments, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then Exit;
+  if ResultCode = 0 then begin
+    Result := True;
+  end else if ResultCode = 2 then begin
+    Result := True;
+    PortInUse := True;
+  end;
+end;
+
+procedure InitializeWizard;
+var
+  CommandLinePort: String;
+begin
+  PortPage := CreateInputQueryPage(
+    wpSelectDir,
+    'Plembfin server port',
+    'Choose the port for the Plembfin dashboard',
+    'The current port is prefilled. Keep it to leave the address unchanged, or enter a different TCP port. Existing installations will be updated to use the port entered here.');
+  PortPage.Add('TCP port:', False);
+  PortPage.Values[0] := ExistingPort;
+
+  { This also lets administrators supply the same value to a silent installation. }
+  CommandLinePort := ExpandConstant('{param:PLEMBFINPORT|}');
+  if CommandLinePort <> '' then PortPage.Values[0] := CommandLinePort;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  PortInUse: Boolean;
+begin
+  Result := True;
+  if CurPageID <> PortPage.ID then Exit;
+  if not IsValidPort(SelectedPort) then begin
+    MsgBox('Enter a TCP port number from 1 to 65535.', mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+  if not CheckPortAvailability(PortInUse) then begin
+    MsgBox('Windows could not confirm that this port is available. Close PowerShell networking tools or choose another port, then try again.', mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+  if PortInUse then begin
+    MsgBox('TCP port ' + SelectedPort + ' is already in use by another app. Choose another port or stop that app, then try again.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
+function ApplySelectedPort: Boolean;
+var
+  ConfigPath: String;
+  ServiceXml: AnsiString;
+  Marker: AnsiString;
+  MarkerPosition: Integer;
+  ValuePosition: Integer;
+  QuotePosition: Integer;
+begin
+  Result := False;
+  ConfigPath := ExpandConstant('{app}\PlembfinService.xml');
+  if not LoadStringFromFile(ConfigPath, ServiceXml) then Exit;
+  Marker := 'name="PORT" value="';
+  MarkerPosition := Pos(Marker, ServiceXml);
+  if MarkerPosition = 0 then Exit;
+  ValuePosition := MarkerPosition + Length(Marker);
+  QuotePosition := Pos('"', Copy(ServiceXml, ValuePosition, Length(ServiceXml) - ValuePosition + 1));
+  if QuotePosition = 0 then Exit;
+  ServiceXml :=
+    Copy(ServiceXml, 1, ValuePosition - 1) +
+    SelectedPort +
+    Copy(ServiceXml, ValuePosition + QuotePosition - 1, Length(ServiceXml));
+  if not SaveStringToFile(ConfigPath, ServiceXml, False) then Exit;
+  Result := RegWriteStringValue(HKEY_LOCAL_MACHINE, PlembfinRegistryKey, 'Port', SelectedPort);
+end;
+
+function RunNetsh(const Arguments: String; var ResultCode: Integer): Boolean;
+begin
+  Result := Exec(ExpandConstant('{sys}\netsh.exe'), Arguments, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+procedure UpdateFirewallRule;
+var
+  ResultCode: Integer;
+begin
+  { Replace the old rule on upgrades, and remove it if LAN access was unchecked. }
+  Exec(
+    ExpandConstant('{sys}\netsh.exe'),
+    'advfirewall firewall delete rule name="Plembfin (Private)"',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode);
+
+  if WizardIsTaskSelected('firewall') and not RunNetsh(
+    'advfirewall firewall add rule name="Plembfin (Private)" dir=in action=allow protocol=TCP localport=' + SelectedPort + ' profile=private',
+    ResultCode) then begin
+    MsgBox('Plembfin was installed, but its private-network firewall rule could not be updated. You can allow TCP port ' + SelectedPort + ' in Windows Firewall settings.', mbInformation, MB_OK);
+  end;
+end;
 
 function RunServiceCommand(const Arguments: String; var ResultCode: Integer): Boolean;
 begin
@@ -168,9 +337,23 @@ begin
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  PortInUse: Boolean;
 begin
   Result := '';
   NeedsRestart := False;
+  if not IsValidPort(SelectedPort) then begin
+    Result := 'Enter a TCP port number from 1 to 65535.';
+    Exit;
+  end;
+  if not CheckPortAvailability(PortInUse) then begin
+    Result := 'Windows could not confirm that TCP port ' + SelectedPort + ' is available. Choose another port and try again.';
+    Exit;
+  end;
+  if PortInUse then begin
+    Result := 'TCP port ' + SelectedPort + ' is already in use by another app. Choose another port or stop that app, then try again.';
+    Exit;
+  end;
   CloseInstalledProcesses;
   if ServiceExists then begin
     { Stop the previous server before Inno replaces its native modules. }
@@ -184,6 +367,13 @@ var
   ServiceReady: Boolean;
 begin
   if CurStep <> ssPostInstall then Exit;
+
+  if not ApplySelectedPort then begin
+    MsgBox('Plembfin was installed, but its selected server port could not be saved. The Windows service was left stopped; rerun setup to try again.', mbError, MB_OK);
+    Exit;
+  end;
+
+  UpdateFirewallRule;
 
   if not WizardIsTaskSelected('tray') then begin
     { Remove a startup choice that may have been disabled during an upgrade. }
@@ -218,6 +408,7 @@ begin
   Result := True;
   CloseInstalledProcesses;
   RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Plembfin');
+  RegDeleteValue(HKEY_LOCAL_MACHINE, PlembfinRegistryKey, 'Port');
   if not ServiceExists then Exit;
 
   { Stop and unregister the service before Inno deletes the installed files. }

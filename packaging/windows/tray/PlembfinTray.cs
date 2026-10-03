@@ -12,7 +12,9 @@ using Microsoft.Win32;
 internal static class Program
 {
     private const string ServiceName = "Plembfin";
-    private const string DashboardUrl = "http://127.0.0.1:5055";
+    private const int DefaultPort = 5055;
+    private const string PortRegistryPath = @"HKEY_LOCAL_MACHINE\SOFTWARE\Plembfin";
+    private static readonly string DashboardUrl = BuildDashboardUrl();
     private const string StartupSubKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     private const string StartupValueName = "Plembfin";
     private static readonly HttpClient Http = new HttpClient
@@ -25,6 +27,29 @@ internal static class Program
     private static ToolStripMenuItem statusItem;
     private static ToolStripMenuItem startupItem;
     private static Mutex singleInstance;
+
+    private static string BuildDashboardUrl()
+    {
+        int port = DefaultPort;
+        try
+        {
+            object configuredPort = Registry.GetValue(PortRegistryPath, "Port", null);
+            int parsedPort;
+            if (configuredPort != null
+                && Int32.TryParse(Convert.ToString(configuredPort), out parsedPort)
+                && parsedPort >= 1
+                && parsedPort <= 65535)
+            {
+                port = parsedPort;
+            }
+        }
+        catch
+        {
+            // The default URL keeps the tray useful if the installer setting is unavailable.
+        }
+
+        return "http://127.0.0.1:" + port;
+    }
 
     [STAThread]
     private static void Main(string[] args)

@@ -255,8 +255,11 @@ Plembfin stores its database, artwork cache, logs, and backups in
 `%ProgramData%\Plembfin`. The installer can also create an optional notification-area
 companion that shows service status and opens the dashboard, plus an optional private
 network firewall rule for access from other devices. The Start Menu also includes a
-shortcut for launching the companion later. On first launch, use the one-time
-**Claim this Plembfin instance** screen if no administrator password was configured.
+shortcut for launching the companion later. New installs default to port 5055; the wizard
+lets you choose a different TCP port, and upgrades prefill the current port while applying
+any new choice to the existing service, firewall rule, and tray links. On first launch,
+use the one-time **Claim this Plembfin instance** screen if no administrator password was
+configured.
 
 Testers running the `alpha` channel can download its matching Windows installer from the
 [GitHub Releases](https://github.com/Lasikiewicz/plembfin/releases) page. Alpha installers
