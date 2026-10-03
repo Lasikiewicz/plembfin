@@ -83,6 +83,7 @@ const
 
 var
   PortPage: TInputQueryWizardPage;
+  PortInitialized: Boolean;
 
 function IsValidPort(const PortText: String): Boolean;
 var
@@ -132,6 +133,19 @@ begin
   Result := Trim(PortPage.Values[0]);
 end;
 
+procedure InitializePortValue;
+var
+  CommandLinePort: String;
+begin
+  if PortInitialized then Exit;
+  PortPage.Values[0] := ExistingPort;
+
+  { This also lets administrators supply the same value to a silent installation. }
+  CommandLinePort := ExpandConstant('{param:PLEMBFINPORT|}');
+  if CommandLinePort <> '' then PortPage.Values[0] := CommandLinePort;
+  PortInitialized := True;
+end;
+
 function CheckPortAvailability(var PortInUse: Boolean): Boolean;
 var
   PowerShellPath: String;
@@ -161,8 +175,6 @@ begin
 end;
 
 procedure InitializeWizard;
-var
-  CommandLinePort: String;
 begin
   PortPage := CreateInputQueryPage(
     wpSelectDir,
@@ -170,11 +182,12 @@ begin
     'Choose the port for the Plembfin dashboard',
     'The current port is prefilled. Keep it to leave the address unchanged, or enter a different TCP port. Existing installations will be updated to use the port entered here.');
   PortPage.Add('TCP port:', False);
-  PortPage.Values[0] := ExistingPort;
+  PortPage.Values[0] := '5055';
+end;
 
-  { This also lets administrators supply the same value to a silent installation. }
-  CommandLinePort := ExpandConstant('{param:PLEMBFINPORT|}');
-  if CommandLinePort <> '' then PortPage.Values[0] := CommandLinePort;
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = PortPage.ID then InitializePortValue;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -182,7 +195,9 @@ var
   PortInUse: Boolean;
 begin
   Result := True;
+  if CurPageID = wpSelectDir then InitializePortValue;
   if CurPageID <> PortPage.ID then Exit;
+  InitializePortValue;
   if not IsValidPort(SelectedPort) then begin
     MsgBox('Enter a TCP port number from 1 to 65535.', mbError, MB_OK);
     Result := False;
@@ -342,6 +357,7 @@ var
 begin
   Result := '';
   NeedsRestart := False;
+  InitializePortValue;
   if not IsValidPort(SelectedPort) then begin
     Result := 'Enter a TCP port number from 1 to 65535.';
     Exit;
