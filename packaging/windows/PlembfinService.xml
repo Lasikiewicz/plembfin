@@ -13,7 +13,7 @@
   <env name="NODE_ENV" value="production" />
   <env name="PLEMBFIN_WINDOWS_SERVICE" value="1" />
   <env name="DATA_DIR" value="%ProgramData%\Plembfin" />
-  <env name="PORT" value="5055" />
+  <env name="PORT" value="5056" />
   <env name="HOST" value="0.0.0.0" />
   <env name="ROLE" value="all" />
 

@@ -29,7 +29,7 @@ Plembfin speaks plain HTTP. Always place it behind a TLS-terminating reverse pro
 
 ```caddyfile
 plembfin.example.com {
-    reverse_proxy localhost:5055
+    reverse_proxy localhost:5056
 }
 ```
 
@@ -43,7 +43,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/plembfin.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:5055;
+        proxy_pass http://127.0.0.1:5056;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -68,7 +68,7 @@ labels:
 cloudflared tunnel route dns <tunnel-id> plembfin.example.com
 ```
 
-Then point the tunnel to `http://localhost:5055`.
+Then point the tunnel to `http://localhost:5056`.
 
 ### Enable the Secure cookie flag
 

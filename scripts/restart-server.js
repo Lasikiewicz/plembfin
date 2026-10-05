@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const port = Number(process.env.PORT) || 5055;
+const port = Number(process.env.PORT) || 5056;
 const pingUrl = `http://localhost:${port}/api/ping`;
 const logPath = path.join(os.tmpdir(), "plembfin-local-server.log");
 const ifDown = process.argv.includes("--if-down");

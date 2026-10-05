@@ -124,7 +124,7 @@ const accessLogStream = DEMO_MODE
 // Keep upstream connections (Plex/Emby/Jellyfin/TMDB) warm.
 setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
 
-const PORT = Number(process.env.PORT || 5055);
+const PORT = Number(process.env.PORT || 5056);
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 const app = express();
 app.disable("x-powered-by");

@@ -1,15 +1,15 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.3.1.1.0";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.3.1.1.0";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.3.1.1.0";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.3.1.1.0";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel, versionDisplayLabel } from "./modules/utils.js?v=1.3.1.1.0";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.3.1.1.0";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.3.1.1.0";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.3.1.1.0";
-import { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./modules/appearance.js?v=1.3.1.1.0";
-import { loadManualWatchReviewSummary, loadSyncAttentionSummary, renderManualWatchReviewSummary as renderCoreManualWatchReviewSummary, renderSyncActivityStatus as renderCoreSyncActivityStatus, setSyncActivityProgress as setCoreSyncActivityProgress, setSyncAttentionSummary as setCoreSyncAttentionSummary, startStatusSummaryPolling, stopStatusSummaryPolling } from "./modules/status-indicators.js?v=1.3.1.1.0";
-import { movieBySlugOrId, nowPlayingHref } from "./modules/media-routing.js?v=1.3.1.1.0";
-import { DETAIL_ROUTE_MODULES, SETTINGS_ROUTE_MODULES, SHELL_ROUTE_MODULES, STATUS_ROUTE_MODULES, ensureShellModules, ifLoaded, installEarlyActivationCapture, replayEarlyActivation,isRouteModuleLoaded, loadRouteModule, loadRouteModules, registerRouteModuleInitializer, routeModulesLoaded } from "./modules/route-modules.js?v=1.3.1.1.0";
+import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.3.1.1.1";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.3.1.1.1";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.3.1.1.1";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.3.1.1.1";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel, versionDisplayLabel } from "./modules/utils.js?v=1.3.1.1.1";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.3.1.1.1";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.3.1.1.1";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.3.1.1.1";
+import { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./modules/appearance.js?v=1.3.1.1.1";
+import { loadManualWatchReviewSummary, loadSyncAttentionSummary, renderManualWatchReviewSummary as renderCoreManualWatchReviewSummary, renderSyncActivityStatus as renderCoreSyncActivityStatus, setSyncActivityProgress as setCoreSyncActivityProgress, setSyncAttentionSummary as setCoreSyncAttentionSummary, startStatusSummaryPolling, stopStatusSummaryPolling } from "./modules/status-indicators.js?v=1.3.1.1.1";
+import { movieBySlugOrId, nowPlayingHref } from "./modules/media-routing.js?v=1.3.1.1.1";
+import { DETAIL_ROUTE_MODULES, SETTINGS_ROUTE_MODULES, SHELL_ROUTE_MODULES, STATUS_ROUTE_MODULES, ensureShellModules, ifLoaded, installEarlyActivationCapture, replayEarlyActivation,isRouteModuleLoaded, loadRouteModule, loadRouteModules, registerRouteModuleInitializer, routeModulesLoaded } from "./modules/route-modules.js?v=1.3.1.1.1";
 
 // Route, dialog, media-detail, and maintenance modules load on demand through
 // modules/route-modules.js: a route downloads only the modules it renders.
@@ -361,7 +361,7 @@ const THEME_KEY = "plembfin:theme";
 
 function updateThemeIcon() {
   const isLightMode = document.documentElement.classList.contains("light-mode");
-  const src = isLightMode ? "/plembfin_header_logo_light.png?v=1.3.1.1.0" : "/plembfin_header_logo_dark.png?v=1.3.1.1.0";
+  const src = isLightMode ? "/plembfin_header_logo_light.png?v=1.3.1.1.1" : "/plembfin_header_logo_dark.png?v=1.3.1.1.1";
   // Several logos can exist at once - the sidebar, setup wizard, and locked
   // login panel all need to track the selected theme.
   for (const logo of document.querySelectorAll(".brand-logo, [data-theme-logo]")) {
@@ -410,8 +410,8 @@ const NOW_PLAYING_POLL_MS = 10000;
 const NOW_PLAYING_EMPTY_POLL_MS = 2 * 60 * 1000;
 const NOW_PLAYING_REENTRY_CACHE_MS = 20 * 1000;
 const DASHBOARD_HISTORY_CACHE_KEY = "plembfin:dashboardHistory:v1";
-// The snapshot is only a first paint; loadHistory() revalidates it at once, so a
-// long TTL is safe and stops a next-day visit from opening on a blank dashboard.
+// Keep a saved dashboard snapshot for offline fallback and other local views;
+// the dashboard itself waits for the server response before displaying it.
 const DASHBOARD_HISTORY_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const HISTORY_PREVIEW_LIMIT = 120;
 const DASHBOARD_HISTORY_ROWS = 2;
@@ -424,8 +424,8 @@ const EXPLORER_PERSISTED_CACHE_LIMIT = 24;
 const STARTUP_DEFERRED_WORK_TIMEOUT_MS = 1200;
 
 // Keep non-critical status panels and provider-backed dashboard enrichment out
-// of the first authenticated render. The dashboard can paint from its local
-// snapshot while history starts immediately and Up Next waits for idle time.
+// of the first authenticated render. Dashboard history refresh starts at once,
+// and the saved Up Next copy stays hidden until the server reconciles it.
 // A timeout keeps the deferred work eventually consistent in browsers without
 // requestIdleCallback and on busy pages.
 function scheduleDeferredStartupWork(task, timeout = STARTUP_DEFERRED_WORK_TIMEOUT_MS) {
@@ -2378,18 +2378,28 @@ function applyActiveViewNow() {
     settingsSubMenu.classList.toggle("hidden", state.activeView !== "settings");
   }
   if (state.activeView === "dashboard") {
-    applyCachedDashboardHistory();
+    const refreshHistory = state.token && Date.now() - state.historyFetchedAt > HISTORY_REUSE_MS;
+    if (refreshHistory) {
+      state.historyLoading = true;
+      state.historyLoadError = "";
+      state.upNextFromCache = true;
+      state.upNextLoadedAt = 0;
+    }
     renderDashboard();
     renderUpNext();
-    // Up Next can rebuild a stale projection by walking provider-backed
-    // episode identities. Keep that enrichment off the critical dashboard
-    // render so history and the shell are not competing with it for the
-    // first event-loop turn. The cache and normal refresh behavior remain
-    // unchanged once the browser is idle.
-    scheduleDeferredStartupWork(() => loadUpNext({ initial: true }), 1500);
+    // Reconcile the provider-backed projection after the shell paints. The
+    // dashboard shows a loading state until this authoritative snapshot arrives.
+    scheduleDeferredStartupWork(() => loadUpNext({ force: true }), 0);
     // The route replays once its modules load; reuse a fetch that just finished
     // rather than requesting history twice. Mutations use loadHistory({ force }).
-    if (state.token && Date.now() - state.historyFetchedAt > HISTORY_REUSE_MS) loadHistory().catch((error) => setMessage(error.message, "error"));
+    if (refreshHistory) {
+      loadHistory({ force: !state.historyFetchedAt }).catch((error) => {
+        state.historyLoading = false;
+        state.historyLoadError = error.message || "Could not load watch history.";
+        renderDashboard();
+        setMessage(error.message, "error");
+      });
+    }
   }
   if (state.activeView === "stats") {
     renderStats();
@@ -2677,6 +2687,8 @@ async function loadHistory({ force = false, silent = false } = {}) {
     state.history = Array.isArray(body.history) ? body.history : [];
     state.historyVersion = String(body.historyVersion ?? historyVersionFromRows(state.history));
     state.historyFetchedAt = Date.now();
+    state.historyLoading = false;
+    state.historyLoadError = "";
     rememberDashboardHistory(state.history, state.historyVersion);
     if (previousHistoryVersion && previousHistoryVersion !== state.historyVersion) {
       state.explorerPageCache.clear();

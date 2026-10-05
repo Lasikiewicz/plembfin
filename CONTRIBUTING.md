@@ -14,7 +14,7 @@ project, so please keep pull requests focused and read this guide before opening
 
 ```bash
 npm install
-npm run dev   # auto-reload dev server on http://localhost:5055
+npm run dev   # auto-reload dev server on http://localhost:5056
 ```
 
 On Windows, use the host's normal network-enabled environment for this server. If

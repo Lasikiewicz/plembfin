@@ -1,15 +1,15 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.1.1.0";
-import { state, elements } from "./state.js?v=1.3.1.1.0";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.3.1.1.0";
-import { hydratePosters } from "./images.js?v=1.3.1.1.0";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.3.1.1.0";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.3.1.1.0";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.1.1";
+import { state, elements } from "./state.js?v=1.3.1.1.1";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.3.1.1.1";
+import { hydratePosters } from "./images.js?v=1.3.1.1.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.3.1.1.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.3.1.1.1";
 import {
   manualShowMatches, isShowInUpNext, provenDifferentShow, upNextShowActionHtml,
   upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys, withoutNowPlaying, upNextRemovalMatches,
-} from "./up-next-shared.js?v=1.3.1.1.0";
-export { chooseUpNextRemovalScope, upNextHasSiblingCard } from "./up-next-shared.js?v=1.3.1.1.0";
-import { renderMediaCard } from "./media-card.js?v=1.3.1.1.0";
+} from "./up-next-shared.js?v=1.3.1.1.1";
+export { chooseUpNextRemovalScope, upNextHasSiblingCard } from "./up-next-shared.js?v=1.3.1.1.1";
+import { renderMediaCard } from "./media-card.js?v=1.3.1.1.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -1385,13 +1385,21 @@ export function renderUpNext({ exitIds = [] } = {}) {
 
   const items = withoutNowPlaying(visibleUpNextItems(), state.activeSessions || []);
 
+  // Browser storage is only a paint hint. Do not put an unverified saved
+  // projection back on the dashboard while the server is reconciling it.
+  if (state.upNextFromCache && (state.upNextLoading || (!state.upNextLoadedAt && !state.upNextError))) {
+    if (section) section.classList.remove("hidden");
+    commitPanel(`<div class="empty-log up-next-empty-state"><b>Loading Up Next…</b></div>`);
+    return;
+  }
+
   if (state.upNextLoading && !state.upNextItems.length) {
     if (section) section.classList.remove("hidden");
     commitPanel(`<div class="empty-log up-next-empty-state"><b>Loading Up Next…</b></div>`);
     return;
   }
 
-  if (state.upNextError && !state.upNextItems.length) {
+  if (state.upNextError && (state.upNextFromCache || !state.upNextItems.length)) {
     if (section) section.classList.remove("hidden");
     const presentation = upNextErrorPresentation();
     commitPanel(`<div class="empty-log up-next-empty-state" role="alert"><b>${escapeHtml(presentation.title)}</b><span>${escapeHtml(presentation.detail)}</span><button class="button-ghost" type="button" data-up-next-retry>Try again</button></div>`);
@@ -1417,13 +1425,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
   });
 }
 
-// A stale-tolerant request is allowed once per page load (the first dashboard
-// paint). Later dashboard visits in the same session wait for fresh data.
-let initialStaleLoadAvailable = true;
-// Delay before the one follow-up request that replaces a stale first paint.
-const UP_NEXT_STALE_FOLLOW_UP_MS = 2_500;
-
-export async function loadUpNext({ force = false, fromSse = false, initial = false } = {}) {
+export async function loadUpNext({ force = false, fromSse = false } = {}) {
   if (!state.token) return;
   if (state.upNextLoading) {
     if (fromSse || force) state.upNextRefreshQueued = true;
@@ -1447,14 +1449,11 @@ export async function loadUpNext({ force = false, fromSse = false, initial = fal
   const timeout = setTimeout(() => controller.abort(), UP_NEXT_TIMEOUT_MS);
 
   try {
-    // Only the first dashboard paint may accept a projection built before the
-    // latest watch history (allowStale). The rebuild runs behind it and its
-    // version bump reloads the rail over the live stream. Every later load
-    // (after a manual watch, or from a live history event) must wait for the
-    // authoritative projection so a just-watched episode cannot come back.
-    const allowStale = !force && initial && initialStaleLoadAvailable;
-    initialStaleLoadAvailable = false;
-    const params = force ? "refresh=1" : allowStale ? "revalidate=1&allowStale=1" : "revalidate=1";
+    // First dashboard entry must reconcile against provider and watch state
+    // before painting the cached rail. This also runs when no browser was open:
+    // the server maintains its own projection in the background, and this
+    // request confirms it before any browser-side copy is shown.
+    const params = force ? "refresh=1" : "revalidate=1";
     const response = await fetch(`/api/up-next?${params}`, {
       headers: buildAuthHeaders(state.token),
       cache: force ? "reload" : "no-store",
@@ -1495,13 +1494,6 @@ export async function loadUpNext({ force = false, fromSse = false, initial = fal
       Promise.resolve().then(() => loadUpNext({ force: true })).catch(() => { });
     } else {
       await loadDismissedUpNext();
-      // A stale first paint may predate the latest watch history and no live
-      // version bump is guaranteed, so ask once more for the rebuilt rail.
-      if (allowStale && state.upNextFromCache) {
-        setTimeout(() => {
-          if (state.activeView === "dashboard") loadUpNext({ fromSse: true }).catch(() => { });
-        }, UP_NEXT_STALE_FOLLOW_UP_MS);
-      }
     }
   } catch (error) {
     if (requestVersion !== state.upNextRequestVersion) return;

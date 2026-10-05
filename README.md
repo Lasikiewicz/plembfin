@@ -206,7 +206,7 @@ rebuild an image.
        image: ghcr.io/lasikiewicz/plembfin:latest
        container_name: plembfin
        ports:
-         - "5055:5055"
+         - "5056:5055"
        volumes:
          - ./data:/data
        environment:
@@ -215,7 +215,7 @@ rebuild an image.
        restart: unless-stopped
    ```
 3. Start it: `docker compose up -d`
-4. Open `http://localhost:5055` and log in.
+4. Open `http://localhost:5056` and log in.
 
 > [!IMPORTANT]
 > On **Docker Desktop for macOS or Windows**, keep `/data` on a named volume, not a
@@ -255,7 +255,7 @@ Plembfin stores its database, artwork cache, logs, and backups in
 `%ProgramData%\Plembfin`. The installer can also create an optional notification-area
 companion that shows service status and opens the dashboard, plus an optional private
 network firewall rule for access from other devices. The Start Menu also includes a
-shortcut for launching the companion later. New installs default to port 5055; the wizard
+shortcut for launching the companion later. New installs default to port 5056; the wizard
 lets you choose a different TCP port, and upgrades prefill the current port while applying
 any new choice to the existing service, firewall rule, and tray links. On first launch,
 use the one-time **Claim this Plembfin instance** screen if no administrator password was
@@ -291,14 +291,14 @@ For connected-service testing on Windows, `npm start` must be launched with norm
 host network access. An ordinary PowerShell terminal already has that access; when
 Codex starts the process, use its approved elevated network-enabled execution path
 instead of the restricted sandbox, or outbound Plex/Emby/Jellyfin requests can fail
-with `EACCES` even though `http://localhost:5055` is working.
+with `EACCES` even though `http://localhost:5056` is working.
 
-Open `http://localhost:5055`. If you didn't set `ADMIN_PASSWORD`, the app shows a
+Open `http://localhost:5056`. If you didn't set `ADMIN_PASSWORD`, the app shows a
 one-time **Claim this Plembfin instance** screen - create the administrator username and
 password there instead of looking for a generated password anywhere.
 
 > [!TIP]
-> Port `5055` taken? `PORT=5056 npm start` (bash) or `$env:PORT=5056; npm start` (PowerShell).
+> Port `5056` taken? Choose another port with `PORT=5057 npm start` (bash) or `$env:PORT=5057; npm start` (PowerShell).
 
 ### Method D: Unraid
 
@@ -311,10 +311,10 @@ Until then, add it from **Docker → Add Container**:
 
 1. Set **Repository** to `ghcr.io/lasikiewicz/plembfin:latest`.
 2. Map `/mnt/user/appdata/plembfin` to the container path `/data`.
-3. Map host port `5055` to container port `5055`.
+3. Map host port `5056` to container port `5055`.
 4. Leave `ADMIN_PASSWORD` blank to use the one-time claim screen on a fresh install,
    or set a strong password in the container environment.
-5. Start the container and open `http://<unraid-ip>:5055`.
+5. Start the container and open `http://<unraid-ip>:5056`.
 
 ---
 
@@ -416,7 +416,7 @@ Playback events reach Plembfin via webhooks. Each platform's setup guide under
 already in it - it looks like:
 
 ```
-http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
+http://<YOUR_HOST>:5056/api/webhook?token=<your-secret>
 ```
 
 > [!IMPORTANT]
@@ -491,7 +491,7 @@ is in [`.env.example`](.env.example).
 
 | Environment Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `PORT` | `5055` | Port the web interface and API listen on. |
+| `PORT` | `5056` | Port the web interface and API listen on. |
 | `DATA_DIR` | `./data` | Directory for the database, configs, and cached posters. |
 | `ROLE` | `all` | Process role: `all`, `web`, or `worker`. |
 | `BUILD_CHANNEL` | `release` in Docker; `develop` via local npm commands | Channel marker. Published images bake their channel at build time; local `npm start` and `npm run dev` default to `develop`. |
@@ -563,7 +563,7 @@ For the full picture - file map, subsystem map, and per-feature references - sta
 
 ```bash
 npm install
-npm run dev      # auto-reload on http://localhost:5055
+npm run dev      # auto-reload on http://localhost:5056
 ```
 
 Work lands on `develop`; `alpha` and `main` only move on an explicit promotion, with

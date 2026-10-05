@@ -110,7 +110,7 @@ var
   ValuePosition: Integer;
   QuotePosition: Integer;
 begin
-  Result := '5055';
+  Result := '5056';
   if RegQueryStringValue(HKEY_LOCAL_MACHINE, PlembfinRegistryKey, 'Port', Candidate) and IsValidPort(Candidate) then begin
     Result := Trim(Candidate);
     Exit;
@@ -182,7 +182,7 @@ begin
     'Choose the port for the Plembfin dashboard',
     'The current port is prefilled. Keep it to leave the address unchanged, or enter a different TCP port. Existing installations will be updated to use the port entered here.');
   PortPage.Add('TCP port:', False);
-  PortPage.Values[0] := '5055';
+  PortPage.Values[0] := '5056';
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

@@ -12,7 +12,7 @@ using Microsoft.Win32;
 internal static class Program
 {
     private const string ServiceName = "Plembfin";
-    private const int DefaultPort = 5055;
+    private const int DefaultPort = 5056;
     private const string PortRegistryPath = @"HKEY_LOCAL_MACHINE\SOFTWARE\Plembfin";
     private static readonly string DashboardUrl = BuildDashboardUrl();
     private const string StartupSubKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";

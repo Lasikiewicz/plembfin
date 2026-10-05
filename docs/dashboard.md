@@ -44,6 +44,10 @@ items here**, **Allow Up Next items here** (both on by default), and the number 
 ### Up Next
 
 The dashboard's Up Next section is a single mixed queue of movies and TV episodes.
+On a fresh page load or dashboard re-entry after the current snapshot expires, saved
+history and Up Next cards stay hidden while fresh server data loads. The server also
+refreshes playback and queue state in the background, so updates do not depend on the
+dashboard being open.
 While an item is in Now Playing, its Up Next card (same show, season and episode, or the same
 movie title) is hidden on the dashboard and returns when playback stops (client-side,
 `withoutNowPlaying()` in `public/modules/up-next-shared.js`). Each show has at most one card:

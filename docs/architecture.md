@@ -94,7 +94,7 @@ Repository files relevant to the application, build, and operations, grouped by 
 | `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `demo:verify`, `seed:demo`, `prepare`). Version is set locally by `scripts/promote-alpha-to-main.js` as part of "Force to main". |
 | `package-lock.json` | Locked dependency tree. Version field is CI-managed alongside `package.json`. |
 | `Dockerfile` | `node:25-trixie-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, and uses the separate SQLite worker-health probe so synchronous maintenance cannot make the container fail its HTTP healthcheck. |
-| `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
+| `docker-compose.yml` | Base compose file: port 5056, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
 | `docker-compose.secure.yml` | Hardened overlay: read-only rootfs, tmpfs `/tmp`, required env vars (`ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, `WEBHOOK_SECRET`), forces `COOKIE_SECURE=true`. |
 | `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context while whitelisting the required runtime scripts. |
 | `.env.example` | Commented template of every supported environment variable - copy to `.env` (loaded by `server/src/env.js`). The variables are documented under [Environment variables](#environment-variables) below. |
@@ -858,7 +858,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 
 ## Environment variables
 
-- `PORT` - HTTP port (default `5055`)
+- `PORT` - HTTP port (default `5056`)
 - `DATA_DIR` - data directory (default `<repo>/data`; Docker sets `/data`)
 - `ROLE` - `all` (default), `web`, or `worker`; worker mode does not bind HTTP
 - `ADMIN_USERNAME` (default `admin`) / `ADMIN_PASSWORD` - admin login. If `ADMIN_PASSWORD` is unset on a brand-new install, a random password is generated and printed once to the server console.

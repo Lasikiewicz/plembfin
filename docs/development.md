@@ -33,11 +33,11 @@ channel. The `dev` command uses the same channel with file watching enabled. Set
 `BUILD_CHANNEL=release` or `BUILD_CHANNEL=alpha` explicitly when you need to inspect
 another local channel. When the user says **“Start the server”**, treat that as the
 Plembfin application-server workflow: start or reuse `npm start` (or `npm run dev` when
-auto-reload is requested) on `http://localhost:5055`. When the server is started by
+auto-reload is requested) on `http://localhost:5056`. When the server is started by
 Codex on Windows, the command must run through `exec_command` with
 `sandbox_permissions: "require_escalated"` and a justification that network access is
 needed for connected providers. Do not launch it from the restricted sandbox. The
-restricted sandbox can allow the UI/API to listen on port `5055` while denying outbound
+restricted sandbox can allow the UI/API to listen on port `5056` while denying outbound
 connections to Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB with `EACCES`.
 
 This is an execution-environment requirement, not a second app mode: an ordinary
@@ -45,8 +45,8 @@ PowerShell window on the host can continue to use `npm start` or `npm run dev` d
 After an agent start, verify both the local health endpoint and the network bind:
 
 ```powershell
-Invoke-WebRequest http://127.0.0.1:5055/api/ping
-netstat -ano -p tcp | Select-String ':5055\s+.*LISTENING'
+Invoke-WebRequest http://127.0.0.1:5056/api/ping
+netstat -ano -p tcp | Select-String ':5056\s+.*LISTENING'
 ```
 
 A sandboxed agent workspace may also deny Git access to `C:\Users\<user>\.config\git\ignore`.
@@ -466,7 +466,7 @@ It has its own build/deploy tooling independent of this repo's CI - see
   Skipping install scripts leaves the prebuilt binary that already ships in the package
   for this platform, which is the binary its loader prefers. better-sqlite3 is the only
   production dependency with an install script.
-- **`docker-compose.yml`** - base setup: port 5055, `./data:/data`, admin env vars,
+- **`docker-compose.yml`** - base setup: port 5056, `./data:/data`, admin env vars,
   `no-new-privileges`, cpu/memory limits.
 - **`docker-compose.split.yml`** - optional same-host overlay that runs one
   `ROLE=web` service and one HTTP-less `ROLE=worker` service on the same local data

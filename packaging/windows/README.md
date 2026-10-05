@@ -13,7 +13,7 @@ The installer:
 - stores runtime data under `%ProgramData%\Plembfin`;
 - preselects a notification-area companion at user sign-in for quick access and server status;
 - preselects a desktop shortcut for quick access to the dashboard;
-- offers a server-port page, prefilled with 5055 for a new install or the current port
+- offers a server-port page, prefilled with 5056 for a new install or the current port
   for an upgrade; the selected port is used by the service, tray, dashboard shortcuts,
   and optional private-network firewall rule;
 - preselects opening Plembfin in the browser after installation so first-time setup is immediately available; and

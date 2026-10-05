@@ -131,6 +131,8 @@ served version, server PID, and approval in the per-release summary. If the cand
 repeat its approval before starting phase A. The website gate is mandatory for every main
 release.
 
+For the next **Force to main** after the port-default change, create a dedicated website guide for existing users explaining how to move Plembfin to port 5056 (including Docker/Unraid port mapping and Windows upgrade behavior), then add a direct link to that guide in the new release changelog entry. Verify the guide link in the public Changelog as part of the website gate.
+
 The gate has three phases, all checked against the same approved release build:
 
 1. **A — review and prepare:** Resolve the current `origin/main` documentation baseline,

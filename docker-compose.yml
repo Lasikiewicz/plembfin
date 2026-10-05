@@ -4,7 +4,7 @@ services:
     image: plembfin:latest
     container_name: plembfin
     ports:
-      - "5055:5055"
+      - "5056:5055"
     volumes:
       # SQLite database, cached artwork, and generated config.json live here.
       - ./data:/data

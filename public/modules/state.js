@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.3.1.1.0";
-import { readStoredDebugLogs } from "./logs.js?v=1.3.1.1.0";
-import { isDemoMode } from "./utils.js?v=1.3.1.1.0";
+import { readStoredAdminToken } from "./auth.js?v=1.3.1.1.1";
+import { readStoredDebugLogs } from "./logs.js?v=1.3.1.1.1";
+import { isDemoMode } from "./utils.js?v=1.3.1.1.1";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -61,6 +61,8 @@ const initialState = {
   historyVersion: "",
   historyLoadPromise: null,
   historyFetchedAt: 0,
+  historyLoading: false,
+  historyLoadError: "",
   dashboardHistoryFilter: "all",
   dashboardHistoryViewMode: "cards",
   dashboardHistoryResizeTimer: undefined,

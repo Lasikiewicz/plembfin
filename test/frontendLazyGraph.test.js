@@ -147,13 +147,9 @@ test("a route waits for its own modules and is replayed once, not the whole grap
   assert.doesNotMatch(appSource, /import\("\.\/modules\//, "route modules are loaded through route-modules.js only");
 });
 
-test("only the first dashboard paint may accept a stale Up Next projection", () => {
-  assert.match(upNextSource, /const allowStale = !force && initial && initialStaleLoadAvailable;/);
-  assert.match(upNextSource, /initialStaleLoadAvailable = false;/);
-  assert.match(upNextSource, /force \? "refresh=1" : allowStale \? "revalidate=1&allowStale=1" : "revalidate=1"/);
-  const initialCallers = [...appSource.matchAll(/loadUpNext\(\{[^}]*initial: true[^}]*\}\)/g), ...upNextSource.matchAll(/loadUpNext\(\{[^}]*initial: true[^}]*\}\)/g)];
-  assert.equal(initialCallers.length, 1, "only the dashboard's first paint may request a stale-tolerant Up Next load");
-  // A stale first paint must be replaced even when no live version bump
-  // arrives: one follow-up load, without allowStale, while on the dashboard.
-  assert.match(upNextSource, /if \(allowStale && state\.upNextFromCache\) \{\s*setTimeout\(\(\) => \{\s*if \(state\.activeView === "dashboard"\) loadUpNext\(\{ fromSse: true \}\)/);
+test("the dashboard waits for a fresh server Up Next projection before painting saved cards", () => {
+  assert.match(appSource, /loadUpNext\(\{ force: true \}\)/);
+  assert.match(upNextSource, /const params = force \? "refresh=1" : "revalidate=1";/);
+  assert.match(upNextSource, /state\.upNextFromCache && \(state\.upNextLoading \|\| \(!state\.upNextLoadedAt && !state\.upNextError\)\)/);
+  assert.doesNotMatch(upNextSource, /allowStale|UP_NEXT_STALE_FOLLOW_UP_MS/);
 });

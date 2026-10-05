@@ -44,7 +44,7 @@ keeps every one of them up to date.
        image: plembfin/plembfin:latest
        container_name: plembfin
        ports:
-         - "5055:5055"
+         - "5056:5055"
        volumes:
          - ./data:/data
        environment:
@@ -52,7 +52,7 @@ keeps every one of them up to date.
          ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env before starting}"
        restart: unless-stopped
    ```
-3. Run `docker compose up -d`, open `http://localhost:5055`, and log in. A setup wizard
+3. Run `docker compose up -d`, open `http://localhost:5056`, and log in. A setup wizard
    walks you through connecting your media servers, metadata, webhooks, and Trakt.
 
 On **Docker Desktop for macOS or Windows**, use a named volume (`plembfin-data:/data`)
@@ -76,7 +76,7 @@ builds are published only on GitHub Container Registry at `ghcr.io/lasikiewicz/p
 
 | Setting | Purpose |
 |---|---|
-| Port `5055` | Web UI and API |
+| Port `5056` | Web UI and API |
 | Volume `/data` | Database, artwork cache, logs, and backups. Keep it on persistent storage. |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | The first admin account |
 
