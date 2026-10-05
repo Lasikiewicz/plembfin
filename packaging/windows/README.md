@@ -13,11 +13,18 @@ The installer:
 - stores runtime data under `%ProgramData%\Plembfin`;
 - preselects a notification-area companion at user sign-in for quick access and server status;
 - preselects a desktop shortcut for quick access to the dashboard;
-- preselects a private-network firewall rule for TCP port 5055 so other devices on the LAN can connect;
+- offers a server-port page, prefilled with 5055 for a new install or the current port
+  for an upgrade; the selected port is used by the service, tray, dashboard shortcuts,
+  and optional private-network firewall rule;
 - preselects opening Plembfin in the browser after installation so first-time setup is immediately available; and
 - preserves runtime data when uninstalled unless the user explicitly confirms its removal.
 
-All installer choices can be cleared. The tray option is only needed if Plembfin
+The server-port choice is optional: keep the prefilled port to use the existing address,
+or enter a different TCP port from 1 to 65535. During an upgrade, the selected port
+replaces the installed port and the firewall rule is updated to match when LAN access is
+selected.
+
+All installer task choices can be cleared. The tray option is only needed if Plembfin
 should appear in the notification area and start automatically at sign-in. The desktop
 shortcut is a convenience. The firewall rule is only needed when the dashboard should
 be reachable from another device on the same private network; local access through
@@ -40,14 +47,19 @@ normal Windows administrator-consent prompt.
 as numbered prereleases (`v<base-version>-alpha.<build>`). The image and Windows
 workflows create or update the same release with a generated Markdown body from the
 committed changelog, so each alpha or main build publishes its release notes alongside
-the installer and checksum. Both channels also retain the Actions artifact; manual builds
-remain Actions artifacts only.
+the installer and checksum. Both channels also retain the Actions artifact. Manual runs on
+`develop` upload artifacts only. Select `installer-test` to skip the application build gate
+and guarantee artifact-only output, even when testing from another branch.
 
 The branch mapping is explicit for promotion pushes: the `Force to alpha` force-push to
 `alpha` reads `changelog.alpha.json` and builds the matching alpha build, while the
 `Force to main` force-push to `main` reads `changelog.json` and builds the release
 installer. Manual runs default to `auto`, which follows the selected branch, but can use
-an explicit channel when needed.
+an explicit channel when needed. Select `installer-test` for a tester build: it skips the
+application build gate, names the output as an installer test, and uploads it only as a
+30-day Actions artifact without publishing a GitHub Release. The Windows package staging,
+tray compilation, and installer compilation still run, so changes to the installer and
+tray are included in the downloadable artifact.
 
 The workflow uses WinSW v2.11.0 as a pinned service wrapper. It downloads the wrapper
 only during the Windows build and includes its license in the installed application.

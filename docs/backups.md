@@ -34,7 +34,8 @@ Small, automatic backups of just the data needed to restore watch state.
   `remoteEnabled`, `remoteTime`, `remoteRetention`) lives in the `settings` row
   `watchHistoryBackups`; run state in `runtime_state` (`watchHistoryBackups`).
 - **Storage** - always written to `data/backups/watch-history/` first: temp file →
-  checksum verify → atomic rename. Retention (default 14, max 365) prunes oldest.
+  checksum verify → atomic rename. Local and remote retention default to 7 files (about
+  seven days; max 365) and prune the oldest.
 - **Restore** - `restoreWatchHistoryBackup(filename, { mode, dryRun })` supports
   **merge** (add missing, newest state wins on conflict), **replace** (clear the three
   tables first), and **dry run** (validate + report expected changes without writing).
@@ -129,8 +130,12 @@ Nightly encrypted snapshots of the entire portable backup document.
   card streams it from disk and works at any size.
 - **Server-side restore** (`plembfinRestore.js`, `server/src/routes/plembfinRestore.js`)
   - restores a backup of any size from disk. The
-  base64 payload is decoded and decrypted as a stream (the last 16 bytes are the GCM tag)
-  and `backupStreamScanner.js` reads the document one collection document at a time.
+    base64 payload is decoded and decrypted as a stream (the last 16 bytes are the GCM tag)
+    and `backupStreamScanner.js` reads the document one collection document at a time.
+  Before starting, the server runs SQLite `quick_check` on the current database. If it
+  reports corruption, restore is refused before import and the Restore page explains the
+  options: keep the current files for recovery, preserve the database and sidecars then
+  retry against a clean database, or recover data from the damaged database first.
   A first pass decrypts the whole file, checks the tag, the format and every document,
   and writes nothing; only then does a second pass import through
   `importCollectionBatch` in batches of 250, with the browser restore's rules (same

@@ -635,6 +635,31 @@ export async function findPlexItem(config, media) {
   return findPlexItemUncached(config, media);
 }
 
+async function findPlexItemForMutation(config, media) {
+  const item = await findPlexItem(config, media);
+  if (item?.ratingKey || media.type !== "episode" || media.__identityRetry) return item;
+
+  // The cached allLeaves list can predate an item added or reindexed in Plex.
+  // Refresh once on an exact episode miss before reporting not_found.
+  traceLog("Plex episode lookup missed; refreshing the cached series index", {
+    title: media.title,
+    season: media.season,
+    episode: media.episode,
+  });
+  invalidatePlexSeriesIdentity(config, media);
+  return findPlexItem(config, { ...media, __identityRetry: true });
+}
+
+function noMatchingPlexItem(media = {}) {
+  return {
+    platform: "plex",
+    status: "not_found",
+    detail: media.type === "episode"
+      ? "No matching episode was found after refreshing the series episode list"
+      : "No matching item found",
+  };
+}
+
 // True only when every item Plex resolved for this media is already watched, so
 // a mark-watched request would change nothing. Plex records `/:/scrobble` using
 // its own clock, which means a redundant scrobble silently moves the item's
@@ -675,10 +700,10 @@ export async function markPlexPlayed(config, media) {
       return { platform: "plex", status: "skipped_by_policy", detail: PLEX_POLICY_SKIP_DETAIL };
     }
 
-    const item = await findPlexItem(config, media);
+    const item = await findPlexItemForMutation(config, media);
     if (!item?.ratingKey) {
       console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
-      return { platform: "plex", status: "not_found" };
+      return noMatchingPlexItem(media);
     }
 
     const items = item.__compoundItems || [item];
@@ -726,10 +751,10 @@ export async function markPlexUnplayed(config, media) {
   try {
     requirePlexConfig(config);
 
-    const item = await findPlexItem(config, media);
+    const item = await findPlexItemForMutation(config, media);
     if (!item?.ratingKey) {
       console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
-      return { platform: "plex", status: "not_found" };
+      return noMatchingPlexItem(media);
     }
 
     const items = item.__compoundItems || [item];
@@ -764,10 +789,10 @@ export async function setPlexProgress(config, media) {
   try {
     requirePlexConfig(config);
 
-    const item = await findPlexItem(config, media);
+    const item = await findPlexItemForMutation(config, media);
     if (!item?.ratingKey) {
       console.log(`[NOT FOUND] No matching item in Plex library for: "${media.title}"`);
-      return { platform: "plex", status: "not_found" };
+      return noMatchingPlexItem(media);
     }
 
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));

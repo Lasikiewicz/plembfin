@@ -77,14 +77,34 @@ async function findJellyfinItemsForMutation(config, media = {}) {
   const direct = nativeJellyfinItems(media);
   if (direct.length) return direct;
   const cache = media?.restoreLookupCache;
-  if (cache && typeof cache.resolve === "function") {
-    return cache.resolve(
+  const items = cache && typeof cache.resolve === "function"
+    ? await cache.resolve(
       restoreLookupKey("jellyfin", config, media),
       media,
       () => findJellyfinItems(config, media),
-    );
-  }
-  return findJellyfinItems(config, media);
+    )
+    : await findJellyfinItems(config, media);
+  if (items?.length || media.type !== "episode" || media.__identityRetry) return items || [];
+
+  // A cached series episode list can predate an item added or reindexed in
+  // Jellyfin. Refresh once on an exact episode miss before reporting not_found.
+  traceLog("Jellyfin episode lookup missed; refreshing the cached series index", {
+    title: media.title,
+    season: media.season,
+    episode: media.episode,
+  });
+  invalidateJellyfinSeriesIdentity(config, media);
+  return findJellyfinItemsForMutation(config, { ...media, __identityRetry: true });
+}
+
+function noMatchingLibraryItem(platform, media = {}) {
+  return {
+    platform,
+    status: "not_found",
+    detail: media.type === "episode"
+      ? "No matching episode was found after refreshing the series episode list"
+      : "No matching item found",
+  };
 }
 
 function extractYear(title) {
@@ -461,7 +481,7 @@ export async function markJellyfinPlayed(config, media) {
     const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
-      return { platform: "jellyfin", status: "not_found" };
+      return noMatchingLibraryItem("jellyfin", media);
     }
 
     // Jellyfin's mark-played request accepts the original play date as a
@@ -523,7 +543,7 @@ export async function markJellyfinUnplayed(config, media) {
     const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
-      return { platform: "jellyfin", status: "not_found" };
+      return noMatchingLibraryItem("jellyfin", media);
     }
 
     let lastHttpStatus = 200;
@@ -567,7 +587,7 @@ export async function setJellyfinProgress(config, media) {
     const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
-      return { platform: "jellyfin", status: "not_found" };
+      return noMatchingLibraryItem("jellyfin", media);
     }
 
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));

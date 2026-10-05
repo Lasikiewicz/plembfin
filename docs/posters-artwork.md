@@ -68,10 +68,15 @@ The first candidate that downloads successfully goes through `cacheArtworkFromUr
 - body limits (10 MB), content-type checks, 12s timeout
 - resized with **sharp** to webp - poster 340w/q80, backdrop 1600w/q82, profile
   780w/q82, logo 800w/q90 (falls back to the original bytes if sharp fails)
-- written to `data/media/posters|backdrops|profiles|logos/<sha1>.webp` and served at
+- newly fetched artwork is written to
+  `data/media/posters|backdrops|profiles|logos/<sha256>.<ext>` and served at
   `/media/...`
 - metadata recorded in the `poster_cache` table keyed by
-  sha1(`mediaKey[:variant]`)
+  SHA-256(`mediaKey[:variant]`)
+
+When an existing cache row is first read or written after this identifier change,
+its database ID is re-keyed to SHA-256. Its stored image path remains unchanged, so
+the cached file continues to work until artwork is fetched again.
 
 **Negative caching:** failures are recorded as `failed` (retry after 24h) or `missing`
 (retry after 7 days) so a dead lookup doesn't hammer upstream on every page view.
@@ -146,7 +151,9 @@ Media detail pages let the user pick artwork from TMDB/TVDB/Fanart galleries
 Provider aliases and the normalized show title point to the same canonical value,
 so TV-show cards, the library, dashboard fallbacks, and personal show entries use
 the edit everywhere. Episode rows keep their own `watch_history.poster_url`, so
-episode stills are not overwritten by a show-poster edit. Movie artwork remains
+episode stills are not overwritten by a show-poster edit. History and upcoming episode cards
+also carry a separate `season_poster_url` from cached show metadata and prefer it when present;
+show-level library cards and detail headers explicitly keep the shared series poster. Movie artwork remains
 stored on its watch rows and is propagated across repeated plays as before.
 Data-URL uploads are also accepted and persisted through `cacheArtworkFromUrl`.
 

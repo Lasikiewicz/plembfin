@@ -173,6 +173,8 @@ the server's next-airing cache updates independently.
 
 TV-specific extras:
 
+- **Show artwork** - library cards and the detail-page header use the shared series poster;
+  episode cards use their matching season poster when that artwork is cached.
 - **Hide watched / hide ended** toggles, persisted in `plembfin:hideWatched:shows` /
   `plembfin:hideEnded:shows`, passed through to `GET /api/shows`.
 - **Progress bars** on cards from the show progress cache.

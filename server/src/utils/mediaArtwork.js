@@ -11,6 +11,46 @@ const selectArtworkRecordByIdentityStmt = db.prepare(
 );
 const selectTmdbMetadataStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 const selectTmdbPosterFieldsStmt = db.prepare("SELECT poster_path, cached_poster_url, tvdb_poster_url FROM tmdb_metadata_cache WHERE id = ?");
+const selectCachedTvSeasonPostersStmt = db.prepare(`
+  WITH selected_metadata AS (
+    SELECT id, details
+    FROM tmdb_metadata_cache
+    WHERE media_type = 'tv'
+      AND (
+        (
+          @tmdb_id <> ''
+          AND id = 'tv_' || @tmdb_id
+          AND (@tvdb_id = '' OR CASE WHEN json_valid(details) THEN json_extract(details, '$.external_ids.tvdb_id') END = @tvdb_id)
+        )
+        OR (
+          @tvdb_id <> ''
+          AND id = 'tv_tvdb_' || @tvdb_id
+          AND CASE WHEN json_valid(details) THEN json_extract(details, '$.external_ids.tvdb_id') END = @tvdb_id
+        )
+      )
+    ORDER BY CASE WHEN id = 'tv_' || @tmdb_id THEN 0 ELSE 1 END
+    LIMIT 1
+  )
+  SELECT
+    CAST(json_extract(season.value, '$.season_number') AS INTEGER) AS season_number,
+    COALESCE(
+      NULLIF(json_extract(season.value, '$.poster_url'), ''),
+      NULLIF(json_extract(season.value, '$.posterUrl'), ''),
+      NULLIF(json_extract(season.value, '$.cached_poster_url'), ''),
+      NULLIF(json_extract(season.value, '$.cachedPosterUrl'), ''),
+      NULLIF(json_extract(season.value, '$.poster_path'), ''),
+      NULLIF(json_extract(season.value, '$.posterPath'), ''),
+      NULLIF(json_extract(season.value, '$.image_url'), ''),
+      NULLIF(json_extract(season.value, '$.imageUrl'), ''),
+      NULLIF(json_extract(season.value, '$.image'), ''),
+      NULLIF(json_extract(season.value, '$.poster.path'), '')
+    ) AS poster
+  FROM selected_metadata AS metadata
+  JOIN json_each(
+    CASE WHEN json_valid(metadata.details) THEN metadata.details ELSE '{"seasons":[]}' END,
+    '$.seasons'
+  ) AS season
+`);
 const selectPosterCacheStmt = db.prepare(
   "SELECT url FROM poster_cache WHERE media_key = ? AND variant = 'poster' AND status = 'cached' LIMIT 1",
 );
@@ -130,6 +170,64 @@ function posterUrlFromTmdbDetails(details, tmdbId = "", mediaType = "tv") {
   const tvdbPoster = clean(details.tvdb_poster_url || details.tvdbPosterUrl || details.image_url || details.imageUrl || details.image);
   if (tvdbPoster) return remoteArtworkUrl(tvdbPoster);
   return "";
+}
+
+function cachedSeasonPosterUrl(rawPoster, tmdbId = "") {
+  const poster = clean(rawPoster);
+  if (!poster) return "";
+  if (/^\/(?:api\/|media\/|demo-assets\/)/i.test(poster)) return poster;
+
+  let url = null;
+  if (/^https?:\/\//i.test(poster)) {
+    try {
+      url = new URL(poster);
+    } catch {
+      return "";
+    }
+  } else if (/^\/banners\//i.test(poster)) {
+    url = new URL(`https://artworks.thetvdb.com${poster}`);
+  }
+
+  if (url) {
+    const host = url.hostname.toLowerCase();
+    if (host === "image.tmdb.org") {
+      const file = url.pathname.split("/").filter(Boolean).at(-1) || "";
+      if (!/^[-A-Za-z0-9_]+\.(?:jpg|jpeg|png|webp)$/i.test(file)) return "";
+      return `/api/tmdb-poster?path=${encodeURIComponent(`/${file}`)}${tmdbId ? `&tmdbId=${encodeURIComponent(tmdbId)}` : ""}&mediaType=tv`;
+    }
+    if (host === "artworks.thetvdb.com" || host === "assets.fanart.tv") {
+      if (url.protocol !== "https:") url.protocol = "https:";
+      return `/api/remote-artwork?variant=poster&url=${encodeURIComponent(url.toString())}`;
+    }
+    return "";
+  }
+
+  if (/^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(poster)) {
+    return `/api/tmdb-poster?path=${encodeURIComponent(poster)}${tmdbId ? `&tmdbId=${encodeURIComponent(tmdbId)}` : ""}&mediaType=tv`;
+  }
+  return "";
+}
+
+// Season art belongs to an episode's season, while getCanonicalPosterUrl
+// continues to resolve the artwork shared by the show itself. Read only the
+// compact season poster fields from cached metadata so episode-card rendering
+// does not parse a full TV details blob for every show.
+export function getCanonicalSeasonPosterUrls(item = {}) {
+  const identity = showArtworkIdentity(item);
+  if (!identity.tmdb_id && !identity.tvdb_id) return new Map();
+  const rows = selectCachedTvSeasonPostersStmt.all({
+    tmdb_id: identity.tmdb_id,
+    tvdb_id: identity.tvdb_id,
+  });
+  const posters = new Map();
+  for (const row of rows) {
+    if (row.season_number == null) continue;
+    const seasonNumber = Number(row.season_number);
+    if (!Number.isInteger(seasonNumber) || seasonNumber < 0) continue;
+    const posterUrl = cachedSeasonPosterUrl(row.poster, identity.tmdb_id);
+    if (posterUrl) posters.set(seasonNumber, posterUrl);
+  }
+  return posters;
 }
 
 function remoteArtworkUrl(url) {

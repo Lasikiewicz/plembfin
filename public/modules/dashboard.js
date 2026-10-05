@@ -1,12 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.0.0.17";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.0.0.17";
-import { ifLoaded } from "./route-modules.js?v=1.3.0.0.17";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.0.0.17";
-import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.17";
-import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.0.0.17";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.3.1.0.1";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.3.1.0.1";
+import { ifLoaded } from "./route-modules.js?v=1.3.1.0.1";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.3.1.0.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.3.1.0.1";
+import { bindDashboardRuns, dashboardTvRowUnits, renderDashboardTvRowUnit } from "./dashboard-modern.js?v=1.3.1.0.1";
+import { cardArtAttribute } from "./card-art.js?v=1.3.1.0.1";
 
 // The setup wizard loads only when setup is unfinished or its checklist has
 // items (see the deferred check in app.js); until then there is nothing to show.
@@ -254,8 +254,9 @@ export function renderHistoryCard(entry) {
 
     const canonicalShowName = entry.show_title || showName(entry.title);
     const href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
-    const posterEntry = entry.show_poster_url
-      ? { ...entry, poster_url: entry.show_poster_url, prefer_raw_poster: true, cache_only_artwork: true }
+    const episodePoster = entry.season_poster_url || entry.show_poster_url;
+    const posterEntry = episodePoster
+      ? { ...entry, poster_url: episodePoster, prefer_raw_poster: true, cache_only_artwork: true }
       : { ...entry, cache_only_artwork: true };
 
     return `
@@ -354,6 +355,28 @@ function findKnownShowPoster(entry = {}) {
   return isLocalArtworkUrl(poster) ? poster : "";
 }
 
+function findKnownSeasonPoster(entry = {}) {
+  if (!entry || entry.media_type !== "episode") return "";
+  const direct = entry.season_poster_url || entry.seasonPosterUrl || "";
+  if (isLocalArtworkUrl(direct)) return direct;
+  const season = Number(entry.season ?? entry.seasonNumber ?? entry.season_number);
+  if (!Number.isInteger(season)) return "";
+  const showTitle = slug(entry.show_title || showTitleFrom(entry.title) || "");
+  const showTmdb = String(entry.show_tmdb_id || "").trim();
+  const showTvdb = String(entry.show_tvdb_id || "").trim();
+  const showImdb = String(entry.show_imdb_id || "").trim().toLowerCase();
+  const match = (state.history || []).find((h) => {
+    if (h.media_type !== "episode" || Number(h.season) !== season) return false;
+    if (showTmdb && (String(h.show_tmdb_id || "") === showTmdb || String(h.tmdb_id || "") === showTmdb)) return true;
+    if (showTvdb && (String(h.show_tvdb_id || "") === showTvdb || String(h.tvdb_id || "") === showTvdb)) return true;
+    if (showImdb && String(h.show_imdb_id || h.imdb_id || "").toLowerCase() === showImdb) return true;
+    if (showTitle && slug(h.show_title || showTitleFrom(h.title) || "") === showTitle) return true;
+    return false;
+  });
+  const poster = match?.season_poster_url || match?.seasonPosterUrl || "";
+  return isLocalArtworkUrl(poster) ? poster : "";
+}
+
 export function renderDashboardHistoryPageCard(entry, options = {}) {
   const isPartWatched = Boolean(options.partWatched || entry.isPartWatched || entry.part_watched);
   const isUpNext = Boolean(options.upNext || entry.isUpNext || entry.up_next);
@@ -390,19 +413,23 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
   // /api/poster can resolve. A progress row's generic `id` can be a watch
   // record id (or another source-specific identifier), which leaves the new
   // Part Watched card on the placeholder even when artwork is available.
+  const knownSeasonPoster = isEpisode && !entry.prefer_show_poster
+    ? (entry.season_poster_url || findKnownSeasonPoster(entry))
+    : "";
   const knownShowPoster = (isEpisode && (!entry.show_poster_url || entry.show_poster_url.startsWith("/api/poster")))
     ? findKnownShowPoster(entry)
     : "";
   const effectiveShowPoster = knownShowPoster || entry.show_poster_url;
+  const effectiveEpisodePoster = knownSeasonPoster || effectiveShowPoster;
   const posterIdentity = entry.id ?? entry.media_key ?? "";
-  const hasLocalArtwork = isLocalArtworkUrl(entry.poster_url) || isLocalArtworkUrl(effectiveShowPoster);
+  const hasLocalArtwork = isLocalArtworkUrl(knownSeasonPoster) || isLocalArtworkUrl(entry.poster_url) || isLocalArtworkUrl(effectiveShowPoster);
   const directPosterUrl = !isPartWatched && !isUpNext && posterIdentity && !hasLocalArtwork
     ? `/api/poster?format=image&id=${encodeURIComponent(String(posterIdentity))}`
     : "";
   const posterEntry = {
     ...entry,
-    ...(isEpisode && effectiveShowPoster
-      ? { poster_url: effectiveShowPoster, show_poster_url: effectiveShowPoster, prefer_raw_poster: true }
+    ...(isEpisode && effectiveEpisodePoster
+      ? { poster_url: effectiveEpisodePoster, show_poster_url: effectiveShowPoster || entry.show_poster_url, season_poster_url: knownSeasonPoster, prefer_raw_poster: true }
       : {}),
     ...(directPosterUrl ? { poster_url: directPosterUrl, show_poster_url: "", prefer_raw_poster: true } : {}),
     cache_only_artwork: !directPosterUrl,

@@ -282,11 +282,13 @@ Implementation lives in `server/src/scheduled.js`.
      was lost) marks the row synced without writing again. A retry for a local
      server alone never re-sends to Trakt; the row's earlier Trakt line is kept
      (decision 41).
-     Targets that answer "No matching item found" are recorded in the row's
-     telemetry. Unidentified items are surfaced in the standalone Sync Activity
-     page's Issues view, using the Cross-Platform Match Report data from
-     `GET /api/sync-match-report`; identified items that are absent from a
-     library remain an availability difference rather than an issue.
+     A destination no-match is recorded in the row's telemetry. For an episode
+     mutation, Plex, Emby, and Jellyfin invalidate the cached series episode index and
+     retry once before returning a skip; Sync Activity shows the final reason when the
+     refreshed index still has no matching episode. Unidentified items are surfaced in
+     the standalone Sync Activity page's Issues view, using the Cross-Platform Match
+     Report data from `GET /api/sync-match-report`; identified items that are absent
+     from a library remain an availability difference rather than an issue.
      A skipped/not-found result is terminal for that target rather than a reason
      to rediscover the same absent coordinate every minute. An explicit later
      action or library-history import can retry an item after it enters a library.
@@ -362,9 +364,9 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      coordinates map to the canonical first episode for dispatch while the original
      coordinate is retained for audit and matching.
    - A Plex notification episode unwatch whose every configured Emby/Jellyfin destination
-     reports `No matching item found` is kept out of Trakt. Plembfin still records the
-     incoming local transition and the no-match audit, but does not let an unresolved Plex
-     episode identity change Trakt's state.
+     reports no matching episode after its one index refresh is kept out of Trakt.
+     Plembfin still records the incoming local transition and the no-match audit, but
+     does not let an unresolved Plex episode identity change Trakt's state.
    - Dispatches accepted transitions to media servers and signals the authenticated
      browser update stream after each committed item.
    - After the snapshot diff, a separate step reads Trakt's per-play history and imports

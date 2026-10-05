@@ -33,7 +33,11 @@ export async function handlePlembfinRestore(req, res) {
     });
     return sendJson(res, { ok: true, job }, 202);
   } catch (error) {
-    return sendJson(res, { error: error.message }, Number(error.status) || 400);
+    return sendJson(res, {
+      error: error.message,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.recoveryOptions ? { recoveryOptions: error.recoveryOptions } : {}),
+    }, Number(error.status) || 400);
   }
 }
 

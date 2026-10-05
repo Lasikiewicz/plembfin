@@ -103,7 +103,7 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 
 | Function | What it does |
 | --- | --- |
-| `findJellyfinItems` | Locates library items by provider ID (`AnyProviderIdEquals`), falling back to title/year search; episodes resolved through the series. A title search that matches two items with different ids or years (two shows or films of the same name, such as "Scrubs" 2001 and 2026) finds nothing rather than both ([decision 40](decisions.md)) |
+| `findJellyfinItems` | Locates library items by provider ID (`AnyProviderIdEquals`), falling back to title/year search; episodes resolved through the series. An exact episode miss during a mutation refreshes the cached series index once before returning a skip. A title search that matches two items with different ids or years (two shows or films of the same name, such as "Scrubs" 2001 and 2026) finds nothing rather than both ([decision 40](decisions.md)) |
 | `markJellyfinPlayed` / `markJellyfinUnplayed` | `POST` / `DELETE` on `/Users/<userId>/PlayedItems/<itemId>` |
 | `setJellyfinProgress` | Writes a resume position via the item's UserData |
 | `updateJellyfinUserData` | Merges selected UserData fields, used to order a verified Next Up series without resetting play count or progress |

@@ -4,6 +4,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { StringDecoder } from "node:string_decoder";
 import { promisify } from "node:util";
+import { db } from "../db.js";
 import { FULL_BACKUPS_DIR } from "../paths.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, BROWSER_BACKUP_COLLECTIONS, importCollectionBatch } from "./backup.js";
 import { BackupStreamScanner } from "./backupStreamScanner.js";
@@ -30,6 +31,11 @@ const UPLOAD_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 const STALE_UPLOAD_MS = 24 * 60 * 60 * 1000;
 const RESTORED_COLLECTIONS = new Set(BROWSER_BACKUP_COLLECTIONS);
 const DECRYPT_ERROR = "Could not decrypt this Plembfin backup. Check the passphrase and file.";
+const DATABASE_RECOVERY_OPTIONS = Object.freeze([
+  "Cancel the restore and keep the current database files for recovery.",
+  "Preserve plembfin.db and its -wal/-shm sidecars, start Plembfin with a clean database, then retry this backup. The backup replaces its supported collections and may not include the newest changes.",
+  "Recover data from the current database with SQLite recovery tools before restoring, if you need changes newer than the backup.",
+]);
 const pbkdf2 = promisify(crypto.pbkdf2);
 
 // Kept in memory, not runtime_state: restoring the runtimeState collection
@@ -260,10 +266,23 @@ function assertCanStart(filePath) {
     throw Object.assign(new Error("An authoritative watch-history restore is active; backup imports are paused until it completes."), { status: 409 });
   }
   if (!fs.existsSync(filePath)) throw Object.assign(new Error("Backup file not found"), { status: 404 });
+  let check;
+  try {
+    check = db.pragma("quick_check");
+  } catch {
+    check = null;
+  }
+  if (!Array.isArray(check) || check.length !== 1 || check[0]?.quick_check !== "ok") {
+    throw Object.assign(new Error("The current Plembfin database failed its SQLite integrity check. The restore was not started and no data was changed."), {
+      status: 409,
+      code: "DATABASE_CORRUPT",
+      recoveryOptions: DATABASE_RECOVERY_OPTIONS,
+    });
+  }
 }
 
-export async function runPlembfinRestore({ filePath, passphrase = "", label = "", removeAfter = false }) {
-  assertCanStart(filePath);
+export async function runPlembfinRestore({ filePath, passphrase = "", label = "", removeAfter = false }, { prechecked = false } = {}) {
+  if (!prechecked) assertCanStart(filePath);
   const stat = fs.statSync(filePath);
   const job = {
     id: crypto.randomUUID(),
@@ -333,7 +352,7 @@ export async function runPlembfinRestore({ filePath, passphrase = "", label = ""
 // restore running and returns its initial job status.
 export function startPlembfinRestore(options) {
   assertCanStart(options.filePath);
-  const running = runPlembfinRestore(options);
+  const running = runPlembfinRestore(options, { prechecked: true });
   running.catch((error) => console.error("Plembfin restore failed to start:", error.message));
   return publicJob(currentJob);
 }

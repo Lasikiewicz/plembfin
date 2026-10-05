@@ -2,13 +2,14 @@ import { db } from "../db.js";
 import { yieldToEventLoop } from "./eventLoop.js";
 import { getCachedShows, loadTrackedEpisodeRows, queryShowDetail, showTitleFrom } from "./dataRepo.js";
 import { getCachedTmdbDetails, getCachedTmdbSeason } from "./tmdbGateway.js";
-import { getCanonicalPosterUrl } from "./mediaArtwork.js";
+import { getCanonicalPosterUrl, getCanonicalSeasonPosterUrls } from "./mediaArtwork.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import {
   mergeUpNextCandidates,
   normalizeUpNextCandidate,
   sortUpNextItems,
   upNextIdentityAliases,
+  upNextUpdateTime,
 } from "./upNextIdentity.js";
 import {
   getUpNextFeedSourceVersion,
@@ -811,6 +812,19 @@ function publicItem(item) {
   const effectivePoster = safe.media_type === "episode"
     ? (effectiveShowPoster || (isKnownPoster(rawPoster) ? rawPoster : ""))
     : (isKnownPoster(rawPoster) ? rawPoster : canonicalPoster);
+  const seasonPosterUrls = safe.media_type === "episode"
+    ? getCanonicalSeasonPosterUrls({
+      media_type: "tv",
+      title: safe.show_title,
+      tmdb_id: safe.show_tmdb_id,
+      tvdb_id: safe.show_tvdb_id,
+      imdb_id: safe.show_imdb_id,
+    })
+    : null;
+  const seasonNumber = safe.season == null ? null : Number(safe.season);
+  const seasonPosterUrl = Number.isInteger(seasonNumber)
+    ? seasonPosterUrls?.get(seasonNumber) || safe.season_poster_url || null
+    : safe.season_poster_url || null;
   return {
     ...safe,
     id: item.id,
@@ -819,6 +833,7 @@ function publicItem(item) {
     media_type: item.media_type,
     poster_url: effectivePoster || providerPosterUrl || mediaKeyPosterUrl || null,
     show_poster_url: effectiveShowPoster || providerPosterUrl || mediaKeyPosterUrl || null,
+    season_poster_url: seasonPosterUrl,
     is_upcoming: false,
   };
 }
@@ -1121,7 +1136,7 @@ function uncertainEpisodeQueueItem(item = {}) {
 function furthestEpisode(left = {}, right = {}) {
   return Number(right.season || 0) - Number(left.season || 0)
     || Number(right.episode || 0) - Number(left.episode || 0)
-    || Number(right.updated_at || 0) - Number(left.updated_at || 0)
+    || upNextUpdateTime(right) - upNextUpdateTime(left)
     || String(left.id || "").localeCompare(String(right.id || ""));
 }
 
@@ -1161,7 +1176,7 @@ export function collapseUncertainEpisodeQueues(items = []) {
     // to sit beside S04E05); several part-watched episodes keep the latest.
     if (knownResume.length) {
       const latest = [...knownResume].sort((left, right) => (
-        Number(right.updated_at || 0) - Number(left.updated_at || 0) || furthestEpisode(left, right)
+        upNextUpdateTime(right) - upNextUpdateTime(left) || furthestEpisode(left, right)
       ))[0];
       collapsed.push(...rows.filter((row) => row !== latest && !knownResume.includes(row) && !uncertain.includes(row)), latest);
     } else if (uncertain.length > 1) {

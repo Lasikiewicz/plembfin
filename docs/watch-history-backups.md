@@ -27,7 +27,7 @@ media-server configuration are excluded.
   time. The default time is 03:00.
 - Local files are written under `data/backups/watch-history/` using a temporary file
   followed by an atomic rename.
-- Local retention defaults to 14 files and accepts values from 1 through 365.
+- Local retention defaults to 7 files (about seven days) and accepts values from 1 through 365.
 - Recovery snapshots referenced by a recent sync plan are protected from retention
   deletion while that plan remains active.
 
@@ -46,9 +46,10 @@ the transaction, and records the restore result in runtime state.
 
 ## Remote copies
 
-Remote mirroring has an independent daily schedule, time, and retention count. A fresh
-local backup is verified and durable before it is uploaded. Remote failures are recorded
-per destination and do not invalidate or delete the local file.
+Remote mirroring has an independent daily schedule, time, and retention count. Local and
+remote retention each default to 7 files (about seven days). A fresh local backup is
+verified and durable before it is uploaded. Remote failures are recorded per destination
+and do not invalidate or delete the local file.
 
 Supported destination adapters are listed in [backups.md](backups.md): local folder,
 WebDAV, S3-compatible storage, Backblaze B2, OneDrive, and Dropbox. Destination secrets

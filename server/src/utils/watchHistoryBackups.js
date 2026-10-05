@@ -39,10 +39,10 @@ function safeConfig(value = {}) {
   return {
     enabled: Boolean(value.enabled),
     time: validTime(value.time),
-    retention: Math.max(1, Math.min(Number(value.retention) || 14, 365)),
+    retention: Math.max(1, Math.min(Number(value.retention) || 7, 365)),
     remoteEnabled: Boolean(value.remoteEnabled),
     remoteTime: validTime(value.remoteTime),
-    remoteRetention: Math.max(1, Math.min(Number(value.remoteRetention) || 14, 365)),
+    remoteRetention: Math.max(1, Math.min(Number(value.remoteRetention) || 7, 365)),
   };
 }
 

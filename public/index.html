@@ -8,25 +8,25 @@
     <link rel="icon" href="/icon-192-dark.png?v=20260824h" type="image/png" media="(prefers-color-scheme: dark)" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png?v=20260824h" />
     <meta name="apple-mobile-web-app-title" content="Plembfin" />
-    <link rel="manifest" href="/manifest.webmanifest?v=1.3.0.0.17" />
+    <link rel="manifest" href="/manifest.webmanifest?v=1.3.1.0.1" />
     <meta name="theme-color" content="#05080c" />
-    <script src="/theme-boot.js?v=1.3.0.0.17"></script>
+    <script src="/theme-boot.js?v=1.3.1.0.1"></script>
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/auth.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/logs.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/state.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/appearance.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/media-routing.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/utils.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/images.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/sync.js?v=1.3.0.0.17" />
-    <link rel="modulepreload" href="/modules/route-modules.js?v=1.3.0.0.17" />
-    <link rel="stylesheet" href="/styles.css?v=1.3.0.0.17" />
-    <link rel="stylesheet" href="/styles-modern.css?v=1.3.0.0.17" />
+    <link rel="modulepreload" href="/app.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/auth.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/logs.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/state.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/appearance.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/media-routing.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/utils.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/images.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/sync.js?v=1.3.1.0.1" />
+    <link rel="modulepreload" href="/modules/route-modules.js?v=1.3.1.0.1" />
+    <link rel="stylesheet" href="/styles.css?v=1.3.1.0.1" />
+    <link rel="stylesheet" href="/styles-modern.css?v=1.3.1.0.1" />
   </head>
   <body class="auth-locked">
     <div class="app-chassis">
@@ -2051,7 +2051,7 @@
                                   </label>
                                   <label class="field-label">
                                     Backups to retain
-                                    <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
+                                    <input id="watchBackupRetention" class="field" type="number" min="1" max="365" value="7" />
                                   </label>
                                 </div>
                               </div>
@@ -2089,7 +2089,7 @@
                                       <input id="plembfinBackupTime" class="field" type="time" value="03:00" />
                                     </label>
                                     <label class="field-label">
-                                      Backups to retain
+                                      Local backups to retain
                                       <input id="plembfinBackupRetention" class="field" type="number" min="1" max="365" value="7" />
                                     </label>
                                   </div>
@@ -2163,7 +2163,7 @@
                                   </label>
                                   <label class="field-label">
                                     Backups to retain
-                                    <input id="remoteWatchBackupRetention" class="field" type="number" min="1" max="365" value="14" />
+                                    <input id="remoteWatchBackupRetention" class="field" type="number" min="1" max="365" value="7" />
                                   </label>
                                 </div>
                               </div>
@@ -2194,6 +2194,15 @@
                             <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
                               <form class="backup-managed-form backup-settings-stack" data-submit-target="savePlembfinBackupRemoteButton">
                                 <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" />
+                                <div class="backup-settings-grid backup-settings-inline">
+                                  <div class="backup-settings-center">
+                                    <label class="field-label">
+                                      Backups to retain remotely
+                                      <input id="plembfinBackupRemoteRetention" class="field" type="number" min="1" max="365" value="7" />
+                                    </label>
+                                  </div>
+                                </div>
+                                <p class="tool-accordion-desc">Plembfin prunes older remote backups after the next successful upload. Backblaze keeps deleted file versions by default, so they can still use storage. In your bucket's <b>Lifecycle Settings</b>, choose <b>Keep only the last version of the file</b> to delete older versions. If this bucket also stores other files, scope a lifecycle rule to Plembfin's prefix. <a href="https://www.backblaze.com/docs/cloud-storage-configure-and-manage-lifecycle-rules" target="_blank" rel="noopener noreferrer">Backblaze lifecycle rule instructions</a>.</p>
                                 <div class="backup-settings-grid backup-settings-inline backup-passphrase-row">
                                   <label class="field-label backup-passphrase-label">
                                     <span class="backup-passphrase-caption">Passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">At least 12 chars</span></span>
@@ -2237,7 +2246,7 @@
                             <li><b>Local Plembfin Backups</b><span>Creates a full encrypted export of the database and saved settings, including credentials and API keys. The browser encrypts it with your passphrase and Plembfin never stores the plaintext. Use at least 12 characters; a lost passphrase cannot be recovered.</span><span>Saving the passphrase lets scheduled backups run without an open browser. If it is not saved, only <b>Back Up Now</b> works.</span></li>
                             <li><b>Remote Destinations</b><span>Configures Backblaze B2 upload targets with their endpoint, bucket, and scoped application key. Every enabled destination receives remote backup copies.</span></li>
                             <li><b>Remote Watch History Backups</b><span>Mirrors watch-history snapshots to enabled remote destinations on their configured schedule and retention.</span></li>
-                            <li><b>Remote Plembfin Backups</b><span>Mirrors encrypted full backups remotely using the same passphrase and saved-passphrase setting as the local full backup.</span></li>
+                            <li><b>Remote Plembfin Backups</b><span>Mirrors encrypted full backups remotely using the same passphrase and saved-passphrase setting as the local full backup. Set the remote retention count here; it is independent of local retention.</span></li>
                           </ul>
                         </div>
                       </div>
@@ -2817,7 +2826,7 @@
                         </header>
 
                         <p class="about-build-line" aria-label="Build information">
-                          <span>Version <strong id="aboutCurrentVersion">v1.3.0</strong></span>
+                          <span>Version <strong id="aboutCurrentVersion">v1.3.1</strong></span>
                           <span class="about-build-separator" aria-hidden="true">·</span>
                           <span>Channel <strong id="aboutReleaseChannel">Latest</strong></span>
                         </p>
@@ -3066,7 +3075,7 @@
       </article>
     </div>
 
-    <script type="module" src="/modules/analytics.js?v=1.3.0.0.17"></script>
-    <script type="module" src="/app.js?v=1.3.0.0.17"></script>
+    <script type="module" src="/modules/analytics.js?v=1.3.1.0.1"></script>
+    <script type="module" src="/app.js?v=1.3.1.0.1"></script>
   </body>
 </html>

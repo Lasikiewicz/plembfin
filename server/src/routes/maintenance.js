@@ -1184,11 +1184,14 @@ function readLocalAlphaChangelog() {
 // Merges the bundled and the branch's alpha entries into one list, newest build
 // first. A build present in both keeps the richer copy (the one with details),
 // so an entry that was trimmed in one source is not the one that survives.
+// Entries are matched by version, not build number: the build counter restarts
+// at 1 every cycle, and until "Force to alpha" lands the branch still holds the
+// previous cycle's build 1, which must not swallow the bundled new one.
 export function mergeAlphaEntries(localEntries = [], remoteEntries = []) {
   const byBuild = new Map();
   for (const entry of [...(Array.isArray(remoteEntries) ? remoteEntries : []), ...(Array.isArray(localEntries) ? localEntries : [])]) {
     if (!entry) continue;
-    const key = String(entry.build ?? entry.version ?? "");
+    const key = String(entry.version ?? entry.build ?? "");
     const existing = byBuild.get(key);
     if (!existing) {
       byBuild.set(key, entry);

@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js?v=1.3.0.0.17";
-import { posterMarkup, hydratePosters } from "./images.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js?v=1.3.1.0.1";
+import { posterMarkup, hydratePosters } from "./images.js?v=1.3.1.0.1";
 
 let _cb = {};
 
@@ -484,7 +484,13 @@ function entryMarkup(episode) {
   const code = episodeCode(episode);
   const tooltipParts = [episode.showTitle, code];
   if (episode.episodeTitle) tooltipParts.push(episode.episodeTitle);
-  const posterItem = { poster_url: episode.posterUrl || "", title: episode.showTitle || "" };
+  const posterItem = {
+    media_type: "episode",
+    season: episode.season,
+    poster_url: episode.posterUrl || "",
+    season_poster_url: episode.seasonPosterUrl || "",
+    title: episode.showTitle || "",
+  };
   // The representative episode's watch-record id lets the standard poster
   // pipeline (/api/poster + hydratePosters) resolve cached artwork.
   if (episode.posterRecordId) posterItem.id = episode.posterRecordId;

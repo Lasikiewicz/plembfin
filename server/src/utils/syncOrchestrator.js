@@ -898,7 +898,12 @@ function summarizeResults(targets, results, policyStates = []) {
 
     if (result.value?.status === "not_found") {
       missingTargets.push(target);
-      targetStates.push({ target, status: "skipped", decision: TARGET_DECISIONS.UNSUPPORTED, detail: "No matching item found" });
+      targetStates.push({
+        target,
+        status: "skipped",
+        decision: TARGET_DECISIONS.UNSUPPORTED,
+        detail: result.value?.detail || "No matching item found",
+      });
       return;
     }
 

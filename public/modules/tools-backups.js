@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.3.0.0.17";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.3.0.0.17";
-import { applyAppearanceToBody } from "./appearance.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.3.1.0.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.3.1.0.1";
+import { applyAppearanceToBody } from "./appearance.js?v=1.3.1.0.1";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -215,6 +215,17 @@ function plembfinRestoreLog(job) {
   }
   return `Restore failed: ${job.error || "unknown error"}`;
 }
+async function showRestoreRecoveryOptions(options = []) {
+  const listedOptions = options.length
+    ? options.map((option, index) => `${index + 1}. ${option}`).join("\n\n")
+    : "Cancel and preserve the current database, or preserve its database and sidecar files, start with a clean database, and retry the backup.";
+  await _openConfirmDialog({
+    title: "Database corruption detected",
+    body: `Plembfin checked the current SQLite database before importing. The integrity check failed, so this restore was not started and no data was changed.\n\nRecovery options:\n${listedOptions}`,
+    confirmLabel: "Understood",
+    cancelLabel: "Close",
+  });
+}
 async function waitForPlembfinRestore(jobId) {
   let failures = 0;
   for (;;) {
@@ -249,7 +260,10 @@ async function runServerPlembfinRestore(target, passphrase) {
     body: JSON.stringify({ ...target, passphrase }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body.job) throw new Error(body.error || `Restore failed to start with ${response.status}`);
+  if (!response.ok || !body.job) {
+    if (body.code === "DATABASE_CORRUPT") await showRestoreRecoveryOptions(body.recoveryOptions);
+    throw new Error(body.error || `Restore failed to start with ${response.status}`);
+  }
   setBackupTransferState("Checking", "warning", plembfinRestoreLog(body.job), "restore");
   const job = await waitForPlembfinRestore(body.job.id);
   if (job.status !== "complete") throw new Error(job.error || "The restore failed.");
@@ -346,10 +360,10 @@ export function renderWatchBackups() {
   {
     elements.watchBackupEnabled && (elements.watchBackupEnabled.checked = Boolean(config.enabled));
     elements.watchBackupTime && (elements.watchBackupTime.value = config.time || "03:00");
-    elements.watchBackupRetention && (elements.watchBackupRetention.value = String(config.retention || 14));
+    elements.watchBackupRetention && (elements.watchBackupRetention.value = String(config.retention || 7));
     elements.remoteWatchBackupEnabled && (elements.remoteWatchBackupEnabled.checked = Boolean(config.remoteEnabled));
     elements.remoteWatchBackupTime && (elements.remoteWatchBackupTime.value = config.remoteTime || "03:00");
-    elements.remoteWatchBackupRetention && (elements.remoteWatchBackupRetention.value = String(config.remoteRetention || 14));
+    elements.remoteWatchBackupRetention && (elements.remoteWatchBackupRetention.value = String(config.remoteRetention || 7));
     setEnabledStatus(elements.watchBackupSummary, Boolean(config.enabled));
     setEnabledStatus(elements.remoteWatchBackupSummary, Boolean(config.remoteEnabled));
     const localPathEl = document.querySelector("#watchBackupLocalPath");
@@ -521,7 +535,7 @@ const DESTINATION_FORMS = {
         <li>Copy the <b>keyID</b> into <b>Key ID</b> and the <b>applicationKey</b> into <b>Application key</b>. Backblaze shows the application key only once.</li>
         <li>Choose <b>Test</b>, then tick <b>Enable</b> and save.</li>
       </ol>
-      <p class="tool-accordion-desc"><b>Tip:</b> B2 keeps old versions of a deleted file by default, so backups removed by retention still use space. In the bucket's <b>Lifecycle Settings</b>, choose <b>Keep only the last version of the file</b>.</p>
+      <p class="tool-accordion-desc"><b>Tip:</b> B2 keeps old versions of a deleted file by default, so backups removed by retention still use space. In the bucket's <b>Lifecycle Settings</b>, choose <b>Keep only the last version of the file</b>. If the bucket is shared, use a custom rule scoped to the Plembfin prefix. <a href="https://www.backblaze.com/docs/cloud-storage-configure-and-manage-lifecycle-rules" target="_blank" rel="noopener noreferrer">Backblaze lifecycle rule instructions</a>.</p>
       <p class="tool-accordion-desc">Plembfin stores the application key securely and never sends it back to the browser. More detail: <a href="https://www.backblaze.com/docs/cloud-storage-s3-compatible-api" target="_blank" rel="noopener noreferrer">Backblaze S3-compatible API</a>.</p>
     `,
   },
@@ -755,6 +769,7 @@ export function renderPlembfinBackups() {
   }
 
   elements.plembfinBackupRemoteEnabled && (elements.plembfinBackupRemoteEnabled.checked = Boolean(config.remoteEnabled));
+  elements.plembfinBackupRemoteRetention && (elements.plembfinBackupRemoteRetention.value = String(config.remoteRetention || config.retention || 7));
   if (elements.plembfinBackupRemoteRememberPassphrase) {
     elements.plembfinBackupRemoteRememberPassphrase.checked = Boolean(config.remoteRememberPassphrase || config.remotePassphraseStored);
   }
@@ -869,6 +884,7 @@ export async function savePlembfinBackupRemoteSettings() {
   const config = {
     ...state.plembfinBackups?.config,
     remoteEnabled: elements.plembfinBackupRemoteEnabled.checked,
+    remoteRetention: Number(elements.plembfinBackupRemoteRetention.value) || 7,
     remoteRememberPassphrase,
     remotePassphrase: remoteRememberPassphrase ? elements.plembfinBackupRemotePassphrase.value.trim() : "",
   };
@@ -1022,14 +1038,14 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.3.0.0.17");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.3.1.0.1");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     }
   } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
-    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.3.0.0.17");
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.3.1.0.1");
     if (state.activeMovieTmdbId) {
       openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
     } else if (state.activeMovieModalId) {
@@ -1048,7 +1064,7 @@ export async function saveWatchBackupSettings() {
     ...state.watchBackups?.config,
     enabled: elements.watchBackupEnabled.checked,
     time: elements.watchBackupTime.value || "03:00",
-    retention: Number(elements.watchBackupRetention.value) || 14,
+    retention: Number(elements.watchBackupRetention.value) || 7,
   };
   await postWatchBackupAction({ action: "configure", config });
   state.watchBackups = null;
@@ -1060,7 +1076,7 @@ export async function saveRemoteWatchBackupSettings() {
     ...state.watchBackups?.config,
     remoteEnabled: elements.remoteWatchBackupEnabled.checked,
     remoteTime: elements.remoteWatchBackupTime.value || "03:00",
-    remoteRetention: Number(elements.remoteWatchBackupRetention.value) || 14,
+    remoteRetention: Number(elements.remoteWatchBackupRetention.value) || 7,
   };
   await postWatchBackupAction({ action: "configure", config });
   state.watchBackups = null;

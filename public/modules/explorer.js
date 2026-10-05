@@ -1,4 +1,4 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
 import {
   state, elements, explorerCardModeKey,
   EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS,
@@ -6,24 +6,24 @@ import {
   HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS,
   HISTORY_VIEW_KEY, HISTORY_FILTER_KEY,
   HISTORY_VIEW_MODES, HISTORY_FILTERS,
-} from "./state.js?v=1.3.0.0.17";
+} from "./state.js?v=1.3.1.0.1";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode, appendRestInChunks,
-} from "./utils.js?v=1.3.0.0.17";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.3.0.0.17";
+} from "./utils.js?v=1.3.1.0.1";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.3.1.0.1";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
-} from "./sync.js?v=1.3.0.0.17";
-import { dedupeMediaRecords } from "./media-records.js?v=1.3.0.0.17";
-import { renderMediaCard } from "./media-card.js?v=1.3.0.0.17";
-import { renderDashboardHistoryPageCard } from "./dashboard.js?v=1.3.0.0.17";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.17";
-import { historyPosterOverlay } from "./history-poster-overlay.js?v=1.3.0.0.17";
-import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.3.0.0.17";
+} from "./sync.js?v=1.3.1.0.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.3.1.0.1";
+import { renderMediaCard } from "./media-card.js?v=1.3.1.0.1";
+import { renderDashboardHistoryPageCard } from "./dashboard.js?v=1.3.1.0.1";
+import { cardArtAttribute } from "./card-art.js?v=1.3.1.0.1";
+import { historyPosterOverlay } from "./history-poster-overlay.js?v=1.3.1.0.1";
+import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.3.1.0.1";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
 // ---------------------------------------------------------------------------
@@ -2153,16 +2153,23 @@ function showRecordDisplayTitle(show = {}) {
 function showLibraryPosterEntry(show = {}, latestEpisode = {}) {
   const showPoster = show.show_poster_url
     || show.canonical_poster_url
+    || show.poster_url
     || "";
   const entry = { ...show, ...(latestEpisode || {}) };
   if (showPoster) {
     // The card represents the series, even when its representative episode
-    // carries a different still. Keep the episode id/title for the card
-    // identity, but make the shared show artwork the explicit poster source.
+    // carries season artwork. Keep the episode id/title for the card identity,
+    // but make the shared show artwork the explicit poster source.
     entry.poster_url = showPoster;
-    entry.show_poster_url = showPoster;
-    entry.canonical_poster_url = showPoster;
+    entry.show_poster_url = show.show_poster_url || showPoster;
+    entry.canonical_poster_url = show.canonical_poster_url || showPoster;
+    entry.season_poster_url = "";
+    entry.prefer_show_poster = true;
     entry.prefer_raw_poster = true;
+  } else {
+    // Do not let the latest episode's season poster replace the artwork of
+    // this show-level library card when no shared poster has been resolved.
+    entry.season_poster_url = "";
   }
   return entry;
 }
@@ -2239,6 +2246,8 @@ export function renderShowRecord(show = {}) {
     show_imdb_id: show.show_imdb_id || show.imdb_id || latestEpisode?.show_imdb_id || "",
     poster_url: libraryPosterEntry.poster_url || "",
     show_poster_url: libraryPosterEntry.show_poster_url || libraryPosterEntry.poster_url || "",
+    season_poster_url: "",
+    prefer_show_poster: true,
     watched_at: latestWatchedAt,
   };
   const attributes = ` data-alpha-letter="${escapeAttribute(firstAlphaLetter(displayTitle))}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""}`;

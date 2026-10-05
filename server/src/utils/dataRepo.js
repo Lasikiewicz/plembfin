@@ -10,7 +10,7 @@ import { buildWatchProvenance, normalizeProviderOverrides, normalizeWatchProvena
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { episodeNameFromSeason, isPlaceholderEpisodeTitleValue, resolvedEpisodeTitleForRecord } from "./episodeTitleRepair.js";
-import { getCanonicalPosterUrl, saveCanonicalPoster } from "./mediaArtwork.js";
+import { getCanonicalPosterUrl, getCanonicalSeasonPosterUrls, saveCanonicalPoster } from "./mediaArtwork.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -3583,7 +3583,7 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   // result until the version moves.
   const previewVersion = getDataVersion();
   if (historyPreviewCache.version === previewVersion && historyPreviewCache.rows.has(safeLimit)) {
-    return historyPreviewCache.rows.get(safeLimit);
+    return withSeasonPosterArtwork(historyPreviewCache.rows.get(safeLimit));
   }
   // The build yields part-way, so share one build between concurrent callers
   // (the background warm-up and a dashboard request) instead of running two.
@@ -3601,7 +3601,7 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
       if (historyPreviewCache.version !== previewVersion) historyPreviewCache = { version: previewVersion, rows: new Map() };
       historyPreviewCache.rows.set(safeLimit, combined);
     }
-    return combined;
+    return withSeasonPosterArtwork(combined);
   } finally {
     if (historyPreviewBuilds.get(buildKey) === pending) historyPreviewBuilds.delete(buildKey);
   }
@@ -3666,6 +3666,29 @@ async function buildHistoryPreview(all, safeLimit) {
   const combined = [...tvDeduped, ...movieDeduped];
   combined.sort((a, b) => b.watched_at.localeCompare(a.watched_at));
   return combined;
+}
+
+function withSeasonPosterArtwork(rows = []) {
+  const seasonPostersByShow = new Map();
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    if (row?.media_type !== "episode" || row.season == null) return row;
+    const identity = {
+      media_type: "tv",
+      title: row.show_title || showTitleFrom(row.title),
+      tmdb_id: row.show_tmdb_id || "",
+      tvdb_id: row.show_tvdb_id || "",
+      imdb_id: row.show_imdb_id || "",
+    };
+    if (!identity.tmdb_id && !identity.tvdb_id) return row;
+    const identityKey = `${identity.tmdb_id}|${identity.tvdb_id}|${identity.imdb_id}`;
+    let seasonPosters = seasonPostersByShow.get(identityKey);
+    if (!seasonPosters) {
+      seasonPosters = getCanonicalSeasonPosterUrls(identity);
+      seasonPostersByShow.set(identityKey, seasonPosters);
+    }
+    const poster = seasonPosters.get(Number(row.season));
+    return poster ? { ...row, season_poster_url: poster } : row;
+  });
 }
 
 function dispatchStatusFromTelemetry(value = "") {
@@ -6290,6 +6313,7 @@ async function enrichHistoryRowsWithShowArtwork(rows = []) {
   if (!episodeRows.length) return movieEnriched;
 
   const { byId, byMediaKey, byCoordinate } = await getCachedHistoryArtworkIndex();
+  const seasonPostersByGroup = new Map();
 
   return movieEnriched.map((row) => {
     if (row?.media_type !== "episode") return row;
@@ -6302,8 +6326,24 @@ async function enrichHistoryRowsWithShowArtwork(rows = []) {
       || (coordinateKey ? byCoordinate.get(coordinateKey) : null);
     if (!group) return row;
     const showPosterUrl = group.show_poster_url || group.poster_url || null;
+    let seasonPosterUrl = row.season_poster_url || null;
+    if (!seasonPosterUrl && row.season != null) {
+      let seasonPosters = seasonPostersByGroup.get(group);
+      if (!seasonPosters) {
+        seasonPosters = getCanonicalSeasonPosterUrls({
+          media_type: "tv",
+          title: group.title,
+          tmdb_id: group.tmdb_id,
+          tvdb_id: group.tvdb_id,
+          imdb_id: group.imdb_id,
+        });
+        seasonPostersByGroup.set(group, seasonPosters);
+      }
+      seasonPosterUrl = seasonPosters.get(Number(row.season)) || null;
+    }
     return {
       ...row,
+      season_poster_url: seasonPosterUrl,
       show_poster_url: row.show_poster_url || showPosterUrl,
       show_imdb_id: row.show_imdb_id || group.imdb_id || null,
       show_tmdb_id: row.show_tmdb_id || group.tmdb_id || null,

@@ -8,11 +8,11 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=1.3.0.0.17";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.3.0.0.17";
-import { cardArtAttribute } from "./card-art.js?v=1.3.0.0.17";
+} from "./utils.js?v=1.3.1.0.1";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.3.1.0.1";
+import { cardArtAttribute } from "./card-art.js?v=1.3.1.0.1";
 // With Posters only on, a clicked poster opens its card (Discover, Watchlist, Ratings, Playlists).
-import "./page-card-open.js?v=1.3.0.0.17";
+import "./page-card-open.js?v=1.3.1.0.1";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();
@@ -58,11 +58,13 @@ function mediaYear(item = {}) {
 function mediaPoster(item = {}, type = "movie") {
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.poster || "";
   const showPoster = item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "";
+  const seasonPoster = item.season_poster_url || item.seasonPosterUrl || "";
   // A TV/show card represents the series, so a saved show override must win
   // over the stale poster that may still be carried by a personal-media row.
-  // Episode cards are the exception: their own poster can be a still and must
-  // remain independent from the show's shared poster.
+  // Episode cards use their season's poster when known, then their own image;
+  // neither should overwrite the shared poster selected for the show.
   if (type === "tv" && showPoster) return proxiedArtworkUrl(showPoster, "poster");
+  if (type === "episode" && seasonPoster) return proxiedArtworkUrl(seasonPoster, "poster");
   if (raw) return proxiedArtworkUrl(raw, "poster");
   if (showPoster) return proxiedArtworkUrl(showPoster, "poster");
   const path = item.poster_path || item.posterPath || "";

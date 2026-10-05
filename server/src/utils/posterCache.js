@@ -13,7 +13,7 @@ const MAX_ARTWORK_BYTES = 10 * 1024 * 1024;
 
 function cacheIdFor(mediaKey = "", variant = "poster") {
   const key = variant === "poster" ? mediaKey : `${mediaKey}:${variant}`;
-  return crypto.createHash("sha1").update(String(key || "unknown")).digest("hex");
+  return crypto.createHash("sha256").update(String(key || "unknown")).digest("hex");
 }
 
 function extensionForContentType(contentType = "") {
@@ -50,6 +50,10 @@ function freshNegativeCache(data = {}) {
 }
 
 const selectStmt = db.prepare("SELECT * FROM poster_cache WHERE id = ?");
+const selectByMediaAndVariantStmt = db.prepare(
+  "SELECT id FROM poster_cache WHERE media_key = ? AND variant = ? ORDER BY updated_at_ms DESC LIMIT 1",
+);
+const updateIdStmt = db.prepare("UPDATE poster_cache SET id = ? WHERE id = ?");
 const upsertStmt = db.prepare(
   `INSERT INTO poster_cache (id, media_key, variant, status, source, detail, original_url, storage_path, content_type, size_bytes, url, updated_at_ms)
    VALUES (@id, @media_key, @variant, @status, @source, @detail, @original_url, @storage_path, @content_type, @size_bytes, @url, @updated_at_ms)
@@ -58,6 +62,17 @@ const upsertStmt = db.prepare(
      storage_path=COALESCE(excluded.storage_path, storage_path), content_type=COALESCE(excluded.content_type, content_type),
      size_bytes=COALESCE(excluded.size_bytes, size_bytes), url=COALESCE(excluded.url, url), updated_at_ms=excluded.updated_at_ms`,
 );
+
+function currentCacheIdFor(mediaKey = "", variant = "poster") {
+  const id = cacheIdFor(mediaKey, variant);
+  const existing = selectByMediaAndVariantStmt.get(mediaKey, variant);
+  if (existing && existing.id !== id) {
+    // Keep poster-cache rows created with the old digest, including their
+    // cached file paths, when upgrading the identifier algorithm.
+    updateIdStmt.run(id, existing.id);
+  }
+  return id;
+}
 
 function rowToCache(row) {
   if (!row) return null;
@@ -79,7 +94,7 @@ function rowToCache(row) {
 
 export async function getPosterCache(mediaKey = "", variant = "poster") {
   if (!mediaKey) return null;
-  return rowToCache(selectStmt.get(cacheIdFor(mediaKey, variant)));
+  return rowToCache(selectStmt.get(currentCacheIdFor(mediaKey, variant)));
 }
 
 export function usableCachedPoster(cache = {}) {
@@ -96,7 +111,7 @@ export function usableCachedPoster(cache = {}) {
 export async function markPosterMissing(mediaKey = "", source = "unknown", detail = "", variant = "poster") {
   if (!mediaKey) return;
   upsertStmt.run({
-    id: cacheIdFor(mediaKey, variant),
+    id: currentCacheIdFor(mediaKey, variant),
     media_key: mediaKey,
     variant,
     status: "missing",
@@ -151,7 +166,7 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
       console.warn("Artwork optimization via sharp failed, falling back to original buffer", resizeError);
     }
 
-    const cacheId = cacheIdFor(mediaKey, variant);
+    const cacheId = currentCacheIdFor(mediaKey, variant);
     const storageFolder = variant === "backdrop" ? "backdrops" : variant === "profile" ? "profiles" : variant === "logo" ? "logos" : "posters";
     const storagePath = `${storageFolder}/${cacheId}.${extension}`;
     const absolutePath = path.join(MEDIA_DIR, storagePath);
@@ -185,7 +200,7 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
     if (!escapesMediaDir && existsSync(absolutePath)) {
       try {
         const stat = await fs.stat(absolutePath).catch(() => null);
-        const cacheId = cacheIdFor(mediaKey, variant);
+        const cacheId = currentCacheIdFor(mediaKey, variant);
         const extension = path.extname(storagePath).replace(/^\./, "");
         const contentType = extension === "webp" ? "image/webp" : extension === "png" ? "image/png" : "image/jpeg";
         upsertStmt.run({
@@ -261,7 +276,7 @@ export async function cacheArtworkFromUrl(mediaKey = "", remoteUrl = "", source 
 async function markPosterFailure(mediaKey = "", source = "unknown", detail = "", remoteUrl = "", variant = "poster") {
   if (!mediaKey) return;
   upsertStmt.run({
-    id: cacheIdFor(mediaKey, variant),
+    id: currentCacheIdFor(mediaKey, variant),
     media_key: mediaKey,
     variant,
     status: "failed",

@@ -59,9 +59,10 @@ and 2026) keeps its own next-up card and cannot hold back or replace the other s
 one-card-per-show collapse of provider next-up rows splits on the same rule. A local fallback
 episode is included only when an active provider observation confirms that exact show and
 season/episode coordinate exists in a connected media-server library; local history and metadata
-alone do not create a Watch now card. Resume cards always come first and are ordered by authoritative
-progress-update time; next-up cards then prioritize the show whose episode was watched most
-recently, with show/season/episode order as the deterministic tie-breaker. A matching
+alone do not create a Watch now card. Resume cards always come first and are ordered newest-first
+by the parsed authoritative progress-update time, so the last part-watched item stays at the front
+even when a timestamp is stored as date text. Next-up cards then prioritize the show whose episode
+was watched most recently, with show/season/episode order as the deterministic tie-breaker. A matching
 resume and next-up observation becomes one resume card. An episode listed in a provider's
 Continue Watching or Resume rail with no playback position (Plex lists the next episode there
 with no offset) is a `next_up` card, not a 0% resume; any real position keeps it a resume. The builder is bounded to the most
@@ -100,8 +101,11 @@ in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dash
 request `/api/up-next?revalidate=1`: a stale snapshot is returned while one background
 rebuild runs, and a changed projection advances the `up_next` cache generation. The
 `/api/live-updates` stream announces that generation with `up-next-version`; history-version
-events also refresh Up Next after watched/progress changes. Existing cards remain painted
-while a refresh is in flight, then the refreshed snapshot is reconciled into the rail.
+events also refresh Up Next after watched/progress changes. When the page becomes visible, regains
+focus, returns from the back/forward cache, or comes back online, the active history-derived view
+revalidates even if its shared version did not change; the dashboard also refreshes Up Next.
+Existing cards remain painted while a refresh is in flight, then the refreshed snapshot is
+reconciled into the rail.
 Background revalidation is limited to once per ten minutes per process. Retained local logs
 measured 27 completed rebuilds over 29.95 hours (0.90/hour, 26.24-minute median interval),
 so the measured 1.99-second projection cost is infrequent background work rather than a
@@ -258,6 +262,8 @@ Each card shows poster, platform badge, sync-status pill, and links into the med
 detail page ([media-detail.md](media-detail.md)). On episode cards the Season/Ep line sits
 directly under the episode name, and "Last Played" sits directly above the app used. Up next
 cards show no availability line; a resume card's progress bar sits above its Watch now apps.
+When season artwork is cached, episode cards use the poster for their own season. The TV Shows
+library and the show detail header continue to use the shared series poster.
 The Explorer's cards (Movies and TV Shows pages, built by the same renderer) keep "Watched
 Twice" / "Watched N Times" under "Last Played" (`actualWatchLabel` in `dashboard.js`, driven by
 `watch_count`, falling back to `playHistory.length`, as on the movie detail page's rewatch

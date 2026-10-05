@@ -12,8 +12,8 @@
 // version and never raises an update prompt - the server forces
 // alphaBuild.newerBuildAvailable false off the alpha channel for exactly that
 // reason.
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeAttribute, escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.3.0.0.17";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeAttribute, escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.3.1.0.1";
 
 export { formatBuildVersion };
 
@@ -374,7 +374,11 @@ export async function renderChangelog(force = false) {
     };
 
     const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
-      const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
+      // Build numbers restart every cycle, so an earlier cycle's build 1 must not
+      // be tagged Current just because the running build is also build 1.
+      const entryBase = baseVersionOf(entry.version);
+      const sameCycle = !entryBase || entryBase === baseVersionOf(data.alphaBuild?.baseVersion);
+      const isCurrent = !pending && sameCycle && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";

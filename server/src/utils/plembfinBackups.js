@@ -42,6 +42,9 @@ function safeConfig(value = {}, previous = {}) {
     enabled: Boolean(value.enabled),
     time,
     retention: Math.max(1, Math.min(Number(value.retention) || 7, 365)),
+    // Preserve the previous shared retention value for existing installs, then
+    // keep local and remote full-backup retention independent from this point on.
+    remoteRetention: Math.max(1, Math.min(Number(value.remoteRetention ?? value.retention) || 7, 365)),
     rememberPassphrase,
     passphrase: rememberPassphrase ? passphrase || String(previous.passphrase || "").trim() : "",
     remoteEnabled: Boolean(value.remoteEnabled),
@@ -253,7 +256,7 @@ export async function createPlembfinBackup({ reason = "manual", passphrase, forc
   let remoteStatus = {};
   if (config.remoteEnabled || forceRemote) {
     try {
-      const statuses = await pushBackupToRemotes(destination, filename, config.retention);
+      const statuses = await pushBackupToRemotes(destination, filename, config.remoteRetention);
       result.remotes = statuses;
       if (statuses.length) {
         const succeeded = statuses.filter((s) => s.status === "success");

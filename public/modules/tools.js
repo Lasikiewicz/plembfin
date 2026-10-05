@@ -1,12 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=1.3.0.0.17";
-import { initBackupTools } from "./tools-backups.js?v=1.3.0.0.17";
-import { initMaintenanceTools } from "./tools-maintenance.js?v=1.3.0.0.17";
-import { initHealthTools } from "./tools-health.js?v=1.3.0.0.17";
-import { initDuplicateWatchTools } from "./tools-duplicates.js?v=1.3.0.0.17";
-import { initWipeDataTools } from "./tools-wipe-data.js?v=1.3.0.0.17";
-import { initPlaystateAliasTools } from "./tools-playstate-aliases.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=1.3.1.0.1";
+import { initBackupTools } from "./tools-backups.js?v=1.3.1.0.1";
+import { initMaintenanceTools } from "./tools-maintenance.js?v=1.3.1.0.1";
+import { initHealthTools } from "./tools-health.js?v=1.3.1.0.1";
+import { initDuplicateWatchTools } from "./tools-duplicates.js?v=1.3.1.0.1";
+import { initWipeDataTools } from "./tools-wipe-data.js?v=1.3.1.0.1";
+import { initPlaystateAliasTools } from "./tools-playstate-aliases.js?v=1.3.1.0.1";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -74,10 +74,10 @@ export {
   setBackupTransferState,
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
-} from "./tools-backups.js?v=1.3.0.0.17";
-export { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./appearance.js?v=1.3.0.0.17";
-export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=1.3.0.0.17";
-export { loadSyncHealth } from "./tools-health.js?v=1.3.0.0.17";
+} from "./tools-backups.js?v=1.3.1.0.1";
+export { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./appearance.js?v=1.3.1.0.1";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=1.3.1.0.1";
+export { loadSyncHealth } from "./tools-health.js?v=1.3.1.0.1";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
   const selectedFiles = [...files];
@@ -349,9 +349,9 @@ export async function startImport() {
 // ── Maintenance tools ──────────────────────────────────────────────────────
 // History repair, dedup, Trakt backfill, full-sync, and system integrity
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
-// re-exported here so existing imports of these names from "./tools.js?v=1.3.0.0.17"
+// re-exported here so existing imports of these names from "./tools.js?v=1.3.1.0.1"
 // keep working unchanged.
-export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=1.3.0.0.17";
-export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=1.3.0.0.17";
-export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=1.3.0.0.17";
-export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=1.3.0.0.17";
+export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=1.3.1.0.1";
+export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=1.3.1.0.1";
+export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=1.3.1.0.1";
+export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=1.3.1.0.1";

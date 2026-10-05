@@ -117,7 +117,8 @@ series resolution and one `allLeaves` fetch populate the coordinate map for a bu
 sibling episodes, and concurrent callers join the same in-flight lookup. Exact item keys
 remain coordinate-specific and TTL-bounded. APIs that inspect current `viewCount` or
 container state continue to fetch fresh Plex data instead of treating the identity index
-as watched-state authority.
+as watched-state authority. When a mutation misses an exact episode, Plembfin invalidates
+the series index and retries once before reporting the destination skipped.
 
 Two Plex-specific caveats (also in [webhooks.md](webhooks.md)):
 
@@ -240,8 +241,9 @@ resolution, add, and remove operations to the watchlist worker. Its requests use
 in a query string. The adapter supports duplicate-safe provider identity matching and
 returns an unavailable/ambiguous result instead of guessing a write target.
 
-A `not_found` result from a mark-played call is reported as "skipped - no matching item"
-in sync telemetry rather than an error: the item simply isn't in that server's library.
+A `not_found` result from a mark-played call is reported as a skipped destination with
+its no-match reason in sync telemetry rather than as an error. An episode miss includes
+the result of the one refreshed series-index lookup.
 
 ## Artwork
 

@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.3.0.0.17";
-import { state, elements } from "./state.js?v=1.3.0.0.17";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformName, platformIconMarkup } from "./utils.js?v=1.3.0.0.17";
-import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.3.0.0.17";
+import { buildAuthHeaders } from "./auth.js?v=1.3.1.0.1";
+import { state, elements } from "./state.js?v=1.3.1.0.1";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformName, platformIconMarkup } from "./utils.js?v=1.3.1.0.1";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.3.1.0.1";
 
 const REFRESH_MS = 15000;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -273,10 +273,10 @@ function isActive() {
 // dispatch as Plex here. Sync activity names trackers as well as servers, so it
 // resolves platforms itself.
 const PLATFORMS = {
-  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.3.0.0.17" },
-  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.3.0.0.17" },
-  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.3.0.0.17" },
-  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.3.0.0.17" },
+  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.3.1.0.1" },
+  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.3.1.0.1" },
+  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.3.1.0.1" },
+  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.3.1.0.1" },
   plembfin: { name: "Plembfin", icon: "" },
 };
 
@@ -298,7 +298,7 @@ function platformIcon(platform, className = "sync-activity-icon") {
   return `<img class="${className}" src="${escapeAttribute(platform.icon)}" alt="${escapeAttribute(platform.name)}" loading="eager" decoding="async" />`;
 }
 
-export function targetResults(entry = {}, { failedOnly = false, showDetails = false } = {}) {
+export function targetResults(entry = {}, { failedOnly = false, showDetails = false, showSkipReasons = false } = {}) {
   const allTargets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
   const targets = failedOnly
     ? allTargets.filter((target) => ["error", "failed"].includes(String(target.status || "").toLowerCase()))
@@ -315,9 +315,13 @@ export function targetResults(entry = {}, { failedOnly = false, showDetails = fa
       const status = String(target.status || "unknown").toLowerCase();
       const tone = status === "success" ? "success" : ["error", "failed"].includes(status) ? "error" : "pending";
       const platform = activityPlatform(target.target);
-      const detail = target.detail ? String(target.detail) : "";
+      const recordedDetail = target.detail ? String(target.detail) : "";
+      const showTargetDetail = showDetails || (showSkipReasons && status === "skipped");
+      const detail = showTargetDetail
+        ? recordedDetail || (status === "skipped" ? "No reason was recorded." : "")
+        : recordedDetail;
       const label = `${platform.name} ${status}${detail ? ` - ${detail}` : ""}`;
-      if (showDetails) {
+      if (showTargetDetail) {
         return `<span class="sync-activity-target sync-activity-target--detailed" data-status="${tone}" title="${escapeAttribute(label)}"><span class="sync-activity-target-name">${platformIcon(platform)}<span>${escapeHtml(platform.name)}:</span></span><span class="sync-activity-target-status">${escapeHtml(status)}</span>${detail ? `<span class="sync-activity-target-detail">- ${escapeHtml(detail)}</span>` : ""}</span>`;
       }
       return `<span class="sync-activity-target" data-status="${tone}" title="${escapeAttribute(label)}">${platformIcon(platform)}<span>${escapeHtml(status)}</span></span>`;
@@ -573,7 +577,7 @@ function syncActivityCurrentResultRow(entry = {}) {
     <div class="sync-activity-current-result" data-status="${tone}">
       <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
       <strong>${escapeHtml(eventLabel)}</strong>
-      <span class="sync-activity-inline-targets">${targetResults(entry)}</span>
+      <span class="sync-activity-inline-targets">${targetResults(entry, { showSkipReasons: true })}</span>
       <time class="sync-activity-current-result-time">${escapeHtml(formatDate(entry.timestamp))}</time>
       <span class="status-pill ${statusClass}">${escapeHtml(status)}</span>
     </div>
@@ -773,6 +777,9 @@ function renderGroupEvents(groupKey, payload, container) {
     : loadedEvents.filter((entry) => !currentActivityEntry(entry) && isFailedSyncActivityEntry(entry));
   const issueCount = Math.max(Number(group.problemCount) || 0, currentIssueEvents.length);
   const currentResultCount = currentEvents.length || Math.max(Number(group.currentItemCount) || 0, 0);
+  const skippedDestinationCount = currentEvents.reduce((count, entry) => count + (Array.isArray(entry.targetStates)
+    ? entry.targetStates.filter((target) => String(target?.status || "").toLowerCase() === "skipped").length
+    : 0), 0);
   const olderButton = pagination.hasNext
     ? `<button class="button-ghost sync-activity-group-more" type="button" data-sync-activity-group-more="${escapeAttribute(groupKey)}" data-sync-activity-group-page="${Number(pagination.page || 1) + 1}" data-sync-activity-group-latest-only="0">Load older failed audit records</button>`
     : "";
@@ -798,7 +805,9 @@ function renderGroupEvents(groupKey, payload, container) {
       <section class="sync-activity-current-results" aria-label="Current sync results">
         <div class="sync-activity-current-section-heading">
           <b>Current results</b>
-          <span>${escapeHtml(pluralLabel(currentResultCount, "item"))} · no current issues</span>
+          <span>${escapeHtml(pluralLabel(currentResultCount, "item"))} · ${skippedDestinationCount
+            ? escapeHtml(pluralLabel(skippedDestinationCount, "skipped destination"))
+            : "no current issues"}</span>
         </div>
         <div class="sync-activity-current-result-list">
           ${currentEvents.length ? currentEvents.map(syncActivityCurrentResultRow).join("") : `<div class="empty-log"><b>No current results</b><span>Refresh the page and try again.</span></div>`}

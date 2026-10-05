@@ -96,14 +96,34 @@ async function findEmbyItemsForMutation(config, media = {}) {
   const direct = nativeEmbyItems(media);
   if (direct.length) return direct;
   const cache = media?.restoreLookupCache;
-  if (cache && typeof cache.resolve === "function") {
-    return cache.resolve(
+  const items = cache && typeof cache.resolve === "function"
+    ? await cache.resolve(
       restoreLookupKey("emby", config, media),
       media,
       () => findEmbyItems(config, media),
-    );
-  }
-  return findEmbyItems(config, media);
+    )
+    : await findEmbyItems(config, media);
+  if (items?.length || media.type !== "episode" || media.__identityRetry) return items || [];
+
+  // A cached series episode list can predate an item added or reindexed in
+  // Emby. Refresh once on an exact episode miss before reporting not_found.
+  traceLog("Emby episode lookup missed; refreshing the cached series index", {
+    title: media.title,
+    season: media.season,
+    episode: media.episode,
+  });
+  invalidateEmbySeriesIdentity(config, media);
+  return findEmbyItemsForMutation(config, { ...media, __identityRetry: true });
+}
+
+function noMatchingLibraryItem(platform, media = {}) {
+  return {
+    platform,
+    status: "not_found",
+    detail: media.type === "episode"
+      ? "No matching episode was found after refreshing the series episode list"
+      : "No matching item found",
+  };
 }
 
 function extractYear(title) {
@@ -439,7 +459,7 @@ export async function markEmbyPlayed(config, media) {
     const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
-      return { platform: "emby", status: "not_found" };
+      return noMatchingLibraryItem("emby", media);
     }
 
     const datePlayed = embyDatePlayedParam(media);
@@ -499,7 +519,7 @@ export async function markEmbyUnplayed(config, media) {
     const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
-      return { platform: "emby", status: "not_found" };
+      return noMatchingLibraryItem("emby", media);
     }
 
     let lastHttpStatus = 200;
@@ -541,7 +561,7 @@ export async function setEmbyProgress(config, media) {
     const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
-      return { platform: "emby", status: "not_found" };
+      return noMatchingLibraryItem("emby", media);
     }
 
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));
