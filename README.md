@@ -165,7 +165,7 @@ before they're officially released.
 | `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, least tested | Contributors and the most adventurous testers |
 
 Each channel shows its own version in the sidebar and **About**. Develop builds
-include the current release version and cycle number (for example, `0.16.0 Build 1`). See
+include the current release version and cycle number (for example, `1.3.1 Build 1`). See
 [`CHANGELOG.md`](CHANGELOG.md) for numbered releases, and
 [`docs/development.md`](docs/development.md) for how the three channels relate.
 
@@ -263,7 +263,7 @@ configured.
 
 Testers running the `alpha` channel can download its matching Windows installer from the
 [GitHub Releases](https://github.com/Lasikiewicz/plembfin/releases) page. Alpha installers
-are marked as prereleases with tags such as `v1.0.0-alpha.1`; the `latest` release remains
+are marked as prereleases with tags such as `v1.3.1-alpha.1`; the `latest` release remains
 the stable `main` installer.
 
 Each alpha and stable build also publishes a formatted GitHub Release with its categorized

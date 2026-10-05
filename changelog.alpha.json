@@ -1,8 +1,84 @@
 {
   "baseVersion": "1.3.1",
-  "build": 0,
-  "version": "1.3.1.0.0",
-  "updatedAt": "2026-09-30T19:20:40.200Z",
+  "build": 1,
+  "version": "1.3.1.1.0",
+  "updatedAt": "2026-10-05T20:05:03.929Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "1.3.1.1.0",
+      "shortVersion": "1.3.1.1.0",
+      "date": "2026-10-05T20:05:03.929Z",
+      "commit": "92ad9eceb0b3c917c4e5236011f1afe2b62db42f",
+      "message": "Improve sync recovery and backup controls, harden artwork caching, and add configurable Windows ports.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Choose a dashboard port during Windows installation or upgrade, with the setting applied to the service, tray, shortcuts, and optional firewall rule.",
+        "Fix: Use SHA-256 poster-cache IDs and re-key existing cache rows without losing stored artwork.",
+        "Fix: Check SQLite integrity before a full restore and explain recovery options when the database is corrupt.",
+        "Fix: Refresh Resume and Up Next after focus or connectivity returns, and sort resume cards by the latest parsed progress update.",
+        "Fix: Retry an episode mutation once after refreshing stale series indexes for Plex, Emby, and Jellyfin.",
+        "Fix: Show the final provider reason when a destination is skipped in Sync Activity.",
+        "Fix: Start media details at the top of their scroll area.",
+        "Tweak: Set separate retention periods for local and remote full backups.",
+        "Tweak: Default backup retention to seven days."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Choose a dashboard port during Windows installation or upgrade, with the setting applied to the service, tray, shortcuts, and optional firewall rule."
+        ],
+        "majorBugFixes": [
+          "Use SHA-256 poster-cache IDs and re-key existing cache rows without losing stored artwork.",
+          "Check SQLite integrity before a full restore and explain recovery options when the database is corrupt.",
+          "Refresh Resume and Up Next after focus or connectivity returns, and sort resume cards by the latest parsed progress update.",
+          "Retry an episode mutation once after refreshing stale series indexes for Plex, Emby, and Jellyfin.",
+          "Show the final provider reason when a destination is skipped in Sync Activity.",
+          "Start media details at the top of their scroll area."
+        ],
+        "tweaks": [
+          "Set separate retention periods for local and remote full backups.",
+          "Default backup retention to seven days."
+        ]
+      },
+      "sectionGroups": {
+        "newFeatures": [
+          {
+            "title": "Sync & connection recovery",
+            "details": [
+              "Choose a dashboard port during Windows installation or upgrade, with the setting applied to the service, tray, shortcuts, and optional firewall rule."
+            ]
+          }
+        ],
+        "majorBugFixes": [
+          {
+            "title": "Up Next & watch-state",
+            "details": [
+              "Refresh Resume and Up Next after focus or connectivity returns, and sort resume cards by the latest parsed progress update."
+            ]
+          },
+          {
+            "title": "Sync & provider recovery",
+            "details": [
+              "Use SHA-256 poster-cache IDs and re-key existing cache rows without losing stored artwork.",
+              "Check SQLite integrity before a full restore and explain recovery options when the database is corrupt.",
+              "Retry an episode mutation once after refreshing stale series indexes for Plex, Emby, and Jellyfin.",
+              "Show the final provider reason when a destination is skipped in Sync Activity.",
+              "Start media details at the top of their scroll area."
+            ]
+          }
+        ],
+        "tweaks": [
+          {
+            "title": "Sync & connection recovery",
+            "details": [
+              "Set separate retention periods for local and remote full backups.",
+              "Default backup retention to seven days."
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "shortVersion": "1.3.1.1.0"
 }

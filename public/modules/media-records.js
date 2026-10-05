@@ -1,4 +1,4 @@
-import { slug } from "./utils.js?v=1.3.1.0.1";
+import { slug } from "./utils.js?v=1.3.1.1.0";
 
 function stablePosterIdentity(value = "") {
   const raw = String(value || "").trim();
