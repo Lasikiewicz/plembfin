@@ -1,7 +1,26 @@
 {
-  "version": "1.3.1.0.0",
-  "build": 0,
+  "version": "1.3.1.0.1",
+  "build": 1,
   "resetCommit": "85155ca7887abe964d0f645eb5b9e1a9b872a857",
-  "updatedAt": "2026-09-30T19:20:40.200Z",
-  "entries": []
+  "updatedAt": "2026-10-05T18:17:33.601Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-10-05T18:17:33.601Z",
+      "commit": "e4591d46f1030358e871bd2363961222ff3f0f04",
+      "message": "Security - Harden artwork cache and recovery",
+      "author": "Lasikiewicz",
+      "details": [
+        "Poster cache IDs use SHA-256, and existing cache rows rekey without losing stored artwork.",
+        "Full restore checks the current SQLite database before import and explains recovery options if it is corrupt.",
+        "Windows setup lets users choose a dashboard port during install or upgrade and applies it across the service, tray, shortcuts, and optional firewall rule.",
+        "Resume and Up Next refresh when the app returns to focus or connectivity; resume cards sort by the latest parsed progress update.",
+        "Plex, Emby, and Jellyfin retry an episode mutation once after refreshing stale series indexes.",
+        "Sync Activity shows the final provider reason when a destination is skipped.",
+        "Local and remote full backups can use independent retention periods.",
+        "Backup retention defaults to seven days.",
+        "Media detail information begins at the top of its scroll area."
+      ]
+    }
+  ]
 }
