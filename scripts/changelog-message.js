@@ -100,7 +100,9 @@ export function filterChangelogEntries(entries = []) {
   if (!Array.isArray(entries)) return [];
 
   return entries
-    .filter((entry) => entry && !isChangelogProcessMessage(entry.message))
+    // Tooling-only alpha builds are useful to current alpha testers but do not
+    // describe product changes and must never enter a stable release entry.
+    .filter((entry) => entry && entry.toolingOnly !== true && !isChangelogProcessMessage(entry.message))
     .map((entry) => ({
       ...entry,
       details: filterChangelogDetails(entry.details),
@@ -351,12 +353,12 @@ function bulletsOf(entry = {}) {
 // reviewed cycle rather than silently dropping valid changes. The per-push
 // consolidation rule is enforced separately by scripts/check-pending-commits.js,
 // which keeps the rolling entry from growing through sheer commit sprawl.
-export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANGELOG_MAX_BULLETS, boundary = "release" } = {}) {
+export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANGELOG_MAX_BULLETS, minBullets = CHANGELOG_MIN_BULLETS, boundary = "release" } = {}) {
   const violations = [];
   const bullets = bulletsOf(entry);
 
-  if (bullets.length < CHANGELOG_MIN_BULLETS) {
-    violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${CHANGELOG_MIN_BULLETS}`);
+  if (bullets.length < minBullets) {
+    violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${minBullets}`);
   }
   if (Number.isFinite(maxBullets) && bullets.length > maxBullets) {
     violations.push(boundary === "alpha"

@@ -20,6 +20,14 @@ on:
           - release
           - alpha
           - develop
+      build_type:
+        description: "Installer test skips the application build gate and never publishes a release"
+        required: true
+        default: standard
+        type: choice
+        options:
+          - standard
+          - installer-test
 
 concurrency:
   group: windows-installer-${{ github.ref_name }}
@@ -56,6 +64,7 @@ jobs:
           node -e "const Database=require('better-sqlite3'); const sharp=require('sharp'); const db=new Database(':memory:'); const row=db.prepare('SELECT 1 AS ok').get(); db.close(); (async()=>{const output=await sharp({create:{width:1,height:1,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer(); if(row.ok!==1 || output.length===0) throw new Error('Native module smoke test failed'); console.log('Windows native modules loaded successfully.');})().catch((error)=>{console.error(error); process.exitCode=1;});"
 
       - name: Run application build gate
+        if: inputs.build_type != 'installer-test'
         shell: pwsh
         run: npm run build
 
@@ -66,6 +75,8 @@ jobs:
           $branch = '${{ github.ref_name }}'
           $forced = '${{ github.event.forced }}' -eq 'true'
           $manualChannel = '${{ inputs.channel }}'
+          $manualBuildType = '${{ inputs.build_type }}'
+          $installerTest = '${{ github.event_name }}' -eq 'workflow_dispatch' -and $manualBuildType -eq 'installer-test'
           $branchChannel = switch ($branch) {
             'main' { 'release'; break }
             'alpha' { 'alpha'; break }
@@ -104,6 +115,7 @@ jobs:
           if ($null -eq $buildValue) { $buildValue = 0 }
           $build = if ($channel -eq 'release') { '' } else { [string]$buildValue }
           $fileChannel = if ($channel -eq 'release') { 'release' } else { "$channel-$build" }
+          if ($installerTest) { $fileChannel = "$fileChannel-installer-test" }
           $trigger = if ($forced) { 'force-push' } elseif ('${{ github.event_name }}' -eq 'workflow_dispatch') { 'manual' } else { 'push' }
 
           Add-Content -Path $env:GITHUB_OUTPUT -Value "channel=$channel"
@@ -111,6 +123,7 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "build=$build"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "file_channel=$fileChannel"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "artifact_name=Plembfin-Windows-$fileChannel-$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "installer_test=$installerTest"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "trigger=$trigger"
 
       - name: Report package selection
@@ -192,7 +205,7 @@ jobs:
           retention-days: 30
 
       - name: Publish release installer
-        if: steps.metadata.outputs.channel == 'release' && github.ref_name == 'main'
+        if: steps.metadata.outputs.installer_test != 'true' && steps.metadata.outputs.channel == 'release' && github.ref_name == 'main'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -206,7 +219,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Could not upload installer assets to $env:RELEASE_TAG" }
 
       - name: Publish alpha prerelease installer
-        if: steps.metadata.outputs.channel == 'alpha' && github.ref_name == 'alpha'
+        if: steps.metadata.outputs.installer_test != 'true' && steps.metadata.outputs.channel == 'alpha' && github.ref_name == 'alpha'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}

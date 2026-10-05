@@ -61,7 +61,7 @@ There is no separate linter configured. A local `.env` at the repo root is loade
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).
 
-When implementation work completes an item in [`plan/todo.md`](../plan/todo.md), remove it in
+When implementation work completes an item in [`todo.md`](../todo.md), remove it in
 the same change, move its verified plan folder from `plan/active/<name>/` into
 `plan/archive/<name>/` with the summary (`plan/<name>.md`) as `summary.md`, and refresh the
 relevant documentation and README section if the completed work changes user-visible behavior.
@@ -205,23 +205,29 @@ values already committed" - none of them write anything back to their branch.
   branch and the next ordinary "Push to git" publishes it, which is what keeps a
   promotion to one channel from also publishing a second develop image. See
   `docs/decisions.md` entry 18.
-- **"Force to main"** first runs the mandatory website update gate against the current
-  development checkout so the tracked Astro documentation and captures cover the latest
-  application changes. It then checks out `alpha`'s actual tip locally, writes a concise,
-  single-line `releaseMessage` to `changelog.alpha.json`, then runs
-  `scripts/promote-alpha-to-main.js --preview` so the would-be release entry can be
-  shown to the user and confirmed. Only after approval does the operator run
+  For a tooling-only release-process change, `--tooling-only` is an explicit opt-in: it
+  requires a current empty develop changelog and changes limited to maintainer/tooling
+  paths, records an alpha entry with no product bullets, and excludes that entry from the
+  next stable release. For an urgent single-fix alpha, `--hotfix` accepts only one
+  conventional `fix:` commit with exactly one user-visible Fix detail and no feature or
+  tweak bullets; the remaining changelog checks and both approval gates still apply.
+  Ordinary alpha promotions still require at least three bullets.
+- **"Force to main"** pins `origin/alpha`, writes a concise `releaseMessage`, previews the
+  accumulated release entry, and starts that exact alpha build. The user approves both the
+  changelog and running candidate before any website work. Website phases A/B/C then review
+  and update the Astro documentation against that candidate, hand capture-only work to a
+  cheaper agent, and check/commit the accepted website on local `develop`. The procedure
+  carries that website into the same pinned alpha checkout, re-runs the website-impact gate
+  and release preview, reviews `README.md`, and only then runs
   `scripts/promote-alpha-to-main.js --confirm` (consolidates every alpha build entry
-  accumulated this cycle into one clean release entry - bumps the real semver, writes
-  `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, resets alpha, and
-  resets develop to the released version at build 1 for the next cycle), commit, and
-  force-push that commit to `main`
-  (`git push origin HEAD:main --force`), which triggers the release pipeline below. The
-  operator reviews/updates `README.md` on the alpha tip and runs `npm run docs:check`
-  before the release commit; the release workflow checks it again in CI. A
-  first pre-push test failure follows the bounded retry procedure above instead of
-  bypassing the gate or prematurely ending the promotion. The promotion command
-  refuses to mutate anything without `--confirm`.
+  accumulated this cycle into one clean release entry; bumps the real semver; writes
+  `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`; resets alpha and
+  develop to the released version at build 1 for the next cycle). After the local release
+  commit passes `npm run docs:check`, build gates, and a final user review of the exact
+  running app and website, it is force-pushed to `main`
+  (`git push origin HEAD:main --force`) and triggers the release pipeline below. A first
+  pre-push test failure follows the bounded retry procedure above; never bypass the gate.
+  The promotion command refuses to mutate anything without `--confirm`.
 - After the main image workflow succeeds, its `Deploy public demo to OCI` job pulls the
   exact released tag on the dedicated Oracle Cloud Compute instance serving
   [demo.plembfin.com](https://demo.plembfin.com/), keeps `PLEMBFIN_DEMO_MODE=1` and the

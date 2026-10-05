@@ -179,5 +179,17 @@
     "label": "Troubleshooting",
     "docSlug": "troubleshooting",
     "sourcePaths": ["docs/troubleshooting.md", "docs/webhooks.md", "docs/scheduled-sync.md"]
+  },
+  {
+    "id": "watch-progress-not-syncing",
+    "label": "Watch progress troubleshooting guide",
+    "docSlug": "watch-progress-not-syncing",
+    "sourcePaths": ["website/src/content/docs/integrations.mdx", "website/src/content/docs/sync-tools.mdx", "website/src/content/docs/troubleshooting.mdx", "docs/webhooks.md", "docs/scheduled-sync.md"]
+  },
+  {
+    "id": "watch-history-before-library-rebuild",
+    "label": "Watch history rebuild guide",
+    "docSlug": "watch-history-before-library-rebuild",
+    "sourcePaths": ["website/src/content/docs/settings/backup.mdx", "website/src/content/docs/settings/restore.mdx", "website/src/content/docs/operations.mdx", "docs/watch-history-backups.md", "docs/backups.md"]
   }
 ]

@@ -6,6 +6,11 @@
     "public/assets/optimized/"
   ],
   "safeAssets": [
+    "public/assets/videos/plembfin-features-poster-57caf32586.webp",
+    "public/assets/optimized/videos/plembfin-features-poster-57caf32586-720.webp",
+    "public/assets/optimized/videos/plembfin-features-poster-57caf32586-720.png",
+    "public/assets/optimized/videos/plembfin-features-poster-57caf32586-1280.webp",
+    "public/assets/optimized/videos/plembfin-features-poster-57caf32586-1280.png",
     "public/assets/app-captures/appearance-dashboard-dark.png",
     "public/assets/app-captures/appearance-dashboard-light.png",
     "public/assets/app-captures/appearance-dashboard-modern-dark.png",
@@ -150,6 +155,8 @@
     "public/assets/app-captures/now-playing-light.png",
     "public/assets/app-captures/now-playing-modern-dark.png",
     "public/assets/app-captures/now-playing-modern-light.png",
+    "public/assets/app-captures/now-playing-options-modern-dark.png",
+    "public/assets/app-captures/now-playing-options-modern-light.png",
     "public/assets/app-captures/playlists-cards-dark.png",
     "public/assets/app-captures/playlists-cards-light.png",
     "public/assets/app-captures/playlists-cards-modern-dark.png",

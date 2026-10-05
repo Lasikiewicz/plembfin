@@ -17,6 +17,16 @@ Agent instructions for working with this codebase.
 - **No Browser Actions Unless Asked** - Never open browsers/browser tools unless explicitly requested. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
 - **Act immediately on simple requests** - Make clear, specific changes directly without preamble or planning steps. Save analysis for genuinely complex or ambiguous tasks.
 
+## Quick edits
+
+When the user says **"enable quick edits"**, keep quick-edit mode active until they say **"disable quick edits"** or the conversation ends:
+
+- Make only the requested changes, then briefly report what changed. The user will test the changes and report anything that needs correction.
+- Do not run tests, builds, linters, browser checks, or other verification during quick-edit mode, even when normal instructions would call for them. Do not claim the work was tested.
+- If the user reports a problem, make the requested fix and leave testing to them while quick-edit mode remains active.
+- When the user says they are happy or asks for full testing, exit quick-edit mode and run the full relevant checks before any local commit. Commit only when the user explicitly asks. Never push or deploy without explicit instruction.
+- This mode changes the test and feedback workflow; it does not waive the other project instructions or safety and approval requirements.
+
 ## Website work is isolated (mandatory)
 
 - Website/Traks work uses only the local `website/` tree, its own checks/build, and direct
@@ -149,16 +159,15 @@ Rules that hold regardless of which skill is running:
   manifests or the human website gate.
 - Before Push to git, Force to alpha, or Force to main, check GHCR Cleanup is not mid-run
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this first.
-- "Force to alpha" and "Force to main" force-push shared branches. Show what will land, get
-  explicit chat approval of the previewed changelog before staging, then stop every local server
-  and start the build being published for the user to check before the push. "Force to main"
-  also runs the mandatory website update gate and stops if it produces a website change (that
-  change must travel through "Force to alpha" first).
+- "Force to alpha" and "Force to main" force-push shared branches; follow each skill's
+  changelog and running-build approval gates before pushing. "Force to main" approves the
+  pinned alpha changelog and running build before website phases A/B/C, carries the reviewed
+  website into that release, then stops for a final review of the exact commit before push.
 - Neither force command pushes `develop`. If a procedure tells you to, it is out of date.
 
 ## Documentation and backlog sync
 
-[`plan/todo.md`](plan/todo.md) is the single backlog: one line per plan, linking its summary,
+[`todo.md`](todo.md) is the single backlog: one line per plan, linking its summary,
 never a detailed entry. Completed plans move to [`plan/archive/`](plan/archive/) and leave the
 TODO. There is no root `TODO.md` (retired 15 September 2026).
 
@@ -220,7 +229,7 @@ section. Before closing a plan, verify code and docs both describe current behav
 ### MANDATORY: keep the TODO current, and never overstate status
 
 **Before ending any turn that changed code, and before starting a new phase of work, update
-[`plan/todo.md`](plan/todo.md) and the owning plan's summary ("Where we are" and the step
+[`todo.md`](todo.md) and the owning plan's summary ("Where we are" and the step
 ticks) with the real status.** Not
 optional, not waiting to be asked. Also move the plan to the top of "Last worked on". Work with
 no plan becomes a step in the loose-ends plan; if it is substantial, write its own plan.

@@ -13,6 +13,10 @@
 // written or reset) and prints the version + release entry that would be committed
 // to main. The mutating command requires --confirm, which is only run after a human
 // has approved that exact preview in the "Force to main" workflow.
+//
+// The website content-impact gate does not block --preview: the release is settled
+// before any website work, so the preview lists the guides still outstanding as
+// information. --confirm still refuses while any remain.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -71,7 +75,10 @@ function semverGt(a, b) {
 // touches disk other than reading the source files, so it can back a
 // non-mutating --preview pass used to show the changelog to a human before
 // "Force to main" is allowed to stage and push it.
-function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+//
+// `sources` ({ changelog, alpha, manualVersion }) and `impactViolations` exist
+// for tests: they replace the file reads and the git-backed website gate.
+function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", sources = null, impactViolations = websiteContentImpactViolations } = {}) {
   // The released history must come from origin/main, not the working tree.
   //
   // This promotion runs from alpha's checkout. Alpha's tree came from develop,
@@ -88,37 +95,51 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   // The working tree is the fallback for a first release or a clone with no
   // remote-tracking refs. promoteAlphaToMain() gates on the result either way.
   let changelog = { version: "0.8.6", entries: [] };
-  const remoteChangelog = fileAtRef(root, "origin/main", "changelog.json");
   let historySource = "origin/main";
-  try {
-    changelog = JSON.parse(remoteChangelog ?? fs.readFileSync(changelogPath, "utf8"));
-    if (!remoteChangelog) historySource = "working tree";
-  } catch {
+  if (sources) {
+    changelog = structuredClone(sources.changelog || changelog);
+    historySource = "test sources";
+  } else {
+    const remoteChangelog = fileAtRef(root, "origin/main", "changelog.json");
     try {
-      changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
-      historySource = "working tree";
-    } catch { }
+      changelog = JSON.parse(remoteChangelog ?? fs.readFileSync(changelogPath, "utf8"));
+      if (!remoteChangelog) historySource = "working tree";
+    } catch {
+      try {
+        changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
+        historySource = "working tree";
+      } catch { }
+    }
   }
   if (!Array.isArray(changelog.entries)) changelog.entries = [];
 
   let alpha = { baseVersion: changelog.version, build: 0, releaseMessage: "", entries: [] };
-  try {
-    alpha = JSON.parse(fs.readFileSync(alphaChangelogPath, "utf8"));
-  } catch { }
+  if (sources) {
+    alpha = structuredClone(sources.alpha || alpha);
+  } else {
+    try {
+      alpha = JSON.parse(fs.readFileSync(alphaChangelogPath, "utf8"));
+    } catch { }
+  }
   if (!Array.isArray(alpha.entries)) alpha.entries = [];
 
   // If package.json was manually set to a higher version (a deliberate
   // major/minor bump), honour that instead of overwriting it with a patch
   // increment - same rule update-changelog.js used to apply in CI.
   const patchBumped = bumpPatchVersion(changelog.version);
-  let manualVersion = "";
-  try {
-    manualVersion = JSON.parse(fs.readFileSync(packagePath, "utf8")).version || "";
-  } catch { }
+  let manualVersion = sources ? String(sources.manualVersion || "") : "";
+  if (!sources) {
+    try {
+      manualVersion = JSON.parse(fs.readFileSync(packagePath, "utf8")).version || "";
+    } catch { }
+  }
   const newMainVersion = targetVersion || (semverGt(manualVersion, patchBumped) ? manualVersion : patchBumped);
   const new5DigitVersion = `${newMainVersion}.0.0`;
 
   const publicEntries = filterChangelogEntries(alpha.entries);
+  if (!publicEntries.length) {
+    throw new Error("Refusing to promote alpha to main: there are no user-facing alpha builds to consolidate.");
+  }
 
   // Each alpha build entry already carries its own correctly categorized `sections`
   // (categorizeEntries ran once, in promoteDevelopToAlpha, over that build's own raw
@@ -180,20 +201,27 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   // commit to this checkout's HEAD, so it covers every alpha build folded into
   // this promotion. Silently a no-op when there is no previous release commit
   // to anchor from (first release, or a working-tree fallback).
-  const impactFailures = websiteContentImpactViolations({
+  //
+  // Only reported here. The release is settled before any website work, so
+  // --preview shows the outstanding guides as information; promoteAlphaToMain
+  // (--confirm) is the one that refuses on them.
+  const websiteImpactOutstanding = impactViolations({
     fromCommit: changelog.entries[0]?.commit || "",
     toCommit: gitHeadCommit(root),
   });
-  if (impactFailures.length > 0) {
-    throw new Error(`Refusing to promote alpha to main: the website content-impact gate failed:\n${impactFailures.map((v) => `- ${v}`).join("\n")}`);
-  }
 
-  return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource };
+  return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource, websiteImpactOutstanding };
+}
+
+// The --preview pass: the would-be release plus any guides the website gate
+// still needs. Never throws on the website gate.
+export function previewAlphaToMainRelease(options = {}) {
+  return computeAlphaToMainRelease(options);
 }
 
 // Renders the would-be release for a human review pass. Used by --preview so
 // the changelog can be confirmed before "Force to main" actually promotes.
-function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
+function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry, websiteImpactOutstanding = [] }) {
   const lines = [];
   lines.push("=== PREVIEW: Force-to-main release (nothing written yet) ===");
   lines.push(`Version: v${newMainVersion}  (5-digit: ${new5DigitVersion})`);
@@ -213,6 +241,13 @@ function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
   };
   for (const section of changelogSectionGroups(mainEntry)) renderSection(section);
   lines.push("(details[] carries the same items each prefixed Feature:/Fix:/Tweak:.)");
+  lines.push("");
+  if (websiteImpactOutstanding.length > 0) {
+    lines.push("Website guides still outstanding (--confirm refuses until these are resolved):");
+    for (const value of websiteImpactOutstanding) lines.push(`  - ${value}`);
+  } else {
+    lines.push("Website guides: none outstanding.");
+  }
   console.log(lines.join("\n"));
 }
 
@@ -287,8 +322,16 @@ export function stampDocumentationBaseline(version, { docsDir, readFile, writeFi
   return stamped;
 }
 
-export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
-  const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit });
+export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", sources = null, impactViolations } = {}) {
+  const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource, websiteImpactOutstanding } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit, sources, impactViolations });
+
+  // The website content-impact gate blocks the real promotion (never the
+  // preview). Checked before anything is written.
+  if (websiteImpactOutstanding.length > 0) {
+    throw new Error(`Refusing to promote alpha to main: the website content-impact gate failed:\n${websiteImpactOutstanding.map((v) => `- ${v}`).join("\n")}`);
+  }
+  // Injected test sources must never reach the real files below.
+  if (sources) throw new Error("Refusing to write a promotion computed from test sources.");
 
   const priorVersions = changelog.entries.map((entry) => entry.version);
 
@@ -393,7 +436,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     // Non-mutating review pass: show exactly what "Force to main" would write
     // (version + the merged release entry) so the operator can confirm the
     // changelog with the user before anything is staged or pushed.
-    const pending = computeAlphaToMainRelease({ targetVersion });
+    const pending = previewAlphaToMainRelease({ targetVersion });
     renderReleasePreview(pending);
     console.log("\n[preview only - nothing written. After explicit approval, rerun with --confirm to promote.]");
   } else if (!args.includes("--confirm")) {

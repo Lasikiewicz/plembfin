@@ -33,15 +33,6 @@ const browserTitle = entrySlug === "history-search" ? "History" : entry.data.tit
     <DocsSidebar currentSlug={entrySlug} />
     <article class="docs-main">
       <header class="article-header">
-        <button
-          class="docs-back-button button-secondary"
-          type="button"
-          data-doc-back
-          aria-label="Return to the previous documentation page or section"
-          hidden
-        >
-          ← Back to previous
-        </button>
         <div class="article-heading">
           <h1>{entry.data.title}</h1>
           <p>{entry.data.description}</p>

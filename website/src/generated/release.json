@@ -1,8 +1,78 @@
 {
-  "version": "1.3.0",
-  "date": "28 September 2026",
-  "summary": "This update adds the Modern style, two-way playlist sync with Plex, Emby, and Jellyfin, automatic playlists, and stacked watched runs, fixes large backups and restores, and makes loading faster throughout.",
+  "version": "1.3.1",
+  "date": "30 September 2026",
+  "summary": "This update speeds up page loading and server recovery, tidies dashboard cards with a per-library Posters only setting, and makes playback, Up Next and Trakt sync more accurate.",
   "entries": [
+    {
+      "version": "1.3.1",
+      "date": "30 September 2026",
+      "title": "v1.3.1",
+      "summary": "This update speeds up page loading and server recovery, tidies dashboard cards with a per-library Posters only setting, and makes playback, Up Next and Trakt sync more accurate.",
+      "bullets": [
+        "Episode cards use their season's cached poster when available; TV show cards keep the shared series poster.",
+        "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities",
+        "Keep an older-season rewatch beside a newly arrived Up Next episode, let viewers hide one season or the whole show, and keep provider queues following the rewatch",
+        "Review title-only and conflicting watch-state aliases, with a Dismissed list and a restore action",
+        "Set how Up Next fills Now Playing and choose one to three items; episode cards use the right artwork, show link, layout, spacing, and text colors",
+        "Now Playing and featured Up Next cards now share the outline and hover lift of Recently watched cards.",
+        "Now Playing has two options, \"Allow part watched items here\" and \"Allow Up Next items here\" (both on by default). Part watched items fill the panel first, then Up Next items, and anything shown there is hidden from the Up Next rail so nothing appears twice.",
+        "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, and History shows its first 48 cards right away and appends the rest during idle time.",
+        "Page caches warm in the background after startup and when changes settle, and cache rebuilds yield between short batches so pages, webhooks, and sync requests stay responsive.",
+        "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover.",
+        "Recently watched TV runs fold into one poster with an episode count badge only in posters-only mode, full cards show every episode, opening a poster keeps it in place, and the Movies and TV Shows libraries remember their Posters only setting separately",
+        "Episode cards use the episode's own still as their backdrop, show Season/Ep under the episode name and Last Played above the app used, drop the Available and Watched N Times lines, and show progress above the Watch now apps",
+        "Retry temporary Trakt failures and check history before resending, avoiding duplicate plays and unnecessary media server updates",
+        "Treat watch events accurately across providers: ignore ratings and tiny progress, capture completed or later-day replays, and preserve the real Jellyfin item ID",
+        "Refresh open pages and restore their scroll and poster state when returning or choosing the current menu page; reconnect live updates after sleep and keep Now Playing polling responsive",
+        "Make TV library cards represent the show and make Stats busiest month follow the selected period",
+        "The Recommended TV Shows rail on a movie page now remembers for a week when no show matches the film, so reopening a movie no longer waits on a TVDB search"
+      ],
+      "websiteUrl": "https://plembfin.com",
+      "sections": [
+        {
+          "title": "Bug Fixes",
+          "groups": [
+            {
+              "title": "Sync & provider recovery",
+              "bullets": [
+                "Episode cards use their season's cached poster when available; TV show cards keep the shared series poster.",
+                "Patch undici, ip-address, and morgan vulnerabilities so npm audit reports zero vulnerabilities"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Tweaks",
+          "groups": [
+            {
+              "title": "Up Next & watch-state",
+              "bullets": [
+                "Keep an older-season rewatch beside a newly arrived Up Next episode, let viewers hide one season or the whole show, and keep provider queues following the rewatch",
+                "Review title-only and conflicting watch-state aliases, with a Dismissed list and a restore action",
+                "Set how Up Next fills Now Playing and choose one to three items; episode cards use the right artwork, show link, layout, spacing, and text colors",
+                "Now Playing and featured Up Next cards now share the outline and hover lift of Recently watched cards.",
+                "Now Playing has two options, \"Allow part watched items here\" and \"Allow Up Next items here\" (both on by default). Part watched items fill the panel first, then Up Next items, and anything shown there is hidden from the Up Next rail so nothing appears twice."
+              ]
+            },
+            {
+              "title": "Sync & connection recovery",
+              "bullets": [
+                "The dashboard reuses its history preview and keeps the saved snapshot for 14 days, and History shows its first 48 cards right away and appends the rest during idle time.",
+                "Page caches warm in the background after startup and when changes settle, and cache rebuilds yield between short batches so pages, webhooks, and sync requests stay responsive.",
+                "Detail pages skip unreachable Plex, Emby, or Jellyfin servers for a minute, then retry so Watch Now links return when servers recover.",
+                "Recently watched TV runs fold into one poster with an episode count badge only in posters-only mode, full cards show every episode, opening a poster keeps it in place, and the Movies and TV Shows libraries remember their Posters only setting separately",
+                "Episode cards use the episode's own still as their backdrop, show Season/Ep under the episode name and Last Played above the app used, drop the Available and Watched N Times lines, and show progress above the Watch now apps",
+                "Retry temporary Trakt failures and check history before resending, avoiding duplicate plays and unnecessary media server updates",
+                "Treat watch events accurately across providers: ignore ratings and tiny progress, capture completed or later-day replays, and preserve the real Jellyfin item ID",
+                "Refresh open pages and restore their scroll and poster state when returning or choosing the current menu page; reconnect live updates after sleep and keep Now Playing polling responsive",
+                "Make TV library cards represent the show and make Stats busiest month follow the selected period",
+                "The Recommended TV Shows rail on a movie page now remembers for a week when no show matches the film, so reopening a movie no longer waits on a TVDB search"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "1.3.0",
       "date": "28 September 2026",

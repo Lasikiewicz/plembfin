@@ -1,0 +1,158 @@
+---
+import media from "../data/features-video.json";
+---
+
+<section class="features-video" aria-labelledby="features-video-title">
+  <div class="features-video-heading">
+    <h2 id="features-video-title">See Plembfin in 30 seconds.</h2>
+    <p id="features-video-description">A quick tour of sync, browsing, discovery, and your watch history. Play with music.</p>
+  </div>
+  <div class="features-video-player">
+    <video
+      controls
+      playsinline
+      preload="none"
+      poster={media.poster}
+      width="1920"
+      height="1080"
+      tabindex="0"
+      aria-labelledby="features-video-title"
+      aria-describedby="features-video-description"
+      data-features-video
+    >
+      <source src={media.video} type="video/mp4" />
+      <track kind="captions" src={media.captions} srclang="en" label="English" />
+      <p><a href={media.video}>Watch the Features overview</a>.</p>
+    </video>
+    <button class="features-video-play" type="button" aria-label="Play the 30-second Features tour" data-features-play hidden>
+      <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+    </button>
+  </div>
+  <div class="features-video-footer">
+    <details>
+      <summary>Read the video transcript</summary>
+      <ol>
+        <li><strong>Your media stack. One watch history.</strong> Connect Plex, Emby, Jellyfin, and Trakt to one local record.</li>
+        <li><strong>Watch once. Keep every app in sync.</strong> Two-way watched sync, resume progress, and per-destination results in Sync Activity.</li>
+        <li><strong>Pause here. Pick up anywhere.</strong> Now Playing, Up Next, and cross-platform resume.</li>
+        <li><strong>A clearer view of every title.</strong> Browse movies and TV, cast, trailers, and upcoming episodes.</li>
+        <li><strong>Find your next watch.</strong> Discovery, watchlist, ratings, and playlists.</li>
+        <li><strong>Your history, worth keeping.</strong> Watch history, rewatches, stats, and reports.</li>
+        <li><strong>Your data. Your server.</strong> Local and optional remote backups. Run with Docker or Node.js on your own hardware.</li>
+        <li><strong>See your whole stack in sync.</strong> Try the live demo or get started. Plembfin is self-hosted, free, and open source.</li>
+      </ol>
+      <p>The soundtrack is instrumental; there is no speech.</p>
+    </details>
+    <a href={media.video}>Open video <span aria-hidden="true">↗</span></a>
+  </div>
+</section>
+
+<script>
+  const video = document.querySelector<HTMLVideoElement>("[data-features-video]");
+  const button = document.querySelector<HTMLButtonElement>("[data-features-play]");
+  if (video && button) {
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      try {
+        await video.play();
+        video.focus();
+      } catch {
+        button.hidden = true;
+        video.focus();
+      }
+    });
+    video.addEventListener("play", () => { button.hidden = true; });
+    video.addEventListener("ended", () => {
+      button.setAttribute("aria-label", "Replay the 30-second Features tour");
+      button.hidden = false;
+    });
+  }
+</script>
+
+<style>
+  .features-video {
+    width: min(100%, 64rem);
+    margin: 0 auto clamp(3rem, 5vw, 5rem);
+  }
+  .features-video-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    margin-bottom: 1rem;
+  }
+  .features-video-heading h2 {
+    margin: 0;
+    font-size: clamp(1.25rem, 2vw, 1.75rem);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+  .features-video-heading p {
+    max-width: 43ch;
+    margin: 0;
+    color: var(--soft);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .features-video-player {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: #080d14;
+  }
+  video {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .features-video-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    padding: 0;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    box-shadow: 0 4px 24px rgb(0 0 0 / 35%);
+    cursor: pointer;
+  }
+  .features-video-play[hidden] { display: none; }
+  .features-video-play:hover { filter: brightness(1.1); }
+  .features-video-play:focus-visible,
+  video:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 4px;
+  }
+  .features-video-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding-top: 0.75rem;
+    color: var(--soft);
+    font-size: 0.8rem;
+  }
+  .features-video-footer > a { flex-shrink: 0; }
+  summary { cursor: pointer; }
+  details { min-width: 0; }
+  details ol {
+    max-width: 70ch;
+    padding-left: 1.25rem;
+    line-height: 1.6;
+  }
+  details li + li { margin-top: 0.6rem; }
+  details strong { color: var(--text); }
+  @media (max-width: 640px) {
+    .features-video-heading { flex-direction: column; gap: 0.5rem; }
+    .features-video-play { width: 3rem; height: 3rem; }
+    .features-video-footer { font-size: 0.75rem; }
+  }
+</style>

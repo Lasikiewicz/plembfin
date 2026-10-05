@@ -4,7 +4,7 @@ When a website update is requested, carry out the following workflow:
 
 1. Refresh `origin/main` first (`git fetch origin main`) and resolve the latest stable release from that branch's `package.json` or newest `changelog.json` entry. Never use the current `develop` or `alpha` version, a proposed next version, or a hard-coded historical fallback as the new verification baseline. Inspect the current website documentation and its existing `sourceVersion` markers to determine what each page already covers, review the application and changelog for all changes after those markers, and record the resolved latest `main` version on every page that is revalidated.
 2. Start the local plembfin server and the local website preview from the `website` folder, and record the local URLs and relevant environment details.
-3. Refresh and read the local committed-change inventory with `npm run updates:refresh` and `plan/updates.md`. Start with its **Website check targets** and **Changelog-ready changes**, then review the application source, changelog, release data, and existing website content for all changes after the discovered verification baseline. The inventory is a deduplicated review aid; it does not replace the committed changelog manifests or human review.
+3. Refresh and read the local committed-change inventory with `npm run updates:refresh` and `plan/updates.md`. Start with its **Website check targets**, **Website images to retake** (the same list as `npm run captures:stale`, rebuilt after every commit) and **Changelog-ready changes**, then review the application source, changelog, release data, and existing website content for all changes after the discovered verification baseline. The inventory is a deduplicated review aid; it does not replace the committed changelog manifests or human review.
 4. Update the website documentation and supporting content so that it accurately reflects the current product, including names, descriptions, routes, controls, behavior, and links. Do not describe removed pages, removed controls, or historical defects as current behavior. If a repair is still useful, put it in a clearly separate troubleshooting or repair note and describe the current command or setting.
 5. Use route-only examples for in-app detail pages, such as `/tvshow/tvdb/<id>-<slug>/` or `/movie/tmdb/<id>-<slug>`. Keep `localhost` or other hosts only in setup instructions that explicitly explain how to start or open the local application.
 6. Link every reference to another setting, page, feature, or repair action to its corresponding website section. Keep articles compact: use short paragraphs, bullets, and focused subsections instead of large blocks of prose.
@@ -124,11 +124,33 @@ When a website update is requested, carry out the following workflow:
 
 ## Force-to-main website gate
 
-When a user requests **Force to main**, complete this file end to end before checking out
-branches, previewing the release, staging, or force-pushing: discover the verification
-baseline, review changes after it, start the local app and website preview, audit content and
-images, check privacy, run the inventory and website checks, and report the local visual
-findings. The website gate is mandatory for every main release.
+Run this gate only after the release-candidate phase of **Force to main** has finished.
+First pin `origin/alpha`, preview the release changelog, start that pinned build, and get
+the user's approval of both the changelog and running app. Record the approved source hash,
+served version, server PID, and approval in the per-release summary. If the candidate changes,
+repeat its approval before starting phase A. The website gate is mandatory for every main
+release.
+
+The gate has three phases, all checked against the same approved release build:
+
+1. **A — review and prepare:** Resolve the current `origin/main` documentation baseline,
+   read the release's website-impact targets, review affected guides in the local website
+   preview, make any edits on local `develop`, and write a standalone `captures.md` list.
+   `npm run captures:stale` in `website/` lists the images whose catalogued source files
+   changed since `origin/main` (all views of each), with the `captures:retake` command.
+   The application being documented is the pinned alpha candidate running on port 5055,
+   not the `develop` app. Stop after writing the capture list and hand it to phase B.
+2. **B — capture only:** Give a cheaper agent the one-line handoff naming `captures.md`.
+   It reads that file alone, uses the still-running approved app, and saves only into its
+   staging folder. It does not edit `website/` or commit. Failed images remain failed.
+3. **C — place and check:** Review every staged image and its composition/privacy, place
+   accepted images and captions, update the privacy manifest, run the website checks, and
+   commit the completed website work on local `develop`. Only after phase C does the release
+   procedure carry that website tree into the pinned alpha checkout.
+
+Run the automated content-impact check in phase A to establish the guide list, then run it
+again in the alpha checkout after the reviewed website is carried into the release. Finish
+the website checks before promotion can continue.
 
 The automated checks below cannot see a stale caption or a screenshot that was never
 retaken; they pass as long as each needed guide changed. So when a plan tracks the release's
@@ -162,11 +184,11 @@ enforces it:
   or `docs/` paths that no guide covers are printed for review. They do not fail the check.
 
 A needed guide passes when its content differs from the live `origin/main` website in the
-tree being released. That tree includes uncommitted and staged changes, so `develop`'s
-website staged by skill step 1a counts. A `sourceVersion` restamp alone does not count,
-because `promote-alpha-to-main.js` stamps every page. When the review finds a needed guide
-is still accurate, record that in `website/src/data/release-review.json` rather than making
-a cosmetic edit:
+tree being released. Phase C commits the reviewed website on local `develop`; the release
+procedure carries that website into the pinned alpha checkout and runs the definitive gate
+there. A `sourceVersion` restamp alone does not count, because `promote-alpha-to-main.js`
+stamps every page. When the review finds a needed guide is still accurate, record that in
+`website/src/data/release-review.json` rather than making a cosmetic edit:
 
 ```json
 { "publishedVersion": "1.2.1", "unchanged": { "stats": "only the asset restamp touched it" } }
@@ -175,16 +197,18 @@ a cosmetic edit:
 Entries only count while `publishedVersion` is the version live on `origin/main`, so one
 release's review never excuses the next.
 
-Run it at the start of the Force to main website gate, and re-run it until it passes:
+Run it in phase A to guide review, then re-run it in the release checkout after phase C
+until it passes:
 
 ```bash
 npm run check:website-impact
 ```
 
-It also runs inside `node scripts/promote-alpha-to-main.js --preview` and `--confirm`, so it
-cannot be skipped. **Resolving a failure:** update the guide (or record it as reviewed) on
-`develop`, commit, re-take the website into the release checkout (skill step 1a), and retry.
-No Force to alpha rerun is needed.
+It also runs inside `node scripts/promote-alpha-to-main.js`: `--preview` lists the guides
+still outstanding without stopping, so the changelog can be approved before any website work,
+and `--confirm` refuses while any remain, so it cannot be skipped. **Resolving a failure:**
+update the guide (or record it as reviewed) during phase A/C on `develop`, commit, carry the
+website into the pinned release checkout again, and retry. No Force to alpha rerun is needed.
 
 Release-bookkeeping commits (changelog rebuilds, alpha/main promotions, build-counter resets)
 are excluded from the walk entirely, since they mechanically restamp most of `public/`

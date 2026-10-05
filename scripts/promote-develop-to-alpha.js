@@ -24,13 +24,82 @@ import { fileURLToPath } from "node:url";
 import { CHANGELOG_ALPHA_MAX_BULLETS, changelogEntryQualityViolations, changelogEntryProcessViolations, dedupeChangelogDetails, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
 import { buildChangelogSectionGroups } from "./changelog-sections.js";
 import { buildVersion } from "./version.js";
-import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { validateDevelopChangelog } from "./rebuild-develop-changelog.js";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
 const alphaChangelogPath = path.join(root, "changelog.alpha.json");
 const developChangelogPath = path.join(root, "changelog.develop.json");
+
+const TOOLING_ONLY_ALLOWED_PREFIXES = [".claude/", ".github/", ".githooks/", "docs/", "plan/", "scripts/", "test/"];
+const TOOLING_ONLY_ALLOWED_FILES = new Set([".gitignore", "CLAUDE.md"]);
+
+function assertHotfixEligible({ entries, sections }) {
+  const entry = entries[0];
+  const fragments = Array.isArray(entry?.messageFragments) && entry.messageFragments.length
+    ? entry.messageFragments
+    : [entry?.message].filter(Boolean);
+  const detailCount = Array.isArray(entry?.details) ? entry.details.filter(Boolean).length : 0;
+  const isOneFix = entries.length === 1
+    && fragments.length === 1
+    && /^fix(?:\([^)]*\))?\s*[:-]/i.test(String(fragments[0] || ""))
+    && detailCount === 1
+    && sections.newFeatures.length === 0
+    && sections.majorBugFixes.length === 1
+    && sections.tweaks.length === 0;
+  if (!isOneFix) {
+    throw new Error("Refusing --hotfix: it is only for exactly one conventional fix commit that produces exactly one user-visible Fix bullet, with no features or tweaks. Use the normal alpha path when the entry has more content.");
+  }
+}
+
+function assertToolingOnlyEligible({ develop, commit }) {
+  const anchorCommit = String(develop.resetCommit || "").trim();
+  if (!anchorCommit) {
+    throw new Error("Refusing --tooling-only: changelog.develop.json has no resetCommit anchor.");
+  }
+
+  const alphaRef = spawnSync("git", ["rev-parse", "--verify", "origin/alpha^{commit}"], { cwd: root, encoding: "utf8" });
+  if (alphaRef.status !== 0) {
+    throw new Error("Refusing --tooling-only: fetch origin/alpha before checking the tooling-only change range.");
+  }
+  const alphaCommit = alphaRef.stdout.trim();
+  const alphaIsAncestor = spawnSync("git", ["merge-base", "--is-ancestor", alphaCommit, commit], { cwd: root, stdio: "ignore" });
+  if (alphaIsAncestor.status !== 0) {
+    throw new Error("Refusing --tooling-only: origin/alpha must be an ancestor of develop. Reconcile the branches first.");
+  }
+
+  const changed = spawnSync("git", ["diff", "--name-only", `${alphaCommit}..${commit}`], { cwd: root, encoding: "utf8" });
+  if (changed.status !== 0) {
+    throw new Error(`Refusing --tooling-only: could not inspect changes since origin/alpha: ${changed.stderr || changed.stdout}`);
+  }
+  const changedPaths = String(changed.stdout || "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  if (!changedPaths.length) {
+    throw new Error("Refusing --tooling-only: there are no committed tooling changes since origin/alpha.");
+  }
+  const unexpectedPaths = changedPaths.filter((file) =>
+    !TOOLING_ONLY_ALLOWED_FILES.has(file)
+    && !TOOLING_ONLY_ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)));
+  if (unexpectedPaths.length) {
+    throw new Error(`Refusing --tooling-only: these paths are outside the maintainer/tooling allowlist:\n${unexpectedPaths.map((file) => `- ${file}`).join("\n")}`);
+  }
+
+  const resetIsAncestor = spawnSync("git", ["merge-base", "--is-ancestor", anchorCommit, commit], { cwd: root, stdio: "ignore" });
+  if (resetIsAncestor.status !== 0) {
+    throw new Error(`Refusing --tooling-only: changelog.develop.json resetCommit ${anchorCommit.slice(0, 7)} is not an ancestor of HEAD.`);
+  }
+  const commits = commitsSinceLastEntry(root, anchorCommit, commit);
+  const userFacingEntry = validateDevelopChangelog({
+    changelog: develop,
+    commits,
+    headCommit: commit,
+    changedFilesForCommitFn: (commitId) => changedFilesForCommit(root, commitId),
+  });
+  if (userFacingEntry || (Array.isArray(develop.entries) && develop.entries.length > 0)) {
+    throw new Error("Refusing --tooling-only: develop contains user-facing changes. Use the standard alpha promotion path.");
+  }
+}
 
 export function categorizeEntries(entries = []) {
   const newFeatures = [];
@@ -124,7 +193,8 @@ export function simplifyEntries(entries = []) {
   return formatSections(categorizeEntries(entries));
 }
 
-export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "" } = {}) {
+export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "", toolingOnly = false, hotfix = false } = {}) {
+  if (toolingOnly && hotfix) throw new Error("Refusing to combine --tooling-only and --hotfix.");
   let mainVersion = "0.0.0";
   try {
     mainVersion = JSON.parse(fs.readFileSync(changelogPath, "utf8")).version || "0.0.0";
@@ -152,6 +222,8 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   }
   if (!Array.isArray(develop.entries)) develop.entries = [];
 
+  if (toolingOnly) assertToolingOnlyEligible({ develop, commit: commit || gitHeadCommit(root) });
+
   const nextAlphaBuild = Number(alpha.build || 0) + 1;
   // Five segments: major.minor.patch.alpha.dev. An alpha build sits at dev 0
   // because it is the point every following develop build counts up from.
@@ -167,8 +239,13 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // This is a standalone entry for just this build - only develop's own current work,
   // not merged with any earlier alpha build this cycle. See the module comment above.
   const developEntries = filterChangelogEntries(develop.entries);
-  const sections = categorizeEntries(develop.entries);
-  const simplifiedDetails = formatSections(sections);
+  const sections = toolingOnly
+    ? { newFeatures: [], majorBugFixes: [], tweaks: [] }
+    : hotfix
+      ? { newFeatures: [], majorBugFixes: dedupeChangelogDetails(developEntries.flatMap((entry) => Array.isArray(entry.details) ? entry.details : [])), tweaks: [] }
+      : categorizeEntries(develop.entries);
+  if (hotfix) assertHotfixEligible({ entries: developEntries, sections });
+  const simplifiedDetails = toolingOnly ? [] : formatSections(sections);
 
   // A develop entry can already be a synthesized composite of several commits or
   // several "Push to git" runs (rebuild-develop-changelog.js folds all of them into one
@@ -176,9 +253,11 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // flattened `message`, so this build's own headline, and later promoteAlphaToMain
   // folding several builds together, always work from true atomic fragments instead of
   // re-wrapping an already-composite sentence as if it were one unsplittable piece.
-  const messageFragments = developEntries.flatMap((entry) =>
+  const messageFragments = toolingOnly ? [] : developEntries.flatMap((entry) =>
     Array.isArray(entry.messageFragments) && entry.messageFragments.length ? entry.messageFragments : [entry.message]);
-  const mainMessage = synthesizeHeadline(messageFragments) || "Consolidated develop updates";
+  const mainMessage = toolingOnly
+    ? "Tooling-only alpha build; no user-facing application changes."
+    : synthesizeHeadline(messageFragments) || "Consolidated develop updates";
 
   const alphaEntry = {
     build: nextAlphaBuild,
@@ -191,6 +270,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
     details: simplifiedDetails,
     sections,
     sectionGroups: buildChangelogSectionGroups(sections),
+    ...(toolingOnly ? { toolingOnly: true } : {}),
   };
   if (messageFragments.length > 1) alphaEntry.messageFragments = messageFragments;
 
@@ -206,9 +286,15 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // Testers read this entry, so it has to read as release notes rather than a
   // dump of every commit since the last promotion. See
   // changelogEntryQualityViolations for why each rule exists.
-  const quality = changelogEntryQualityViolations(alphaEntry, { maxBullets: CHANGELOG_ALPHA_MAX_BULLETS, boundary: "alpha" });
-  if (quality.length > 0) {
-    throw new Error(`Refusing to promote develop to alpha: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
+  if (!toolingOnly) {
+    const quality = changelogEntryQualityViolations(alphaEntry, {
+      maxBullets: CHANGELOG_ALPHA_MAX_BULLETS,
+      minBullets: hotfix ? 1 : undefined,
+      boundary: "alpha",
+    });
+    if (quality.length > 0) {
+      throw new Error(`Refusing to promote develop to alpha: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
+    }
   }
 
   alpha.build = nextAlphaBuild;
@@ -257,10 +343,18 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const args = process.argv.slice(2);
+  const unknownArgs = args.filter((arg) => arg !== "--tooling-only" && arg !== "--hotfix");
+  if (unknownArgs.length || args.filter((arg) => arg === "--tooling-only").length > 1 || args.filter((arg) => arg === "--hotfix").length > 1) {
+    console.error("Usage: node scripts/promote-develop-to-alpha.js [--tooling-only | --hotfix]");
+    process.exit(1);
+  }
   const headCommit = gitHeadCommit(root);
   promoteDevelopToAlpha({
     commit: headCommit,
     resetAnchorCommit: headCommit,
     sourceAuthor: gitHeadAuthor(root),
+    toolingOnly: args.includes("--tooling-only"),
+    hotfix: args.includes("--hotfix"),
   });
 }

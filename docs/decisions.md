@@ -1286,3 +1286,22 @@ no playback evidence to review.
 **Enforced by:** `canInferLiveSessionCompletion` in `server/src/utils/liveSessions.js` and
 `PLEX_COMPLETE_EVENTS` in `server/src/utils/parsers.js`; `test/livePollerCompletion.test.js`,
 `test/liveSessions.test.js`, `test/parsers.test.js`.
+
+### 43. Force to main approves the release candidate before website review
+**Date:** 2026-09-30  |  **Status:** Active
+
+**Context:** The previous order reviewed the website on `develop` before pinning and approving
+the alpha build. Since `develop` can contain application changes that are not in alpha, its
+pages and screenshots could describe behavior that would not ship. Website work could also be
+wasted if the changelog or release build was then changed or declined.
+
+**Decision (user, 30 September 2026):** Pin alpha, preview the release entry, start that exact
+build, and obtain approval of both the changelog and running candidate before phase A. Review
+and capture the website against that candidate in phases A/B/C, then carry the reviewed
+website from local `develop` into the same pinned alpha release before promotion and final
+review.
+
+**Rejected:** *Review the website first against `develop`*: that build can be ahead of alpha,
+so the public documentation can claim unreleased behavior and screenshots may be stale at the
+moment of release. Release-first review ties every website change to the source the user
+approved.

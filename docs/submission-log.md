@@ -117,6 +117,15 @@ The rows below include every Plembfin-related Reddit comment found in the signed
 | 2026-09-10 01:33:45 PDT | [Maker comment on Plembfin](https://www.producthunt.com/products/plembfin?launch=plembfin) | Posted before launch. Explained the problem Plembfin solves and invited questions. |
 | 2026-09-11 00:01 PDT | [Plembfin launch](https://www.producthunt.com/products/plembfin?launch=plembfin) | Live. Dashboard showed rank #319, position 1, 1 point, 1 comment, and 3 followers. No external comments were visible at audit time. |
 
+## Targeted follow-up audit (2 October 2026)
+
+This follow-up updates the Plex Forum and Product Hunt rows only; it is not a full re-audit of every venue in this log.
+
+| Venue | Item | Current observation |
+|---|---|---|
+| Plex Forum | [Plembfin in Apps & Creations](https://forums.plex.tv/t/plembfin-self-hosted-watch-history-and-trakt-sync-for-plex-emby-jellyfin/943205), posted 22 September 2026 | Live. One member replied that they would deploy and test it. No second Plembfin topic was found. |
+| Product Hunt | [Plembfin launch page](https://www.producthunt.com/products/plembfin?launch=plembfin) | Live with 1 point, 3 followers, no reviews, and the existing maker comment, which still describes v1.0.0. No external comment was visible. |
+
 ## GitHub releases and release-related activity
 
 ### Public releases found from the automatic release channel
@@ -231,3 +240,11 @@ At the end of this audit:
 - The r/unRAID, newer r/homelab, and older r/homelab removals need status monitoring rather than an automatic response. r/indiebiz is currently visible again after the earlier filter-removal observation, with no comments.
 - The DEV question is answered, Product Hunt has no visible external comment, and Discord announcements are already sent.
 - GitHub Releases are live and automatic through GitHub Actions. v1.0.1 and v1.0.2 are public, and older v1.0.0 references are historical only.
+
+## Check run: 2026-10-02 — advertising round 2 follow-up
+
+| Area | Result | Action |
+|---|---|---|
+| Unraid Community Apps | Authenticated portal lists `https://github.com/Lasikiewicz/plembfin` as `auto_approved` (updated 2026-09-22 11:15:34 AM; note: “Auto-approved for Docker apps (non-duplicated)”). Public catalog search for “Plembfin” returns the correct listing, with the expected GHCR image, `/data` persistence path, and port 5055. Search also returns a separate generic “Untitled app” entry with no description; it does not identify as Plembfin. | Listing is live; revisit the generic extra result after a catalog refresh and contact Unraid support only if it persists. No install count was visible, so adoption is not inferred. |
+| Plex Forum | Existing Apps & Creations topic from 2026-09-22 remains the single placement; one member said they planned to deploy and test. | Do not duplicate. Interest is not a confirmed install or successful sync. |
+| Jellyfin forum / Lemmy | Rules reviewed for planned possible posts. Jellyfin forum post must be maintainer-written; Lemmy eligibility remains unknown and AI disclosure/tagging requirements apply. | No posts made. |

@@ -216,7 +216,6 @@ const proofScreens = [
     <section class="simple-features-index" aria-labelledby="feature-index-title">
       <div class="simple-section-heading">
         <div>
-          <p class="simple-eyebrow">FEATURES</p>
           <h2 id="feature-index-title">Grouped by what it does for you.</h2>
         </div>
         <p>Open a feature to jump straight to the section of the guide that covers it.</p>
@@ -225,7 +224,7 @@ const proofScreens = [
       {numberedGroups.map((group) => (
         <div class="simple-feature-group">
           <div class="simple-feature-group-heading">
-            <p class="simple-eyebrow">{group.label}</p>
+            <h3 class="simple-feature-group-title">{group.label}</h3>
             <p>{group.summary}</p>
           </div>
           <div class="simple-feature-grid">

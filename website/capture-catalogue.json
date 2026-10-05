@@ -1,0 +1,4402 @@
+{
+  "schemaVersion": 1,
+  "description": "Every website app capture: how to retake it and which application files drive it. Checked by scripts/check-capture-catalogue.mjs.",
+  "baseUrl": "http://localhost:5055",
+  "browser": {
+    "channel": "msedge",
+    "viewport": {
+      "width": 1440,
+      "height": 683
+    },
+    "deviceScaleFactor": 1,
+    "note": "1440 x 683, the size of the published classic dashboard frames and the width behind the 1232 px element frames (user decision 1 October 2026)."
+  },
+  "variants": {
+    "dark": {
+      "style": "classic",
+      "mode": "dark"
+    },
+    "light": {
+      "style": "classic",
+      "mode": "light"
+    },
+    "modern-dark": {
+      "style": "modern",
+      "mode": "dark"
+    },
+    "modern-light": {
+      "style": "modern",
+      "mode": "light"
+    }
+  },
+  "storage": {
+    "mode": {
+      "key": "plembfin:theme",
+      "values": {
+        "dark": "dark",
+        "light": "light"
+      }
+    },
+    "style": {
+      "key": "plembfin:style",
+      "values": {
+        "modern": "modern",
+        "classic": null
+      }
+    }
+  },
+  "framingTypes": {
+    "viewport": "The whole viewport, sidebar included.",
+    "element": "The bounding box of target (plus padding CSS px). target.heading means the section containing that heading; through extends the box to a second target.",
+    "crop": "Take a full-page frame of source, then crop to target's box. target.subPanel is [data-sub-panel=<id>]. legacyRect is the fixed rectangle used before (1600 px frames, left 260, width 1335 unless given); reference only.",
+    "scroll-compose": "Three viewport frames of container composed with npm run captures:compose.",
+    "full-page": "A full-page frame, used only as a crop source."
+  },
+  "live": {
+    "playback": "Needs live sessions: the script starts playback on a local test server first and stops it after.",
+    "dismissed-up-next": "Needs a dismissed Up Next item: the script dismisses one, captures, then adds that one back.",
+    "manual-review-item": "Needs a pending Manual Watch review item.",
+    "sync-issue": "Needs at least one current sync issue."
+  },
+  "commonSources": {
+    "all": [
+      "public/index.html",
+      "public/styles.css",
+      "public/app.js",
+      "public/theme-boot.js"
+    ],
+    "modern": [
+      "public/styles-modern.css",
+      "public/modules/card-art.js"
+    ]
+  },
+  "images": {
+    "dashboard": {
+      "pages": [
+        "dashboard",
+        "getting-started",
+        "navigation",
+        "operations",
+        "safe-daily-workflows",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Dashboard at scroll top. Now Playing / Up Next panel, the Up Next rail and the first history rows loaded with posters. Dashboard history rows in full-card mode (Posters only off).",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js",
+        "public/modules/up-next.js",
+        "public/modules/sync.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "now-playing": {
+      "pages": [
+        "dashboard",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Dashboard at scroll top with live sessions playing (the script starts playback first). The panel heading reads Now Playing.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".live-panel"
+        },
+        "padding": 0
+      },
+      "live": "playback",
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js",
+        "public/modules/sync.js",
+        "public/modules/media-routing.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 156
+        },
+        "light": {
+          "width": 1231,
+          "height": 156
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 156
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 156
+        }
+      }
+    },
+    "now-playing-options": {
+      "pages": [
+        "dashboard"
+      ],
+      "variants": [
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Modern only. Dashboard with live sessions playing; the cog beside the panel heading is open. Change nothing; close the options afterwards.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".live-panel",
+          "padding": 16
+        },
+        "through": {
+          "css": "#nowPlayingOptionsMenu"
+        },
+        "noScroll": true,
+        "padding": 0
+      },
+      "live": "playback",
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js",
+        "public/modules/sync.js"
+      ],
+      "sizes": {
+        "modern-dark": {
+          "width": 1255,
+          "height": 188
+        },
+        "modern-light": {
+          "width": 1255,
+          "height": 188
+        }
+      },
+      "steps": [
+        {
+          "click": "#nowPlayingOptionsButton"
+        },
+        {
+          "waitFor": "#nowPlayingOptionsMenu"
+        },
+        {
+          "wait": 500
+        }
+      ]
+    },
+    "dashboard-up-next": {
+      "pages": [
+        "dashboard",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Dashboard; the first row of Up Next cards scrolled into view. A resume card shows its progress bar above the Watch now apps.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#upNextPanel"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js",
+        "public/modules/up-next.js",
+        "public/modules/up-next-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 136
+        },
+        "light": {
+          "width": 1231,
+          "height": 136
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 136
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 136
+        }
+      }
+    },
+    "dashboard-up-next-dismissed": {
+      "pages": [
+        "dashboard"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Open Dismissed Up Next from the Up Next rail controls so the dialog with Add back and Add all back shows. Opened by #upNextDismissedButton; needs at least one dismissed item (20 were dismissed on 30 September 2026; only if none exist, the script dismisses one first and adds it back afterwards). Never press Add all back.",
+      "framing": {
+        "type": "viewport"
+      },
+      "steps": [
+        {
+          "click": "#upNextDismissedButton"
+        },
+        {
+          "waitFor": "[data-up-next-restore-all]"
+        },
+        {
+          "wait": 1500
+        }
+      ],
+      "automation": "auto",
+      "sources": [
+        "public/modules/up-next.js",
+        "public/modules/up-next-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "dashboard-history-tv": {
+      "pages": [
+        "dashboard"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Dashboard; the Recently watched TV Shows row in full-card mode, scrolled into view.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#dashboardTvHistoryPanel"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 164
+        },
+        "light": {
+          "width": 1231,
+          "height": 164
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 164
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 164
+        }
+      }
+    },
+    "dashboard-history-movies": {
+      "pages": [
+        "dashboard"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Dashboard; the Recently watched Movies row in full-card mode, scrolled into view.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#dashboardMovieHistoryPanel"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/dashboard.js",
+        "public/modules/dashboard-modern.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 164
+        },
+        "light": {
+          "width": 1231,
+          "height": 164
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 164
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 164
+        }
+      }
+    },
+    "global-search": {
+      "pages": [
+        "dashboard"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "Open Global Search from the Dashboard sidebar and search for Ted Lasso; wait for TMDB and TheTVDB groups.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#globalSearchDropdown"
+        },
+        "padding": 0
+      },
+      "steps": [
+        {
+          "click": "#globalSearchInput"
+        },
+        {
+          "fill": {
+            "css": "#globalSearchInput",
+            "value": "Ted Lasso"
+          }
+        },
+        {
+          "wait": 4000
+        },
+        {
+          "waitFor": "#globalSearchDropdown"
+        }
+      ],
+      "automation": "auto",
+      "sources": [
+        "public/modules/app-events.js",
+        "public/app.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 900,
+          "height": 355
+        },
+        "light": {
+          "width": 900,
+          "height": 355
+        },
+        "modern-dark": {
+          "width": 900,
+          "height": 355
+        },
+        "modern-light": {
+          "width": 900,
+          "height": 355
+        }
+      }
+    },
+    "appearance-dashboard": {
+      "pages": [
+        "appearance",
+        "navigation"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/",
+      "state": "The sidebar Appearance control showing the Light and Dark theme switch.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#themeStyleButton"
+        },
+        "padding": 50,
+        "through": {
+          "css": "#themeToggleButton"
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/appearance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 259,
+          "height": 138
+        },
+        "light": {
+          "width": 259,
+          "height": 138
+        },
+        "modern-dark": {
+          "width": 259,
+          "height": 138
+        },
+        "modern-light": {
+          "width": 259,
+          "height": 138
+        }
+      }
+    },
+    "movies": {
+      "pages": [
+        "libraries",
+        "movies"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movies",
+      "state": "Movies library at scroll top, default card view, posters loaded. Do not change filters.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/explorer.js",
+        "public/modules/card-art.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "tvshows": {
+      "pages": [
+        "tv-shows",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshows",
+      "state": "TV Shows library at scroll top, default card view (Posters only off), posters loaded.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/explorer.js",
+        "public/modules/card-art.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "library-poster-menu": {
+      "pages": [
+        "libraries",
+        "movies",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movies",
+      "state": "Movies library; open the three-dot quick-actions menu on the first poster card. Change nothing.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#appShell"
+        },
+        "size": {
+          "width": 722,
+          "height": 546
+        },
+        "noScroll": true,
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/poster-menu.js",
+        "public/modules/explorer.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 722,
+          "height": 546
+        },
+        "light": {
+          "width": 722,
+          "height": 546
+        },
+        "modern-dark": {
+          "width": 722,
+          "height": 546
+        },
+        "modern-light": {
+          "width": 722,
+          "height": 546
+        }
+      },
+      "steps": [
+        {
+          "forceClick": ".poster-overflow-btn"
+        },
+        {
+          "wait": 800
+        }
+      ]
+    },
+    "history": {
+      "pages": [
+        "concepts",
+        "history-search"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/history",
+      "state": "History page at scroll top, default card view, cards loaded.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/explorer.js",
+        "public/modules/history-poster-overlay.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "upcoming": {
+      "pages": [
+        "upcoming"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/upcoming",
+      "state": "Upcoming calendar at scroll top, current month loaded.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/upcoming.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "discover": {
+      "pages": [
+        "discover",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/discover",
+      "state": "Discover at scroll top, feeds loaded with posters.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/discover.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "stats": {
+      "pages": [
+        "stats"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/stats",
+      "state": "Stats at scroll top with its media type, period and range controls visible.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/stats.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "watchlist": {
+      "pages": [
+        "troubleshooting",
+        "watchlist"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/watchlist",
+      "state": "Watchlist at scroll top, cards loaded.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/personal-media.js",
+        "public/modules/media-card.js",
+        "public/modules/personal-media-metadata.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "watchlist-card": {
+      "pages": [
+        "watchlist"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/watchlist",
+      "state": "Watchlist; the first row of cards with posters, rating actions and remove controls.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".personal-media-card-grid"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/personal-media.js",
+        "public/modules/media-card.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "light": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 182
+        }
+      }
+    },
+    "ratings": {
+      "pages": [
+        "ratings"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/ratings",
+      "state": "Ratings overview at scroll top.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/personal-media.js",
+        "public/modules/media-card.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "ratings-cards": {
+      "pages": [
+        "ratings"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/ratings",
+      "state": "Ratings; the Movies, TV Shows and Episodes groups.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".personal-media-rating-section"
+        },
+        "through": {
+          "css": ".personal-media-rating-section:last-of-type"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/personal-media.js",
+        "public/modules/media-card.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "light": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 629
+        }
+      }
+    },
+    "ratings-episode-focus": {
+      "pages": [
+        "ratings"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/ratings",
+      "state": "Ratings; the Episodes group scrolled into view.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".personal-media-rating-section:has(#personal-ratings-episode-title)"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/personal-media.js",
+        "public/modules/media-card.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 392
+        },
+        "light": {
+          "width": 1231,
+          "height": 392
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 392
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 392
+        }
+      }
+    },
+    "playlists": {
+      "pages": [
+        "playlists"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/playlists",
+      "state": "Playlists at scroll top, rails loaded with app badges and item counts.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/playlists.js",
+        "public/modules/playlist-rules.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "playlists-cards": {
+      "pages": [
+        "playlists"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/playlists",
+      "state": "Playlists; the first playlist's cards showing the Move pill.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".personal-media-list-row"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/playlists.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1216,
+          "height": 124
+        },
+        "light": {
+          "width": 1216,
+          "height": 124
+        },
+        "modern-dark": {
+          "width": 1216,
+          "height": 124
+        },
+        "modern-light": {
+          "width": 1216,
+          "height": 124
+        }
+      }
+    },
+    "manual-watch-review": {
+      "pages": [
+        "manual-watch-review"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/sync-activity",
+      "state": "Manual Watch review open with a provider-marked episode waiting for a decision. Needs a pending review item; decide nothing.",
+      "framing": {
+        "type": "viewport"
+      },
+      "live": "manual-review-item",
+      "automation": "auto",
+      "sources": [
+        "public/modules/manual-watch-review.js",
+        "public/modules/sync.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 2560,
+          "height": 1290
+        },
+        "light": {
+          "width": 2560,
+          "height": 1290
+        },
+        "modern-dark": {
+          "width": 2560,
+          "height": 1290
+        },
+        "modern-light": {
+          "width": 2560,
+          "height": 1290
+        }
+      }
+    },
+    "sync-activity-focused": {
+      "pages": [
+        "concepts",
+        "integrations",
+        "operations",
+        "safe-daily-workflows",
+        "settings/sync",
+        "sync-tools",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/sync-activity",
+      "state": "Sync Activity at scroll top, rows loaded with sources, destinations and outcomes.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#sync-activity-view"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/sync-activity.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 682
+        },
+        "light": {
+          "width": 1231,
+          "height": 682
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 682
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 682
+        }
+      }
+    },
+    "sync-activity-issues-focused": {
+      "pages": [
+        "settings/sync",
+        "sync-tools"
+      ],
+      "variants": [
+        "dark",
+        "light"
+      ],
+      "route": "/sync-activity",
+      "state": "Classic only. Sync Activity with the Issues only filter on; current issues and failed groups visible.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".sync-activity-issues"
+        },
+        "padding": 0
+      },
+      "live": "sync-issue",
+      "automation": "auto",
+      "sources": [
+        "public/modules/sync-activity.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1260,
+          "height": 144
+        },
+        "light": {
+          "width": 1260,
+          "height": 144
+        }
+      }
+    },
+    "movie-detail-page": {
+      "pages": [
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail for A Quiet Place, every section loaded (cast, images, trailers, collection, recommendations).",
+      "framing": {
+        "type": "scroll-compose",
+        "container": ".page-shell",
+        "frames": 3
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 1669
+        },
+        "light": {
+          "width": 1440,
+          "height": 1669
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 1669
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 1669
+        }
+      }
+    },
+    "media-header": {
+      "pages": [
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail at scroll top; header with poster, title, synopsis, facts, ratings and availability.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".immersive-header"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 315
+        },
+        "light": {
+          "width": 1231,
+          "height": 315
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 315
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 315
+        }
+      }
+    },
+    "media-detail-overview": {
+      "pages": [
+        "media-details",
+        "movies",
+        "movies/media-page",
+        "watchlist"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the action bar with Hide Spoilers, Force Sync, watch state, artwork, match, merge, delete and info controls.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".immersive-header"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 315
+        },
+        "light": {
+          "width": 1231,
+          "height": 315
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 315
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 315
+        }
+      }
+    },
+    "media-action-row": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "playlists",
+        "ratings",
+        "tv-shows/media-page",
+        "watchlist"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the watchlist, custom-list, rating and watch-state action row.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#mediaDetailActions",
+          "padding": 20
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/watch-action.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 308,
+          "height": 63
+        },
+        "light": {
+          "width": 308,
+          "height": 63
+        },
+        "modern-dark": {
+          "width": 308,
+          "height": 63
+        },
+        "modern-light": {
+          "width": 308,
+          "height": 63
+        }
+      }
+    },
+    "media-watch-status": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the Watch Status section with watched date and completion percentage.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Watch Status",
+          "padding": 12
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/media-info-summary.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 604,
+          "height": 68
+        },
+        "light": {
+          "width": 604,
+          "height": 68
+        },
+        "modern-dark": {
+          "width": 604,
+          "height": 68
+        },
+        "modern-light": {
+          "width": 604,
+          "height": 68
+        }
+      }
+    },
+    "media-rating-focus": {
+      "pages": [
+        "movies/media-page",
+        "ratings"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; media facts with a personal rating beside provider ratings.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".media-facts-group--ratings",
+          "padding": 16
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 411,
+          "height": 69
+        },
+        "light": {
+          "width": 411,
+          "height": 69
+        },
+        "modern-dark": {
+          "width": 411,
+          "height": 68
+        },
+        "modern-light": {
+          "width": 411,
+          "height": 68
+        }
+      }
+    },
+    "media-cast-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the Cast section scrolled into view.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Cast"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/cast-disclosure.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 188
+        },
+        "light": {
+          "width": 1231,
+          "height": 188
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 188
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 188
+        }
+      }
+    },
+    "media-images-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the Images gallery.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Images"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 145
+        },
+        "light": {
+          "width": 1231,
+          "height": 145
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 145
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 145
+        }
+      }
+    },
+    "media-trailers-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the Trailers and Clips section.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".trailers-section"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 260
+        },
+        "light": {
+          "width": 1231,
+          "height": 260
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 260
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 260
+        }
+      }
+    },
+    "media-collections-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the collection row.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Collection"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 234
+        },
+        "light": {
+          "width": 1231,
+          "height": 234
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 234
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 234
+        }
+      }
+    },
+    "media-recommendations-focus": {
+      "pages": [
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the recommendations row.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Recommended"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 194
+        },
+        "light": {
+          "width": 1231,
+          "height": 194
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 194
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 194
+        }
+      }
+    },
+    "media-collections-recommendations-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the collection row and the recommended movie row together.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Collection"
+        },
+        "padding": 0,
+        "through": {
+          "heading": "Recommended"
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 385
+        },
+        "light": {
+          "width": 1231,
+          "height": 385
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 385
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 385
+        }
+      }
+    },
+    "media-sections": {
+      "pages": [
+        "movies/media-page",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Classic only. Movie detail; the section area as used by the media-page guides.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".cast-section"
+        },
+        "through": {
+          "css": ".trailers-section"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 612
+        },
+        "light": {
+          "width": 1231,
+          "height": 612
+        }
+      }
+    },
+    "media-sections-overview": {
+      "pages": [
+        "media-details",
+        "movies/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail with the Appearance menu open, showing independent section switches. Change nothing.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/appearance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      },
+      "steps": [
+        {
+          "click": "#sidebarAppearanceButton"
+        },
+        {
+          "wait": 600
+        }
+      ]
+    },
+    "media-appearance": {
+      "pages": [
+        "appearance",
+        "media-details",
+        "movies/media-page",
+        "troubleshooting",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail with the Appearance menu open showing the section switches. Change nothing.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/appearance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      },
+      "steps": [
+        {
+          "click": "#sidebarAppearanceButton"
+        },
+        {
+          "waitFor": "#sidebarAppearanceMediaGroup"
+        },
+        {
+          "wait": 600
+        }
+      ]
+    },
+    "media-tools-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; the Options menu open (Mark unwatched, Force Sync, Info, Edit Images, Fix Match, Delete). Press nothing in it.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".actions-tools-dropdown[open] .actions-tools-panel",
+          "padding": 8
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 142,
+          "height": 174
+        },
+        "light": {
+          "width": 142,
+          "height": 174
+        },
+        "modern-dark": {
+          "width": 142,
+          "height": 174
+        },
+        "modern-light": {
+          "width": 142,
+          "height": 174
+        }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        }
+      ]
+    },
+    "media-info-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; Options, Info: the Info panel open with watch status, latest watched date, sync results and audit details.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".media-info-overlay"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/media-info-summary.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1199,
+          "height": 581
+        },
+        "light": {
+          "width": 1199,
+          "height": 581
+        },
+        "modern-dark": {
+          "width": 1199,
+          "height": 581
+        },
+        "modern-light": {
+          "width": 1199,
+          "height": 581
+        }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Info"
+        },
+        {
+          "wait": 1500
+        }
+      ]
+    },
+    "media-edit-images-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; Edit Images open with the Poster, Logo, Background and YouTube Show tabs. Choose nothing.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".edit-image-dialog"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/edit-dialogs.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1411,
+          "height": 648
+        },
+        "light": {
+          "width": 1411,
+          "height": 648
+        },
+        "modern-dark": {
+          "width": 1411,
+          "height": 648
+        },
+        "modern-light": {
+          "width": 1411,
+          "height": 648
+        }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Edit Images"
+        },
+        {
+          "wait": 1500
+        }
+      ]
+    },
+    "fix-match": {
+      "pages": [
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Movie detail; Fix Match open with a search across all sources, result cards and the YouTube fallback. Apply nothing.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/edit-dialogs.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "fix-match-focus": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/movie/a-quiet-place",
+      "state": "Same state as fix-match, cropped to the dialog.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".fix-match-dialog"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-movie.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/edit-dialogs.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1320,
+          "height": 642
+        },
+        "light": {
+          "width": 1320,
+          "height": 642
+        },
+        "modern-dark": {
+          "width": 1320,
+          "height": 642
+        },
+        "modern-light": {
+          "width": 1320,
+          "height": 642
+        }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Fix Match"
+        },
+        {
+          "wait": 1500
+        }
+      ]
+    },
+    "tv-detail-page": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail for Lioness, every section loaded (header, progress, seasons, cast, images, trailers).",
+      "framing": {
+        "type": "scroll-compose",
+        "container": ".page-shell",
+        "frames": 3
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 1646
+        },
+        "light": {
+          "width": 1440,
+          "height": 1646
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 1646
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 1646
+        }
+      }
+    },
+    "tv-sections-overview": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail; the Cast, Images and Trailers and Clips sections.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Cast"
+        },
+        "through": {
+          "css": ".trailers-section"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 612
+        },
+        "light": {
+          "width": 1231,
+          "height": 612
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 612
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 612
+        }
+      }
+    },
+    "tv-cast-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail; the Cast section.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Cast"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/cast-disclosure.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 200
+        },
+        "light": {
+          "width": 1231,
+          "height": 200
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 200
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 200
+        }
+      }
+    },
+    "tv-images-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail; the Images gallery.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Images"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 145
+        },
+        "light": {
+          "width": 1231,
+          "height": 145
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 145
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 145
+        }
+      }
+    },
+    "tv-trailers-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail; Trailers and Clips with four populated video cards.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".trailers-section"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 260
+        },
+        "light": {
+          "width": 1231,
+          "height": 260
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 260
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 260
+        }
+      }
+    },
+    "tv-related-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness",
+      "state": "Show detail; a populated Related Shows rail.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "heading": "Related Shows"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 200
+        },
+        "light": {
+          "width": 1231,
+          "height": 200
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 200
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 200
+        }
+      }
+    },
+    "tv-seasons-episodes-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/lioness/season/3",
+      "state": "Show detail with the Season 3 accordion open: episode cards, watched state, release dates and episode actions.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".season-accordion.is-open"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 683
+        },
+        "light": {
+          "width": 1231,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 683
+        }
+      }
+    },
+    "tv-media-info-focus": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/the-war-between-the-land-and-the-sea",
+      "state": "The War Between the Land and the Sea detail; Options, Info: the Info panel open with watched episodes, destination results and audit events.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".media-info-overlay"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/media-info-summary.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1199,
+          "height": 581
+        },
+        "light": {
+          "width": 1199,
+          "height": 581
+        },
+        "modern-dark": {
+          "width": 1199,
+          "height": 581
+        },
+        "modern-light": {
+          "width": 1199,
+          "height": 581
+        }
+      },
+      "steps": [
+        {
+          "click": ".actions-tools-trigger"
+        },
+        {
+          "wait": 600
+        },
+        {
+          "click": ".actions-tools-panel >> text=Info"
+        },
+        {
+          "wait": 1500
+        }
+      ]
+    },
+    "tv-spoilers-off": {
+      "pages": [
+        "media-details",
+        "tv-shows",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/bridgerton/season/3",
+      "state": "Bridgerton detail with Season 3 expanded (5 of 8 episodes watched) and Hide Spoilers unchecked.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".season-accordion.is-open"
+        },
+        "padding": 0
+      },
+      "steps": [
+        {
+          "setChecked": {
+            "css": "[data-hide-episode-spoilers]",
+            "value": false
+          }
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "restoreAfter": "Hide Spoilers setting",
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/images.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 622
+        },
+        "light": {
+          "width": 1231,
+          "height": 622
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 622
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 622
+        }
+      }
+    },
+    "tv-spoilers-on": {
+      "pages": [
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/tvshow/bridgerton/season/3",
+      "state": "Bridgerton detail with Season 3 expanded (5 of 8 episodes watched) and Hide Spoilers checked, hiding unwatched artwork and synopses.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": ".season-accordion.is-open"
+        },
+        "padding": 0
+      },
+      "steps": [
+        {
+          "setChecked": {
+            "css": "[data-hide-episode-spoilers]",
+            "value": true
+          }
+        },
+        {
+          "wait": 800
+        }
+      ],
+      "restoreAfter": "Hide Spoilers setting",
+      "automation": "auto",
+      "sources": [
+        "public/modules/media-detail.js",
+        "public/modules/media-detail-events.js",
+        "public/modules/media-detail-show.js",
+        "public/modules/media-detail-shared.js",
+        "public/modules/images.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 622
+        },
+        "light": {
+          "width": 1231,
+          "height": 622
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 622
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 622
+        }
+      }
+    },
+    "settings-index-focused": {
+      "pages": [
+        "getting-started",
+        "navigation",
+        "operations",
+        "settings",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings",
+      "state": "Settings landing list.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-index",
+        "target": {
+          "css": "#settingsOverview"
+        },
+        "legacyRect": {
+          "left": 160,
+          "top": 0,
+          "width": 1440,
+          "height": 759
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 682
+        },
+        "light": {
+          "width": 1231,
+          "height": 682
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 682
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 682
+        }
+      }
+    },
+    "settings-about": {
+      "pages": [
+        "settings/about"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/about",
+      "state": "About page with the installed version and project links.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "#about-view"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/changelog-channels.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 508
+        },
+        "light": {
+          "width": 1231,
+          "height": 508
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 508
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 508
+        }
+      }
+    },
+    "settings-general-account": {
+      "pages": [
+        "operations",
+        "settings/general"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/general",
+      "state": "Settings general page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-general",
+        "target": {
+          "subPanel": "general-login"
+        },
+        "legacyRect": {
+          "top": 65,
+          "height": 270
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/auth.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 196
+        },
+        "light": {
+          "width": 1231,
+          "height": 196
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 196
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 196
+        }
+      }
+    },
+    "settings-general-integrity": {
+      "pages": [
+        "settings/general",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/general",
+      "state": "Settings general page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-general",
+        "target": {
+          "subPanel": "tools-diagnostics"
+        },
+        "legacyRect": {
+          "top": 315,
+          "height": 245
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-health.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 165
+        },
+        "light": {
+          "width": 1231,
+          "height": 165
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 165
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 165
+        }
+      }
+    },
+    "settings-general-storage-cache": {
+      "pages": [
+        "settings/general"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/general",
+      "state": "Settings general page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-general",
+        "target": {
+          "subPanel": "cache"
+        },
+        "legacyRect": {
+          "top": 550,
+          "height": 170
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 107
+        },
+        "light": {
+          "width": 1231,
+          "height": 107
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 107
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 107
+        }
+      }
+    },
+    "settings-media-servers-focused": {
+      "pages": [
+        "integrations"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/media-servers",
+      "state": "Media servers page with the Plex, Emby and Jellyfin cards.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-media-servers",
+        "target": {
+          "css": "[data-settings-panel='apps']"
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 353
+        },
+        "light": {
+          "width": 1231,
+          "height": 353
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 353
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 353
+        }
+      }
+    },
+    "settings-media-servers-plex": {
+      "pages": [
+        "integrations",
+        "settings/media-servers"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/media-servers",
+      "state": "Settings media-servers page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='apps']:not(.hidden)"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 353
+        },
+        "light": {
+          "width": 1231,
+          "height": 353
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 353
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 353
+        }
+      }
+    },
+    "settings-media-servers-emby": {
+      "pages": [
+        "integrations",
+        "settings/media-servers"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/media-servers",
+      "state": "Settings media-servers page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-media-servers",
+        "target": {
+          "subPanel": "media-servers-emby"
+        },
+        "legacyRect": {
+          "top": 405,
+          "height": 155
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "light": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 111
+        }
+      }
+    },
+    "settings-media-servers-jellyfin": {
+      "pages": [
+        "integrations",
+        "settings/media-servers"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/media-servers",
+      "state": "Settings media-servers page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-media-servers",
+        "target": {
+          "subPanel": "media-servers-jellyfin"
+        },
+        "legacyRect": {
+          "top": 595,
+          "height": 165
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "light": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 111
+        }
+      }
+    },
+    "settings-webhooks-setup": {
+      "pages": [
+        "concepts",
+        "integrations",
+        "settings/webhooks",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/webhooks",
+      "state": "Settings webhooks page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='general']:not(.hidden)"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 346
+        },
+        "light": {
+          "width": 1231,
+          "height": 346
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 346
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 346
+        }
+      }
+    },
+    "settings-webhooks-secret": {
+      "pages": [
+        "settings/webhooks",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/webhooks",
+      "state": "Settings webhooks page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-webhooks",
+        "target": {
+          "subPanel": "general-endpoints"
+        },
+        "legacyRect": {
+          "top": 790,
+          "height": 170
+        }
+      },
+      "mayShowKey": true,
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 107
+        },
+        "light": {
+          "width": 1231,
+          "height": 107
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 107
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 107
+        }
+      }
+    },
+    "settings-connections-trakt": {
+      "pages": [
+        "integrations",
+        "operations",
+        "settings/connections",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/connections",
+      "state": "Settings connections page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-connections",
+        "target": {
+          "subPanel": "tools-migration"
+        },
+        "legacyRect": null
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tracker-settings.js",
+        "public/modules/tools.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 233
+        },
+        "light": {
+          "width": 1231,
+          "height": 233
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 233
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 233
+        }
+      }
+    },
+    "settings-connections-tautulli": {
+      "pages": [
+        "integrations",
+        "settings/connections"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/connections",
+      "state": "Settings connections page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-connections",
+        "target": {
+          "subPanel": "tools-tautulli"
+        },
+        "legacyRect": null
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js",
+        "public/modules/tautulli-import.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "light": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 111
+        }
+      }
+    },
+    "settings-connections-seerr": {
+      "pages": [
+        "integrations",
+        "settings/connections"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/connections",
+      "state": "Settings connections page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-connections",
+        "target": {
+          "subPanel": "seerr"
+        },
+        "legacyRect": null
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "light": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 111
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 111
+        }
+      }
+    },
+    "settings-metadata-providers": {
+      "pages": [
+        "integrations",
+        "settings/metadata",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/metadata",
+      "state": "Settings metadata page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-metadata",
+        "target": {
+          "subPanel": "metadata-providers"
+        },
+        "legacyRect": {
+          "top": 65,
+          "height": 480
+        }
+      },
+      "mayShowKey": true,
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/settings-services.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 363
+        },
+        "light": {
+          "width": 1231,
+          "height": 363
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 363
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 363
+        }
+      }
+    },
+    "settings-metadata-refresh": {
+      "pages": [
+        "settings/metadata",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/metadata",
+      "state": "Settings metadata page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-metadata",
+        "target": {
+          "subPanel": "refresh-metadata"
+        },
+        "legacyRect": {
+          "top": 540,
+          "height": 240
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "light": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 182
+        }
+      }
+    },
+    "settings-metadata-refresh-tmdb": {
+      "pages": [
+        "settings/metadata"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/metadata",
+      "hash": "refresh-tmdb-metadata",
+      "state": "Settings metadata page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-metadata",
+        "target": {
+          "subPanel": "refresh-metadata"
+        },
+        "legacyRect": {
+          "top": 540,
+          "height": 240
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "light": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 182
+        }
+      }
+    },
+    "settings-metadata-refresh-tvdb": {
+      "pages": [
+        "settings/metadata"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/metadata",
+      "hash": "refresh-tvdb-metadata",
+      "state": "Settings metadata page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-metadata",
+        "target": {
+          "subPanel": "refresh-metadata"
+        },
+        "legacyRect": {
+          "top": 540,
+          "height": 240
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "light": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 182
+        }
+      }
+    },
+    "settings-sync-overview-focused": {
+      "pages": [
+        "concepts"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/sync",
+      "state": "Sync page at scroll top.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-sync",
+        "target": {
+          "css": "[data-settings-panel='sync']"
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/sync.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "light": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 629
+        }
+      }
+    },
+    "settings-sync-tuning": {
+      "pages": [
+        "concepts",
+        "settings/sync",
+        "sync-tools",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/sync",
+      "state": "Settings sync page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-sync",
+        "target": {
+          "subPanel": "sync-tuning"
+        },
+        "legacyRect": {
+          "top": 65,
+          "height": 125
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/plex-history-policy.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 548
+        },
+        "light": {
+          "width": 1231,
+          "height": 548
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 548
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 548
+        }
+      }
+    },
+    "settings-sync-tools": {
+      "pages": [
+        "media-details",
+        "movies/media-page",
+        "settings/sync",
+        "sync-tools",
+        "tv-shows/media-page"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/sync",
+      "state": "Settings sync page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-sync",
+        "target": {
+          "subPanel": "sync-tools"
+        },
+        "legacyRect": {
+          "top": 185,
+          "height": 380
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js",
+        "public/modules/sync-preview.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 283
+        },
+        "light": {
+          "width": 1231,
+          "height": 283
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 283
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 283
+        }
+      }
+    },
+    "settings-backup-local": {
+      "pages": [
+        "operations",
+        "settings/backup"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/backup",
+      "state": "Settings backup page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-backup",
+        "target": {
+          "css": "#backup-local"
+        },
+        "legacyRect": {
+          "top": 65,
+          "height": 235
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-backups.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 733,
+          "height": 174
+        },
+        "light": {
+          "width": 733,
+          "height": 174
+        },
+        "modern-dark": {
+          "width": 733,
+          "height": 174
+        },
+        "modern-light": {
+          "width": 733,
+          "height": 174
+        }
+      }
+    },
+    "settings-backup-remote": {
+      "pages": [
+        "operations",
+        "settings/backup"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/backup",
+      "state": "Settings backup page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-backup",
+        "target": {
+          "css": "#backup-remote"
+        },
+        "legacyRect": {
+          "top": 300,
+          "height": 320
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-backups.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 733,
+          "height": 237
+        },
+        "light": {
+          "width": 733,
+          "height": 237
+        },
+        "modern-dark": {
+          "width": 733,
+          "height": 237
+        },
+        "modern-light": {
+          "width": 733,
+          "height": 237
+        }
+      }
+    },
+    "settings-restore-focused": {
+      "pages": [
+        "settings/restore"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/restore",
+      "state": "Restore page at scroll top with local watch-history and full-backup sources.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='backups']:not(.hidden)"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-backups.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 345
+        },
+        "light": {
+          "width": 1231,
+          "height": 345
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 345
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 345
+        }
+      }
+    },
+    "settings-restore-merge-replace": {
+      "pages": [
+        "settings/restore"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/restore",
+      "state": "Settings restore page at scroll top with Local Plembfin Restore expanded, showing the passphrase field and the stored full backups. Change nothing.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='backups']:not(.hidden)"
+        },
+        "padding": 0
+      },
+      "steps": [
+        {
+          "click": "#local-plembfin-restore > summary"
+        },
+        {
+          "waitFor": "#local-plembfin-restore[open]"
+        },
+        {
+          "wait": 1500
+        }
+      ],
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-backups.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 530
+        },
+        "light": {
+          "width": 1231,
+          "height": 530
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 530
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 530
+        }
+      }
+    },
+    "settings-restore-watch-history": {
+      "pages": [
+        "operations",
+        "settings/restore",
+        "troubleshooting"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/restore",
+      "state": "Restore page with the Local Watch History Restore accordion (details#local-watch-history-restore) open, so the backup rows and the Merge or Replace choice show. Change and restore nothing.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='backups']:not(.hidden)"
+        },
+        "padding": 0
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-backups.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "light": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 629
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 629
+        }
+      },
+      "steps": [
+        {
+          "click": "#local-watch-history-restore summary"
+        },
+        {
+          "wait": 800
+        }
+      ]
+    },
+    "settings-tools-database-repairs": {
+      "pages": [
+        "settings/tools"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/tools",
+      "state": "Settings tools page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-tools",
+        "target": {
+          "subPanel": "tools-repairs"
+        },
+        "legacyRect": {
+          "top": 65,
+          "height": 450
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js",
+        "public/modules/tools-duplicates.js",
+        "public/modules/tools-playstate-aliases.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 389
+        },
+        "light": {
+          "width": 1231,
+          "height": 389
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 389
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 389
+        }
+      }
+    },
+    "settings-tools-library-rebuilds": {
+      "pages": [
+        "settings/tools"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/tools",
+      "state": "Settings tools page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-tools",
+        "target": {
+          "subPanel": "tools-sync"
+        },
+        "legacyRect": {
+          "top": 520,
+          "height": 235
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-maintenance.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "light": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 182
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 182
+        }
+      }
+    },
+    "settings-tools-wipe-data": {
+      "pages": [
+        "settings/tools"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/tools",
+      "state": "Settings tools page at scroll top; section panels loaded.",
+      "framing": {
+        "type": "crop",
+        "source": "settings-tools",
+        "target": {
+          "subPanel": "tools-wipe-data"
+        },
+        "legacyRect": {
+          "top": 750,
+          "height": 430
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/tools-wipe-data.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 418
+        },
+        "light": {
+          "width": 1231,
+          "height": 418
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 418
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 418
+        }
+      }
+    },
+    "settings-tools-guided-setup": {
+      "pages": [
+        "getting-started"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/tools",
+      "state": "Tools page; the Guided Setup control showing the resumable onboarding flow.",
+      "framing": {
+        "type": "viewport"
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/onboarding.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "light": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-dark": {
+          "width": 1440,
+          "height": 683
+        },
+        "modern-light": {
+          "width": 1440,
+          "height": 683
+        }
+      }
+    },
+    "settings-logs-controls": {
+      "pages": [
+        "settings/logs",
+        "sync-tools"
+      ],
+      "variants": [
+        "dark",
+        "light",
+        "modern-dark",
+        "modern-light"
+      ],
+      "route": "/settings/logs",
+      "state": "Logs page with its controls.",
+      "framing": {
+        "type": "element",
+        "target": {
+          "css": "[data-settings-panel='logs']"
+        }
+      },
+      "automation": "auto",
+      "sources": [
+        "public/modules/settings-shell.js",
+        "public/modules/settings-ui.js",
+        "public/modules/settings-events.js",
+        "public/modules/logs.js"
+      ],
+      "sizes": {
+        "dark": {
+          "width": 1231,
+          "height": 434
+        },
+        "light": {
+          "width": 1231,
+          "height": 434
+        },
+        "modern-dark": {
+          "width": 1231,
+          "height": 434
+        },
+        "modern-light": {
+          "width": 1231,
+          "height": 434
+        }
+      }
+    }
+  },
+  "cropSources": {
+    "settings-index": {
+      "route": "/settings",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 759
+        },
+        "light": {
+          "width": 1600,
+          "height": 759
+        }
+      }
+    },
+    "settings-general": {
+      "route": "/settings/general",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-media-servers": {
+      "route": "/settings/media-servers",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-webhooks": {
+      "route": "/settings/webhooks",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-connections": {
+      "route": "/settings/connections",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-metadata": {
+      "route": "/settings/metadata",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-sync": {
+      "route": "/settings/sync",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-backup": {
+      "route": "/settings/backup",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-restore": {
+      "route": "/settings/restore",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    },
+    "settings-tools": {
+      "route": "/settings/tools",
+      "framing": {
+        "type": "full-page"
+      },
+      "sizes": {
+        "dark": {
+          "width": 1600,
+          "height": 1189
+        },
+        "light": {
+          "width": 1600,
+          "height": 1189
+        }
+      }
+    }
+  },
+  "retired": [
+    "dashboard-home",
+    "media-actions",
+    "media-actions-focus",
+    "media-edit-images",
+    "media-info",
+    "media-tools-menu",
+    "sync-activity",
+    "settings-sync-history",
+    "settings-sync-issues"
+  ]
+}

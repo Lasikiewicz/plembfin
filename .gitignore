@@ -8,6 +8,7 @@ scratch/
 
 # Local planning artifacts
 plan/
+todo.md
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
@@ -22,7 +23,9 @@ backups/
 
 # Local editor/agent tooling and instructions.
 CLAUDE.md
+AGENTS.md
 .claude/
+website/.impeccable.md
 .reasonix/
 .Jules/
 reasonix.toml

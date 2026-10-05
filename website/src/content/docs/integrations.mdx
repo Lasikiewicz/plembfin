@@ -3,7 +3,7 @@ title: Integrations
 description: Connect media servers, Trakt, Tautulli, Seerr, and metadata providers with the right expectations.
 category: Connect services
 order: 4
-sourceVersion: "1.3.0"
+sourceVersion: "1.3.1"
 sourcePaths:
   - docs/plex.md
   - docs/emby.md
@@ -191,6 +191,9 @@ Jellyfin still participates in watched-state and optional personal-rating sync, 
 a Watchlist provider. Explicit watched and unwatched events remain authoritative, with scheduled
 polling used as a conservative backstop when webhook delivery is unavailable.
 
+Plembfin keeps the native item ID from a Jellyfin playback event available when it sends a
+watched-state update back to that server.
+
 ## Trakt
 
 <ScreenshotFigure
@@ -218,6 +221,10 @@ When Plembfin is the Trakt bridge, disable Emby and Jellyfin Trakt plugins and t
 scheduled Trakt tasks.
 
 Multiple writers can reapply older state after Plembfin has already corrected it.
+
+Temporary Trakt write failures are retried. Before a retry resends a watched play, Plembfin
+checks Trakt history around the recorded play time; if Trakt already has that play, it treats
+the destination as delivered instead of creating a duplicate.
 
 See [Trakt changes that keep coming back](/docs/troubleshooting/#trakt-changes-keep-coming-back).
 
