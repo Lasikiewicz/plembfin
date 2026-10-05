@@ -1,19 +1,7 @@
 {
-  "version": "1.3.1.1.2",
-  "build": 2,
-  "resetCommit": "92ad9eceb0b3c917c4e5236011f1afe2b62db42f",
-  "updatedAt": "2026-10-05T23:10:03.211Z",
-  "entries": [
-    {
-      "build": 2,
-      "date": "2026-10-05T23:10:03.211Z",
-      "commit": "27deaa66dcd8b46f77b7e15e9bc4a44d4ae3c798",
-      "message": "Fix - Refresh dashboard data and avoid Seerr port conflict",
-      "author": "Lasikiewicz",
-      "details": [
-        "Refresh watch history and Up Next when the dashboard opens, showing loading or unavailable feedback until fresh server data arrives.",
-        "Use port 5056 as Plembfin's default so it can run alongside Seerr on 5055; Docker still listens internally on 5055."
-      ]
-    }
-  ]
+  "version": "1.3.1.2.0",
+  "build": 0,
+  "resetCommit": "185c523623f6c1dda2b2bbd226e242f22a8c8111",
+  "updatedAt": "2026-10-05T23:12:17.325Z",
+  "entries": []
 }
